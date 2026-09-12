@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#17263b">
+  <title>Our Little Island</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <main id="world" aria-label="A walkable celebration island"></main>
+
+  <section id="welcome" class="overlay">
+    <div class="welcome-card">
+      <div class="eyebrow">A LITTLE WORLD BETWEEN US</div>
+      <h1>Our Little Island</h1>
+      <p class="subtitle">A quiet place made for you, where distance feels a little smaller.</p>
+      <div class="tiny-rule"></div>
+      <p class="dedication">Walk slowly. Follow the lights. There are <b>ten tiny gifts</b> hiding around the island—and a sunset waiting by the sea.</p>
+      <div class="loading" aria-label="Loading"><span id="load-bar"></span></div>
+      <div id="load-copy">growing wildflowers…</div>
+      <button id="enter" type="button" disabled>Enter our island</button>
+      <p class="sound-note">Headphones make the island feel warmer.</p>
+    </div>
+  </section>
+
+  <header id="topbar" class="hidden-ui">
+    <div class="brand">
+      <span class="brand-star">✦</span>
+      <div><b>OUR LITTLE ISLAND</b><small>made with love, across the miles</small></div>
+    </div>
+    <div class="treasure-card"><span>GIFTS FOUND</span><b id="gift-count">0 / 10</b></div>
+  </header>
+
+  <aside id="moods" class="hidden-ui" aria-label="Time of day">
+    <span>SKY</span>
+    <button type="button" data-mood="day">Day</button>
+    <button type="button" data-mood="sunset" class="active">Sunset</button>
+    <button type="button" data-mood="night">Night</button>
+  </aside>
+
+  <div id="reticle" class="hidden-ui" aria-hidden="true"></div>
+  <div id="interaction" class="hidden-ui" aria-live="polite"></div>
+  <div id="toast" aria-live="polite"></div>
+
+  <footer id="controls" class="hidden-ui">
+    <div><b>WASD</b> walk <i>·</i> <b>Mouse</b> look <i>·</i> <b>Shift</b> wander faster <i>·</i> <b>E</b> interact</div>
+    <div><b>/</b> command <i>·</i> <b>F</b> fireworks <i>·</i> <b>M</b> sound <i>·</i> <b>Esc</b> release mouse</div>
+  </footer>
+
+  <button id="command-button" class="round-button hidden-ui" type="button" aria-label="Open commands">/</button>
+  <button id="sound-button" class="round-button hidden-ui" type="button" aria-label="Toggle sound">♪</button>
+
+  <form id="command" autocomplete="off">
+    <label for="command-input">ISLAND COMMAND</label>
+    <div><span>/</span><input id="command-input" placeholder="try: fireworks, night, sunset, day" spellcheck="false"></div>
+    <small>fireworks · day · sunset · night · gifts · help</small>
+  </form>
+
+  <section id="gift-note" class="note-modal" aria-modal="true" role="dialog">
+    <div class="note-paper">
+      <button class="close-note" type="button" aria-label="Close">×</button>
+      <span class="note-number"></span>
+      <div class="note-icon"></div>
+      <h2></h2>
+      <p></p>
+      <button class="keep-walking" type="button">Keep exploring</button>
+    </div>
+  </section>
+
+  <section id="finale" class="note-modal" aria-modal="true" role="dialog">
+    <div class="finale-card">
+      <div class="finale-stars">✦ &nbsp; ✧ &nbsp; ✦</div>
+      <span>YOU FOUND EVERY LITTLE THING</span>
+      <h2>But you are still<br>my favorite gift.</h2>
+      <p>Until we can celebrate in the same place, here is a tiny world where the ocean is calm, the cake never runs out, and I am never very far away.</p>
+      <button id="finale-fireworks" type="button">Light up the sky</button>
+      <button id="finale-close" type="button" class="text-button">Stay on the island</button>
+    </div>
+  </section>
+
+  <div id="error"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,1789 @@
+import * as THREE from 'three';
+import { referenceTreeGeometry } from './reference-trees.js';
+import { GL_HASH, GL_NOISE } from './reference-noise.js';
+import { buildCelebration } from './celebration.js';
+import { cakeTableMaterials, decorateCake } from './cake-details.js';
+import { buildStars, buildPaintedClouds } from './painted-sky.js';
+import { buildFireworks } from './fireworks.js';
+import { buildMeadowLife } from './meadow-life.js';
+
+/*
+  OUR LITTLE ISLAND
+  -----------------
+  Kept deliberately asset-free: every shape, color, movement and sound is made
+  here. The camera lives inside playerRig so a third-person character can later
+  be attached to the same rig without rewriting movement or interactions.
+*/
+
+const CONFIG = {
+  // Optional: add your names here. Leave blank to keep the universal wording.
+  herName: '',
+  fromName: '',
+  eyeHeight: 1.86,
+  walkSpeed: 5.0,
+  giftReach: 3.2,
+  startingMood: 'day',
+  gifts: [
+    { pos: [-31, -4], title: 'A pocket of sunshine', icon: '☀', color: 0xf2bd6b,
+      note: 'For every morning when I wish I could be there beside you. Keep this little bit of warmth for me.' },
+    { pos: [25, 21], title: 'One very long hug', icon: '♡', color: 0xe997a0,
+      note: 'It has been folded very carefully so it can travel any distance. Open whenever you need it.' },
+    { pos: [39, -12], title: 'A slow afternoon', icon: '☕', color: 0x9fc3ad,
+      note: 'No rushing, no clocks—just us talking about everything and nothing for as long as we like.' },
+    { pos: [-14, 35], title: 'A tiny adventure', icon: '✦', color: 0x84abc2,
+      note: 'A promise that we still have so many streets, skies, meals and silly detours to discover together.' },
+    { pos: [7, -34], title: 'Your favorite song', icon: '♪', color: 0xa995c8,
+      note: 'The one that makes an ordinary room feel like a place worth dancing in.' },
+    { pos: [-44, 17], title: 'A wish at sunset', icon: '☆', color: 0xed9f78,
+      note: 'I saved the prettiest horizon I could make. Sit on the bench and watch it with me.' },
+    { pos: [15, 38], title: 'Breakfast in bed', icon: '♨', color: 0xe8c687,
+      note: 'Redeemable on a wonderfully lazy morning—with extra snacks and absolutely no alarms.' },
+    { pos: [43, 17], title: 'A reason to smile', icon: '☺', color: 0xe9ad73,
+      note: 'You already give me so many. This is one small reason being sent back to you.' },
+    { pos: [-38, -24], title: 'A little envelope', icon: '✉', color: 0xd58f93,
+      note: 'Choose something you truly love. Until I can bring a present to your door, this one is on me.' },
+    { pos: [2, 6], title: 'The best one', icon: '♥', color: 0xed858e,
+      note: 'Not a thing at all—just the reminder that you are deeply loved, today and on every ordinary day too.' }
+  ]
+};
+
+// The source valley's actual color script, reused here rather than approximated.
+const P = {
+  skyZenith:'#4E80B4', skyUpper:'#7BA9CE', skyMid:'#A8CAE0', skyHorizon:'#E4DAC2',
+  skyHorizonSun:'#FBE2AE', sunGlow:'#FFF1CE', sunDisc:'#FFFAEA', skyAnti:'#C8D4D6',
+  haze:'#A9BCC7', mist:'#D6DDD4',
+  cloudTop:'#FFF8EC', cloudBody:'#F6E7D2', cloudTerm:'#E8CFB4', cloudUnder:'#B7ACC3',
+  gTip:'#C6D46B', gUpper:'#93B84E', gMid:'#6C9A47', gLow:'#436E4F', gBase:'#2B564F',
+  gTrans:'#E9EE7C', gSheen:'#EDF0C8', gDry:'#D9C079',
+  gPatchA:'#87AC4B', gPatchB:'#6C9A56', gPatchC:'#9DBC5E', gPatchD:'#5F8A5A',
+  tLit:'#93B159', tMid:'#6A924F', tShade:'#456A54', tHollow:'#33564F',
+  pathLit:'#C9AD80', pathShade:'#7A664D', rockLit:'#B4A794', rockShade:'#5F5C58',
+  wShallow:'#A5CBBE', wMid:'#5F9CA0', wDeep:'#2F5F6C', wSpark:'#FFFCEC',
+  cLit:'#84A94C', cMid:'#5A8148', cShade:'#2F5546', cDeep:'#254A44', cTrans:'#BED063',
+  cVarA:'#98AC43', cVarB:'#6E9440', cVarC:'#A9B65C', moss:'#6F8C4E', ambSky:'#9EC6E6', ambGround:'#AA9C64',
+  trunkLit:'#8E7659', trunkShade:'#4C3F34', shadowTint:'#5C6E9E'
+};
+
+const $ = (selector) => document.querySelector(selector);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (a, b, v) => {
+  const t = clamp((v - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+function mulberry32(seed) {
+  return () => {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rand = mulberry32(14021996);
+const tmp = new THREE.Vector3();
+const tmp2 = new THREE.Vector3();
+const dummy = new THREE.Object3D();
+
+function makeGlowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(.24, 'rgba(255,255,255,.92)');
+  gradient.addColorStop(.62, 'rgba(255,255,255,.24)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+const glowTexture = makeGlowTexture();
+
+window.addEventListener('error', (event) => {
+  const error = $('#error');
+  error.style.display = 'block';
+  error.textContent += `${event.error?.stack || event.message}\n`;
+});
+
+/* -------------------------------------------------------------------------- */
+/* Scene and light                                                            */
+/* -------------------------------------------------------------------------- */
+
+const world = $('#world');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.08, 700);
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+world.appendChild(renderer.domElement);
+
+scene.fog = new THREE.FogExp2(0x9caeb0, 0.0038);
+
+const hemi = new THREE.HemisphereLight(0xc2deff, 0x476855, 1.15);
+scene.add(hemi);
+const sunLight = new THREE.DirectionalLight(0xffd5a2, 3.2);
+sunLight.position.set(-85, 58, -72);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -75;
+sunLight.shadow.camera.right = 75;
+sunLight.shadow.camera.top = 75;
+sunLight.shadow.camera.bottom = -75;
+sunLight.shadow.camera.near = 10;
+sunLight.shadow.camera.far = 220;
+sunLight.shadow.bias = -0.00045;
+scene.add(sunLight);
+
+const MOODS = {
+  day: {
+    top: P.skyZenith, upper:P.skyUpper, mid:P.skyMid, horizon:P.skyHorizon,
+    horizonSun:P.skyHorizonSun, anti:P.skyAnti, glow:P.sunGlow, disc:P.sunDisc, fog:P.haze,
+    oceanA: P.wDeep, oceanB: P.wShallow, sun: 0xfff1d5, sunPower: 2.8,
+    hemi: 1.25, exposure: 0.94, stars: 0, ambient: 0.92, elevation: 0.48
+  },
+  sunset: {
+    top: 0x415f8c, upper:0x718eae, mid:0xb5b4bd, horizon:0xe9c4ad,
+    horizonSun:0xffd59f, anti:0xaebfc9, glow:0xffd09a, disc:0xffffe8, fog:0xb4a7a0,
+    oceanA: 0x294f66, oceanB: 0x8ab0aa, sun: 0xffc886, sunPower: 2.4,
+    hemi: 0.85, exposure: 0.94, stars: 0.03, ambient: 0.64, elevation: 0.105
+  },
+  night: {
+    top: 0x071326, upper:0x102440, mid:0x203a57, horizon:0x526477,
+    horizonSun:0x776d79, anti:0x405773, glow:0x8196ba, disc:0xd8e3ef, fog:0x172d42,
+    oceanA: 0x0c2639, oceanB: 0x34576a, sun: 0x9fb3d8, sunPower: 0.42,
+    hemi: 0.34, exposure: 0.82, stars: 1, ambient: 0.16, elevation: 0.38
+  }
+};
+let currentMood = CONFIG.startingMood;
+let moodTarget = { ...MOODS[currentMood] };
+const moodLive = { ...moodTarget };
+
+const skyUniforms = {
+  uTop: { value: new THREE.Color(moodLive.top) },
+  uUpper: { value: new THREE.Color(moodLive.upper) },
+  uMid: { value: new THREE.Color(moodLive.mid) },
+  uHorizon: { value: new THREE.Color(moodLive.horizon) },
+  uHorizonSun: { value: new THREE.Color(moodLive.horizonSun) },
+  uAnti: { value: new THREE.Color(moodLive.anti) },
+  uGlow: { value: new THREE.Color(moodLive.glow) },
+  uDisc: { value: new THREE.Color(moodLive.disc) },
+  uSunDir: { value: new THREE.Vector3(-0.58, moodLive.elevation, -0.82).normalize() }
+};
+// The sky's colour is a function so the ocean can reflect the actual sky rather
+// than tinting toward a single horizon colour.
+const skyGLSL = `
+  uniform vec3 uTop, uUpper, uMid, uHorizon, uHorizonSun, uAnti, uGlow, uDisc, uSunDir;
+  vec3 skyDome(vec3 d, float discGain){
+    float yy = max(d.y, -0.18);
+    vec3 col = mix(uHorizon, uMid, smoothstep(-0.02, 0.13, yy));
+    col = mix(col, uUpper, smoothstep(0.06, 0.24, yy));
+    col = mix(col, uTop, smoothstep(0.20, 0.68, yy));
+    vec2 dh = normalize(d.xz + vec2(0.00001));
+    vec2 sh = normalize(uSunDir.xz + vec2(0.00001));
+    // Clamped because az feeds pow() below. Directly opposite the sun the dot
+    // product rounds a hair past -1, az goes slightly negative, and
+    // pow(negative, 2.1) is NaN — a meridian of black specks up the sky.
+    float az = clamp(dot(dh, sh) * 0.5 + 0.5, 0.0, 1.0);
+    float horiz = pow(1.0 - clamp(yy, 0.0, 1.0), 3.4);
+    col = mix(col, uAnti, horiz * (1.0-az) * 0.62);
+    col = mix(col, uHorizonSun, horiz * pow(az, 2.1) * 0.68);
+    float ang = dot(d, uSunDir);
+    col = mix(col, uGlow, clamp(pow(max(ang,0.0),12.0)*0.40 + pow(max(ang,0.0),2.9)*0.06,0.0,0.9));
+    col = mix(col, uDisc * 1.42, smoothstep(0.9992, 0.99972, ang) * discGain);
+    col = mix(col, mix(uHorizon,uAnti,.35), (1.0-smoothstep(-0.16,0.0,d.y)));
+    return col;
+  }
+`;
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(400, 32, 20),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: skyUniforms,
+    vertexShader: `
+      varying vec3 vWorld;
+      void main(){
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vWorld = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `${skyGLSL}
+      varying vec3 vWorld;
+      void main(){ gl_FragColor = vec4(skyDome(normalize(vWorld), 1.0), 1.0); }
+    `
+  })
+);
+scene.add(sky);
+
+const stars=buildStars(scene);
+// Preserve the layout seed used by the original 900-star sampler.
+for(let i=0;i<1800;i++)rand();
+
+/* -------------------------------------------------------------------------- */
+/* Island, beach and ocean                                                    */
+/* -------------------------------------------------------------------------- */
+
+function islandHeight(x, z) {
+  const r = Math.sqrt((x / 67) ** 2 + (z / 54) ** 2);
+  const body = 1 - smoothstep(0.70, 1.035, r);
+  let height = -3.2 + body * 5.25;
+  // Long, low-frequency swells: wavelengths of 80-200 units so every crest is a
+  // slow rise and every trough a soft bowl. Squaring `body` keeps the shoreline
+  // calm while letting the interior roll.
+  const inland = body * body;
+  height += Math.sin(x * 0.047 + 0.6) * Math.cos(z * 0.038 - 0.3) * 1.35 * inland;
+  height += Math.sin(x * 0.029 + z * 0.043 + 1.7) * 0.95 * inland;
+  height += Math.cos(z * 0.067 - x * 0.024 - 0.9) * 0.55 * inland;
+  // Barely-there surface grain so the swells do not read as bare mathematics.
+  height += Math.sin(x * 0.105 + Math.cos(z * 0.083)) * 0.075 * body;
+  height += Math.exp(-((x - 19) ** 2 + (z + 5) ** 2) / 900) * 1.5;
+  height += Math.exp(-((x + 30) ** 2 + (z - 21) ** 2) / 760) * 0.8;
+  return height;
+}
+
+// Keep the birthday clearing level, blending gently back into the hills.
+// x, z, lantern height: shared by the fixtures and the grass lighting.
+const lanternSites=[[1,20,1.4],[27,28,1.4],[-28,-23,1.4],[-34,0,1.4]];
+const gardenHeight=islandHeight(-8,-10);
+function terrainHeight(x,z){
+  return lerp(gardenHeight,islandHeight(x,z),smoothstep(8.2,16.5,Math.hypot(x+8,z+10)));
+}
+
+function celebrationPathX(z){
+  const original=-2+Math.sin(z*.13)*3.5;
+  return lerp(-8,original,smoothstep(-10,2,z));
+}
+function celebrationPathWidth(z,side){
+  const taper=1-smoothstep(25,38,z);
+  const irregular=.13*Math.sin(z*.63+side*1.7)+.07*Math.sin(z*1.21-side*.8);
+  return (1.76+irregular)*lerp(.35,1,taper);
+}
+function meadowMask(x, z) {
+  const angle=Math.atan2(z+10,x+8);
+  const edge=5.5+.4*Math.sin(angle*3.0)+.25*Math.cos(angle*5.0);
+  const garden = smoothstep(edge,edge+1.7,Math.hypot(x+8,z+10));
+  const bench = smoothstep(2.6, 4.8, Math.hypot(x + 43, z + 3));
+  const pathX=celebrationPathX(z);
+  const side=x<pathX?-1:1;
+  const width=celebrationPathWidth(z,side);
+  // The entrance wears gradually into the meadow over several steps. The same
+  // continuous mask controls soil color and both grass layers, avoiding a cap.
+  const entrance=1-smoothstep(25,38,z);
+  const strength=smoothstep(-12,-7,z)*entrance*entrance;
+  const shoulder=.68+.10*Math.sin(z*.43+side);
+  const path=1-strength*(1-smoothstep(width,width+shoulder,Math.abs(x-pathX)));
+  let lamps=1;
+  for(const [lx,lz] of lanternSites)lamps*=smoothstep(.32,.92,Math.hypot(x-lx,z-lz));
+  return garden * bench * path * lamps;
+}
+
+// ~0.75 m cells. The meadow mask is baked into these vertex colors, so a coarser
+// grid turns every clearing edge and path into a visible checkerboard.
+const terrainGeo = new THREE.PlaneGeometry(190, 170, 256, 224);
+terrainGeo.rotateX(-Math.PI / 2);
+const terrainPos = terrainGeo.attributes.position;
+const terrainColors = [];
+const sand = new THREE.Color(P.pathLit);
+const grassA = new THREE.Color(P.gLow);
+const grassB = new THREE.Color(P.gMid);
+const soil = new THREE.Color(P.pathShade);
+const terrainSand = [];
+for (let i = 0; i < terrainPos.count; i++) {
+  const x = terrainPos.getX(i);
+  const z = terrainPos.getZ(i);
+  const y = terrainHeight(x, z);
+  terrainPos.setY(i, y);
+  let color;
+  if (y < 0.3) color = sand.clone().lerp(soil, clamp((-y) / 4, 0, .45));
+  else color = grassA.clone().lerp(grassB, clamp((y - .3) / 3.5, 0, 1));
+  const meadow = meadowMask(x, z);
+  // Where the sward is cleared the ground shader swaps to a sand palette; this
+  // channel says how far. Beaches below the waterline read as sand too.
+  const bare = y > .3 ? Math.pow(1 - meadow, .45) * .92 : 1;
+  const grain = Math.sin(x * .9 + Math.cos(z * .7)) * .5 + .5;
+  terrainSand.push(clamp(bare * (.86 + grain * .2), 0, 1));
+  // The floor under a dense sward is in its shade; leaving it bright makes
+  // every gap between blades read as a hole rather than as depth.
+  if (y > .3) color.multiplyScalar(lerp(1, .68, meadow));
+  // Low frequency on purpose: faster than the ~1.5 m vertex spacing and the
+  // variation aliases into a visible checkerboard wherever grass is thin.
+  const variation = (Math.sin(x * .27 + z * .19) * .5 + .5) * .07 - .035;
+  color.offsetHSL(variation * .15, 0, variation);
+  terrainColors.push(color.r, color.g, color.b);
+}
+terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(terrainColors, 3));
+terrainGeo.setAttribute('aSand', new THREE.Float32BufferAttribute(terrainSand, 1));
+terrainGeo.computeVertexNormals();
+const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({
+  vertexColors: true, roughness: .98, metalness: 0, flatShading: false
+}));
+terrain.receiveShadow = true;
+scene.add(terrain);
+
+const oceanUniforms = {
+  // The water reflects the sky, so it carries the sky's whole palette. These are
+  // the same uniform objects, so mood transitions reach both at once.
+  ...skyUniforms,
+  uTime: { value: 0 },
+  uColorA: { value: new THREE.Color(moodLive.oceanA) },
+  uColorB: { value: new THREE.Color(moodLive.oceanB) },
+  uSunColor: { value: new THREE.Color(moodLive.glow) },
+  uNight: { value: 0 }
+};
+const oceanGeo = new THREE.PlaneGeometry(700, 700, 200, 200);
+oceanGeo.rotateX(-Math.PI / 2);
+// Long swells carried by the mesh, plus finer ripples that live only in the
+// normal: at ~3.5 m per quad the geometry cannot hold them, but they are most
+// of what makes a surface read as water rather than a tinted plane.
+const oceanGLSL = `
+  float oceanSwell(vec2 p, float t, out vec2 grad){
+    vec2 d1=vec2(0.860,0.510), d2=vec2(-0.319,0.948), d3=vec2(0.621,-0.784);
+    float h=0.0; vec2 g=vec2(0.0); float ph;
+    ph=dot(p,d1)*0.082+t*0.58; h+=sin(ph)*0.34; g+=d1*(0.082*cos(ph)*0.34);
+    ph=dot(p,d2)*0.129-t*0.46; h+=sin(ph)*0.21; g+=d2*(0.129*cos(ph)*0.21);
+    ph=dot(p,d3)*0.055+t*0.33; h+=sin(ph)*0.44; g+=d3*(0.055*cos(ph)*0.44);
+    grad=g; return h;
+  }
+  // Amplitudes here are chosen for SLOPE, not for height: a wave that displaces
+  // the surface but barely tilts it leaves the water looking like tinted glass.
+  // These four sum to roughly a 17 degree tilt, which is what catches the light.
+  vec2 oceanRipple(vec2 p, float t){
+    vec2 d4=vec2(0.941,-0.339), d5=vec2(0.179,0.984), d6=vec2(-0.721,-0.693);
+    vec2 g=vec2(0.0); float ph;
+    ph=dot(p,d4)*0.55+t*1.55; g+=d4*(0.55*cos(ph)*0.160);
+    ph=dot(p,d5)*1.10-t*2.10; g+=d5*(1.10*cos(ph)*0.075);
+    ph=dot(p,d6)*2.20+t*2.90; g+=d6*(2.20*cos(ph)*0.032);
+    ph=dot(p,d5)*4.30+t*4.10; g+=d5*(4.30*cos(ph)*0.013);
+    return g;
+  }
+  float oceanHash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123); }
+  float oceanNoise(vec2 p){
+    vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+    return mix(mix(oceanHash(i),oceanHash(i+vec2(1,0)),f.x),
+               mix(oceanHash(i+vec2(0,1)),oceanHash(i+vec2(1,1)),f.x),f.y);
+  }
+`;
+const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
+  uniforms: oceanUniforms,
+  depthWrite: true,
+  vertexShader: `${oceanGLSL}
+    uniform float uTime;
+    varying vec3 vWorld;
+    void main(){
+      vec3 p = position;
+      vec2 g;
+      p.y += oceanSwell(p.xz, uTime, g);
+      vec4 world = modelMatrix * vec4(p, 1.0);
+      vWorld = world.xyz;
+      gl_Position = projectionMatrix * viewMatrix * world;
+    }
+  `,
+  fragmentShader: `${skyGLSL}${oceanGLSL}
+    uniform vec3 uColorA, uColorB, uSunColor;
+    uniform float uTime, uNight;
+    varying vec3 vWorld;
+    void main(){
+      vec3 view = normalize(cameraPosition - vWorld);
+      float dist = length(cameraPosition.xz - vWorld.xz);
+
+      vec2 g; float h = oceanSwell(vWorld.xz, uTime, g);
+      // Retire the fine ripples with distance: sub-pixel normal detail does not
+      // resolve, it sparkles.
+      g += oceanRipple(vWorld.xz, uTime) * (1.0 - smoothstep(30.0, 240.0, dist)*.78);
+      vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
+
+      float shore = 1.0 - smoothstep(.86, 1.2, length(vWorld.xz/vec2(67.0,54.0)));
+      vec3 body = mix(uColorA, uColorB, clamp(.18 + shore*.62 + h*.30, 0.0, 1.0));
+      // Wave faces tilted toward the sky read lighter; this is the surface's own form.
+      body *= .90 + .26*clamp(n.y*n.y*n.y, 0.0, 1.0) + .18*clamp(-g.y, -.4, .4);
+
+      // Reflect the sky itself rather than tinting toward one horizon colour —
+      // this is what gives the surface somewhere to be, instead of a flat wash.
+      vec3 R = reflect(-view, n);
+      vec3 refl = skyDome(normalize(vec3(R.x, max(R.y, 0.012), R.z)), 0.55);
+      float fres = clamp(.025 + .80*pow(1.0 - max(dot(n,view),0.0), 4.5), 0.0, .44);
+      vec3 col = mix(body, refl, fres);
+
+      // Quantised glitter: a noise gate breaks the specular into separate
+      // sparks, which is what a sun path on water actually looks like.
+      float f = dot(normalize(R), uSunDir);
+      float broad = pow(max(f,0.0), 24.0);
+      float twinkle = step(.45, oceanNoise(vWorld.xz*vec2(1.7,3.2) - vec2(uTime*1.1, uTime*.35)))
+                    * (.55 + .75*oceanNoise(vWorld.xz*6.5 - uTime*2.0));
+      float glint = smoothstep(.9970, .99930, f) * twinkle;
+      float glitterPath = smoothstep(.25, 1.0, dot(normalize(vec2(view.x,view.z)), -normalize(uSunDir.xz)));
+      col += uSunColor * (glint*2.1 + broad*.45) * (.35 + .75*glitterPath) * (1.0 - uNight*.72);
+
+      // Shore foam, scalloped by noise so it is a breaking edge, not a ring.
+      float rim = length(vWorld.xz/vec2(67.0,54.0));
+      float scal = oceanNoise(vWorld.xz*.85 - vec2(uTime*.30, uTime*.18));
+      float band = .85 + sin(uTime*.7)*.008 + (scal-.5)*.016;
+      float foam = (1.0 - smoothstep(.008, .052, abs(rim - band))) * (.45 + .85*scal);
+      col = mix(col, uHorizon*1.05, clamp(foam,0.0,1.0)*.40);
+
+      col = mix(col, uHorizon, 1.0 - exp(-dist*.0013));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+}));
+ocean.position.y = 0;
+ocean.renderOrder = 2;
+scene.add(ocean);
+
+/* -------------------------------------------------------------------------- */
+/* Procedural helpers and island decoration                                   */
+/* -------------------------------------------------------------------------- */
+
+const paintUniforms = {
+  uSunDir: skyUniforms.uSunDir,
+  uLightColor: { value: new THREE.Color(moodLive.sun) },
+  uAmbient: { value: moodLive.ambient },
+  uPartyGlow: { value: 0 },
+  uCakeLight: {value:new THREE.Vector3(-8,gardenHeight+2.4,-10)},
+  uGiftLights:{value:CONFIG.gifts.map(g=>new THREE.Vector4(g.pos[0],terrainHeight(...g.pos)+.8,g.pos[1],1))},
+  uGiftColors:{value:CONFIG.gifts.map(g=>new THREE.Color(g.color).lerp(new THREE.Color(0xffe6b8),.35))},
+  uLanterns: {value:lanternSites.map(([x,z,h])=>new THREE.Vector4(x,terrainHeight(x,z)+h,z,4.8))},
+  uFogColor: { value: scene.fog.color },
+  uShadowMap: { value: null },
+  uShadowMatrix: { value: sunLight.shadow.matrix },
+  uShadowReady: { value: 0 },
+  uTime: { value: 0 }
+};
+const glColor = hex => { const c = new THREE.Color(hex); return `vec3(${c.r.toFixed(5)},${c.g.toFixed(5)},${c.b.toFixed(5)})`; };
+const paintGLSL = `
+  uniform vec3 uSunDir, uLightColor, uFogColor;
+  uniform float uAmbient, uTime, uShadowReady, uPartyGlow;
+  uniform vec3 uCakeLight;
+  uniform vec4 uGiftLights[10];uniform vec3 uGiftColors[10];
+  uniform vec4 uLanterns[${lanternSites.length}];
+  uniform sampler2D uShadowMap;
+  uniform mat4 uShadowMatrix;
+  #include <packing>
+  float islandShadow(vec3 p) {
+    if(uShadowReady < .5) return 1.0;
+    vec4 q = uShadowMatrix * vec4(p,1.0);
+    vec3 uv = q.xyz / q.w;
+    if(uv.z > 1.0 || uv.z < 0.0 || min(uv.x,uv.y) < .002 || max(uv.x,uv.y) > .998) return 1.0;
+    // 3x3 rather than 2x2: four taps give only five levels of penumbra, which
+    // on open ground reads as the shadow map's own texel grid.
+    float sh = 0.0;
+    for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) {
+      vec2 d = vec2(float(x),float(y))*1.4/2048.0;
+      sh += step(uv.z-.0012, unpackRGBAToDepth(texture2D(uShadowMap,uv.xy+d)));
+    }
+    return sh/9.0;
+  }
+  float cloudShade(vec3 p) {
+    float f = sin(p.x*.053+p.z*.027-uTime*.045)*sin(p.z*.061-uTime*.026);
+    return 1.0 - .18*smoothstep(.15,.8,f);
+  }
+  float meadowSoftness(vec3 p){
+    float night=1.0-smoothstep(.22,.84,uAmbient);
+    float d=distance(cameraPosition,p);
+    // Keep a visible share of the blade shading even in the far field.
+    return mix(mix(.10,.16,night),mix(.60,.70,night),
+      smoothstep(mix(6.0,4.0,night),mix(30.0,24.0,night),d));
+  }
+  vec3 meadowWash(vec3 p,float shadow){
+    // Like the reference's far sward mean, a single colour field ties the
+    // blades to the floor. Slow variation reads as washes of pigment.
+    float washField=.5+.20*sin(p.x*.17+sin(p.z*.13))+.13*sin(p.z*.24-p.x*.11);
+    vec3 pigment=mix(${glColor(P.gLow)},${glColor(P.gMid)},.40+washField*.27);
+    pigment*=mix(.72,1.02,shadow);
+    float daylight=smoothstep(.22,.84,uAmbient);
+    pigment*=mix(vec3(1.12,1.22,1.36),vec3(1.0),daylight);
+    return pigment*mix(vec3(.60,.78,.86),uLightColor,.52)*uAmbient*1.30;
+  }
+  vec3 aerial(vec3 c, vec3 p) {
+    float lampLight=0.0;
+    for(int i=0;i<${lanternSites.length};i++){
+      vec3 delta=p-uLanterns[i].xyz;
+      float fall=max(1.0-dot(delta,delta)/(uLanterns[i].w*uLanterns[i].w),0.0);
+      lampLight+=fall*fall;
+    }
+    // Lift and warm the existing pigment, keeping individual grass blades
+    // legible instead of laying an opaque orange wash over the ground.
+    c+=(c*vec3(5.0,2.7,.8)+vec3(.012,.007,.002))*lampLight*uPartyGlow;
+    vec3 cakeDelta=p-uCakeLight;
+    float cakeFill=max(1.0-dot(cakeDelta,cakeDelta)/36.0,0.0);
+    c+=(c*vec3(1.3,.95,.55)+vec3(.008,.006,.003))*cakeFill*cakeFill*uPartyGlow;
+    for(int i=0;i<10;i++){
+      vec3 d=p-uGiftLights[i].xyz;
+      float f=max(0.0,1.0-dot(d,d)/22.0);
+      c+=(c*1.9+vec3(.035))*uGiftColors[i]*f*f*uGiftLights[i].w*(.16+.84*uPartyGlow);
+    }
+    float dist = distance(cameraPosition,p);
+    return mix(c,uFogColor,1.0-exp(-dist*dist*.000014));
+  }
+`;
+function paintedMaterial(low, mid, high, sway = false, sand = false) {
+  return new THREE.ShaderMaterial({
+    uniforms: paintUniforms,
+    vertexShader: `varying vec3 vWorld,vNormal; varying vec3 vColor;
+      ${sand ? 'attribute float aSand; varying float vSand;' : ''}
+      ${sway ? TREE_SWAY_GLSL : ''}
+      void main(){vec4 local=vec4(position,1.0);vec3 n=normal;
+      #ifdef USE_INSTANCING
+      local=instanceMatrix*local;n=mat3(instanceMatrix)*n;
+      #endif
+      vec4 w=modelMatrix*local;vWorld=w.xyz;
+      ${sway ? `
+      #ifdef USE_INSTANCING
+      vWorld=islandTreeLeaf(islandTreeBend(vWorld,uTime),vWorld,
+        (modelMatrix*instanceMatrix*vec4(0.0,0.0,0.0,1.0)).xyz,uTime);
+      w=vec4(vWorld,1.0);
+      #endif` : ''}
+      ${sand ? 'vSand=aSand;' : ''}
+      vNormal=normalize(mat3(modelMatrix)*n);vColor=vec3(1.0);
+      #ifdef USE_COLOR
+      vColor=color;
+      #endif
+      gl_Position=projectionMatrix*viewMatrix*w;}`,
+    fragmentShader: `${paintGLSL}
+      varying vec3 vWorld,vNormal,vColor;
+      ${sand ? 'varying float vSand;' : ''}
+      void main(){
+        float sh=islandShadow(vWorld)*cloudShade(vWorld);
+        float light=smoothstep(-.25,.85,dot(normalize(vNormal),uSunDir))*sh;
+        vec3 cLow=${glColor(low)}, cMid=${glColor(mid)}, cHigh=${glColor(high)};
+        ${sand ? `
+        // A bare trail has to swap the PALETTE, not just tint it. Multiplying a
+        // sand vertex colour into a green ramp only ever yields olive.
+        cLow=mix(cLow,${glColor(P.pathShade)},vSand);
+        cMid=mix(cMid,${glColor(P.pathLit)},vSand);
+        cHigh=mix(cHigh,vec3(0.871,0.773,0.588),vSand);
+        // Warm the light tint back up on sand: the cool sky term that flatters
+        // grass turns a trail grey.
+        vec3 warmth=mix(vec3(1.0),vec3(1.10,1.03,0.90),vSand);` : ''}
+        vec3 c=mix(cLow,cMid,smoothstep(.0,.48,light));
+        c=mix(c,cHigh,smoothstep(.40,.92,light));
+        c*=mix(vec3(.45,.65,1.0),uLightColor,.48)*uAmbient${sand ? '*warmth' : ''};
+        // The vertex colour carries the grass tint and the sward shading. On a
+        // bare trail it has to step aside, or it multiplies the sand back green.
+        c*=${sand ? 'mix(vColor, vec3(1.0), vSand)' : 'vColor'};
+        float mosaic=sin(vWorld.x*.47+sin(vWorld.z*.22))*sin(vWorld.z*.36+vWorld.x*.19);
+        c*=.94+.09*mosaic;
+        // Skewed on purpose: a product of two axis-aligned sines is a
+        // checkerboard, and on open ground it reads as tiling, not as grain.
+        c*=.97+.035*sin(vWorld.x*3.1+vWorld.z*1.7)*sin(vWorld.z*2.6-vWorld.x*2.1);
+        ${sand ? 'c=mix(c,meadowWash(vWorld,sh),meadowSoftness(vWorld)*(1.0-vSand));' : ''}
+        gl_FragColor=vec4(aerial(c,vWorld),${sand ? '1.0-.5*meadowSoftness(vWorld)*(1.0-vSand)' : '1.0'});
+      }`
+  });
+}
+// Tree sway, adapted from the reference valley's TREE_VS. Three motions layered:
+// a trunk that leans and rings at its own low resonant frequency, clumps that
+// swing faster on their own phases, and leaves fluttering around their clump.
+// The gust field is the grass shader's, verbatim, so a gust crossing the meadow
+// reaches the canopy above it instead of each system inventing its own weather.
+const TREE_SWAY_GLSL = `
+  uniform float uTime;
+  attribute vec4 iSway;   // x,z = root position · y = ground height · w = tree height
+  attribute float iPhase;
+  float islandGust(vec2 p, float t){
+    return sin(p.x*.12+p.y*.09-t*1.65)+sin(p.x*.31-p.y*.24-t*2.2)*.24;
+  }
+  vec3 islandTreeBend(vec3 world, float t){
+    float H = iSway.w;
+    if(H <= 0.0) return world;             // anything without sway data stays put
+    vec2 root = vec2(iSway.x, iSway.z);
+    float gust = islandGust(root, t);
+    vec2 bd = normalize(vec2(.82,.42));
+    // A slow mode per tree, so neighbours never move in lockstep.
+    float f0 = .30 + .22*fract(iPhase*.31831);
+    float osc = sin(t*6.2831853*f0 + iPhase);
+    float bend = clamp(.045 + gust*.05 + max(gust,0.0)*.06*osc, -.10, .22);
+    float yn = clamp((world.y - iSway.y)/H, 0.0, 1.4);
+    vec3 p = world;
+    p.xz += bd * (bend * yn*yn * H * .42);
+    p.y  -= bend*bend * yn*yn * H * .22;   // the crown drops as the trunk arcs over
+    return p;
+  }
+  vec3 islandTreeLeaf(vec3 bent, vec3 world, vec3 clump, float t){
+    if(iSway.w <= 0.0) return bent;
+    float gust = islandGust(vec2(iSway.x, iSway.z), t);
+    vec2 bd = normalize(vec2(.82,.42));
+    float cph = dot(clump.xz, vec2(.61,.43)) + iPhase*2.7;
+    float f1 = .55 + .40*fract(sin(cph)*137.51);
+    float csw = sin(t*6.2831853*f1 + cph);
+    vec3 p = bent + vec3(bd.x,.18,bd.y) * csw * (.035 + .075*abs(gust));
+    vec3 rel = world - clump;
+    float rl = length(rel) + 1e-4;
+    float flut = sin(t*4.6 + dot(rel, vec3(3.3,4.9,2.7)) + cph*1.7);
+    return p + (rel/rl) * flut * (.02 + .03*abs(gust));
+  }
+`;
+
+const groundMaterial = paintedMaterial('#8daca6', '#aed9ab', '#c4e5b2', false, true);
+groundMaterial.vertexColors = true;
+terrain.material.dispose();
+terrain.material = groundMaterial;
+
+const mats = {
+  wood: new THREE.MeshStandardMaterial({ color: P.trunkLit, roughness: .9 }),
+  darkWood: new THREE.MeshStandardMaterial({ color: P.trunkShade, roughness: .92 }),
+  leaf: paintedMaterial(P.cDeep, P.cMid, P.cLit),
+  stone: new THREE.MeshStandardMaterial({ color: P.rockLit, roughness: 1, flatShading: true }),
+  cream: new THREE.MeshStandardMaterial({ color: 0xf4dec1, roughness: .85 }),
+  pink: new THREE.MeshStandardMaterial({ color: 0xdc8e96, roughness: .82 }),
+  cloth: new THREE.MeshStandardMaterial({ color: 0xb76768, roughness: 1, side: THREE.DoubleSide }),
+  gold: new THREE.MeshStandardMaterial({ color: 0xe8bd64, roughness: .7 }),
+};
+
+function box(w, h, d, material, cast = true) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  mesh.castShadow = cast;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+function cylinder(rt, rb, h, segments, material) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segments), material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+function putOnGround(object, x, z, offset = 0) {
+  object.position.set(x, terrainHeight(x, z) + offset, z);
+  scene.add(object);
+  return object;
+}
+
+// The reference's complete branched / scalloped trees, in four instanced
+// archetypes. Per-vertex clump centres keep the beauty and depth sway identical.
+const referenceTreeTransform = `
+  ${TREE_SWAY_GLSL}
+  attribute vec3 clm;
+  attribute float flx, hue;
+  vec3 treeWorld(vec3 local){
+    vec3 world=(modelMatrix*instanceMatrix*vec4(local,1.0)).xyz;
+    vec3 bent=islandTreeBend(world,uTime);
+    if(flx>.9){
+      vec3 centre=(modelMatrix*instanceMatrix*vec4(clm,1.0)).xyz;
+      bent=islandTreeLeaf(bent,world,centre,uTime);
+    }
+    return bent;
+  }
+`;
+const referenceTreeMaterial=new THREE.ShaderMaterial({
+  uniforms:paintUniforms,
+  vertexShader:`${referenceTreeTransform}
+    varying vec3 vWorld,vNormal;
+    varying float vHue,vLeaf,vAO;
+    void main(){
+      vWorld=treeWorld(position);
+      vNormal=normalize(mat3(modelMatrix)*mat3(instanceMatrix)*normal);
+      vHue=fract(hue+iPhase*.13);vLeaf=step(.9,flx);
+      float h=clamp((vWorld.y-iSway.y)/iSway.w,0.0,1.0);
+      vAO=mix(.62,1.0,smoothstep(0.0,.55,h));
+      gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.0);
+    }`,
+  fragmentShader:`${paintGLSL}${GL_HASH}${GL_NOISE}
+    varying vec3 vWorld,vNormal;
+    varying float vHue,vLeaf,vAO;
+    vec3 ramp3(float t,vec3 shade,vec3 mid,vec3 lit,float soft,float jit){
+      return mix(mix(shade,mid,smoothstep(.17-soft+jit,.17+soft+jit,t)),
+        lit,smoothstep(.58-soft+jit,.58+soft+jit,t));
+    }
+    void main(){
+      vec3 N=normalize(vNormal), V=normalize(cameraPosition-vWorld);
+      vec3 lit,mid,shd;
+      float grain=pn2(vWorld.xz*.85+vWorld.y*.6)*.5+.5;
+      if(vLeaf>.5){
+        vec3 base=vHue<.26?${glColor(P.cVarA)}:(vHue<.52?${glColor(P.cLit)}:
+          (vHue<.76?${glColor(P.cVarB)}:${glColor(P.cVarC)}));
+        lit=mix(base,${glColor(P.cLit)},.42)*(1.02+.24*grain);
+        mid=mix(${glColor(P.cMid)},base*.72,.45);
+        shd=mix(${glColor(P.cShade)},${glColor(P.cDeep)},grain*.45);
+      }else{
+        float bark=pn2(vec2(atan(N.z,N.x)*3.4,vWorld.y*3.1))*.5+.5;
+        lit=${glColor(P.trunkLit)}*(.82+.34*bark);
+        mid=mix(${glColor(P.trunkLit)},${glColor(P.trunkShade)},.55);
+        shd=${glColor(P.trunkShade)}*(.85+.3*bark);
+        float moss=(1.0-smoothstep(-.5,.15,N.y))*grain;
+        shd=mix(shd,${glColor(P.moss)}*.55,moss*.35);
+      }
+      float sh=islandShadow(vWorld)*cloudShade(vWorld);
+      float ndl=dot(N,uSunDir);
+      float t=clamp(ndl*.62+.46,0.0,1.0)*mix(.34,1.0,sh);
+      float dist=distance(cameraPosition,vWorld);
+      float soft=mix(.09,.20,clamp(dist*.004,0.0,1.0));
+      float jit=(vn2(vWorld.xz*3.9+vWorld.y*1.7)-.5)*.055;
+      vec3 col=ramp3(t,shd,mid,lit,soft,jit);
+      float litAmt=smoothstep(.34,.86,t);
+      col*=mix(vec3(.94),uLightColor*1.32,litAmt*.62);
+      col=mix(col*.80+${glColor(P.shadowTint)}*.040,col,sh*.82+.18);
+      vec3 hemi=mix(${glColor(P.ambGround)},${glColor(P.ambSky)},N.y*.5+.5);
+      vec3 hueOnly=hemi/max(dot(hemi,vec3(.2126,.7152,.0722)),.001);
+      col*=mix(vec3(1.0),hueOnly,.22*(1.0-litAmt*.55));
+      col+=hemi*.052*vAO*(1.0-litAmt*.85);
+      float back=smoothstep(.05,.85,dot(V,-uSunDir));
+      float fres=pow(1.0-clamp(dot(N,V),0.0,1.0),4.2);
+      col+=uLightColor*fres*back*mix(.28,.52,vLeaf)*1.15*sh;
+      float tr=pow(clamp(dot(V,-uSunDir),0.0,1.0),3.2);
+      float thin=pow(clamp(1.0-abs(ndl),0.0,1.0),2.2);
+      col+=${glColor(P.cTrans)}*tr*thin*1.05*sh*.52*vLeaf;
+      col*=vAO*uAmbient;
+      gl_FragColor=vec4(aerial(col,vWorld),1.0);
+    }`
+});
+const referenceTreeDepth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
+referenceTreeDepth.onBeforeCompile=shader=>{
+  shader.uniforms.uTime=paintUniforms.uTime;
+  shader.vertexShader=referenceTreeTransform+shader.vertexShader.replace('#include <project_vertex>',`
+    vec4 mvPosition=viewMatrix*vec4(treeWorld(transformed),1.0);
+    gl_Position=projectionMatrix*mvPosition;`);
+};
+referenceTreeDepth.customProgramCacheKey=()=> 'referenceTreeDepth-v1';
+const treeSpots = [
+  [-43,5,1.1],[-38,12,.9],[-32,23,1.2],[-22,30,.9],[-7,39,1.15],[10,41,.9],
+  [28,32,1.2],[38,24,.85],[45,8,1.1],[42,-17,.95],[28,-31,1.1],[13,-40,.9],
+  [-6,-39,1],[-25,-33,.95],[-39,-19,1.15],[-48,-14,.8],[17,18,.75],[-20,15,.72],
+  [29,5,.78],[-23,-9,.8],[5,29,.7]
+];
+
+const treeRandom=mulberry32(7219);
+for(let variant=0;variant<4;variant++){
+  const geometry=referenceTreeGeometry(variant===3?'pine':'broadleaf',471+variant*137);
+  geometry.computeBoundingBox();
+  const height=geometry.boundingBox.max.y;
+  const placements=treeSpots.filter((_,i)=>i%4===variant);
+  const batch=new THREE.InstancedMesh(geometry,referenceTreeMaterial,placements.length);
+  const sway=new Float32Array(placements.length*4),phase=new Float32Array(placements.length);
+  placements.forEach(([x,z,size],i)=>{
+    const scale=6.6*size/height, ground=terrainHeight(x,z);
+    dummy.position.set(x,ground,z);dummy.rotation.set(0,treeRandom()*Math.PI*2,0);
+    dummy.scale.setScalar(scale);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);
+    sway.set([x,ground,z,6.6*size],i*4);phase[i]=treeRandom()*Math.PI*2;
+  });
+  geometry.setAttribute('iSway',new THREE.InstancedBufferAttribute(sway,4));
+  geometry.setAttribute('iPhase',new THREE.InstancedBufferAttribute(phase,1));
+  batch.castShadow=true;batch.receiveShadow=true;batch.customDepthMaterial=referenceTreeDepth;
+  batch.computeBoundingSphere();batch.boundingSphere.radius+=1.2;
+  scene.add(batch);
+}
+
+// Preserve the shared layout seed after replacing the old tree generator (50
+// random draws per tree). Rocks, flowers and grass keep their existing positions.
+for(let i=0;i<treeSpots.length*50;i++)rand();
+
+// Soft-edged rocks around the beach and paths.
+for (let i = 0; i < 34; i++) {
+  const a = rand() * Math.PI * 2;
+  const ring = i < 22 ? lerp(.78, .94, rand()) : lerp(.25, .68, rand());
+  let x = Math.cos(a) * 66 * ring;
+  let z = Math.sin(a) * 53 * ring;
+  const fromCake=Math.hypot(x+8,z+10);
+  if(fromCake<6.5){const k=7.2/Math.max(fromCake,.001);x=-8+(x+8)*k;z=-10+(z+10)*k;}
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(.45 + rand() * .75, 1), mats.stone);
+  rock.scale.set(1 + rand(), .45 + rand() * .42, .7 + rand() * .7);
+  rock.rotation.set(rand() * .5, rand() * 6, rand() * .3);
+  rock.castShadow = true;
+  putOnGround(rock, x, z, .05);
+}
+
+// Occasional single pebbles or pairs sit on alternating path shoulders.
+// A private seed keeps this small detail independent of the island layout.
+const edgePebbleRandom=mulberry32(41731),edgePebbleSites=[];
+for(let stop=0,z=-3.5;z<32;stop++,z+=3.0+edgePebbleRandom()*.8){
+  const side=stop%2?1:-1,count=stop%3===0?2:1;
+  for(let i=0;i<count;i++){
+    const pz=z+i*(.16+edgePebbleRandom()*.18);
+    const px=celebrationPathX(pz)+side*(celebrationPathWidth(pz,side)-.17+edgePebbleRandom()*.16);
+    edgePebbleSites.push([px,pz,.035+edgePebbleRandom()*.03]);
+  }
+}
+const edgePebbles=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),
+  new THREE.MeshStandardMaterial({color:0xc5b398,roughness:1}),edgePebbleSites.length);
+edgePebbleSites.forEach(([x,z,size],i)=>{
+  dummy.position.set(x,terrainHeight(x,z)+.012,z);
+  dummy.scale.set(size*(.9+edgePebbleRandom()*.4),size*.26,size);
+  dummy.rotation.set(0,edgePebbleRandom()*Math.PI*2,0);dummy.updateMatrix();
+  edgePebbles.setMatrixAt(i,dummy.matrix);
+});
+edgePebbles.receiveShadow=true;scene.add(edgePebbles);
+
+// Adapted directly from the source valley: tapered, multi-segment blades rather
+// than stock plane rectangles, with a vertical hue path and traveling wind.
+function buildBladeGeometry(segments=4){
+  const vertexCount=segments*2+1;
+  const positions=new Float32Array(vertexCount*3);
+  let k=0;
+  for(let i=0;i<segments;i++){
+    const v=i/segments;
+    positions[k++]=0;positions[k++]=v;positions[k++]=0;
+    positions[k++]=1;positions[k++]=v;positions[k++]=0;
+  }
+  positions[k++]=.5;positions[k++]=1;positions[k++]=0;
+  const indices=[];
+  for(let i=0;i<segments-1;i++){const a=i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}
+  const a=(segments-1)*2;indices.push(a,segments*2,a+1);
+  const geometry=new THREE.InstancedBufferGeometry();
+  geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  geometry.setIndex(indices);
+  geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(),120);
+  return geometry;
+}
+
+// Stratified, shuffled 8 m tiles: short broad leaves retain coverage with fewer
+// instances, and off-screen tiles are culled by Three instead of drawn globally.
+const bladeVertexShader = `
+    uniform float uTime, uNearFade; uniform vec3 uCam;
+    attribute vec3 iOffset; attribute float iScale, iPhase, iTint;
+    varying float vT,vTint,vSide,vBend,vOccl; varying vec3 vWorld,vN;
+    void main(){
+      float t=position.y;
+      float u=position.x-0.5;
+      vec3 root=(modelMatrix*vec4(iOffset,1.0)).xyz;
+      float dist=distance(root.xz,uCam.xz);
+      // The near layer shrinks to nothing before its ring ends, so the extra
+      // density fades in rather than arriving as a visible wall of grass.
+      // Each near blade retires at its own distance, so the extra density
+      // dissolves over 9-27 m instead of ending on a common edge you can see.
+      float fadeIn=9.0+iTint*7.0;
+      float fade=mix(1.0,1.0-smoothstep(fadeIn,fadeIn+11.0,dist),uNearFade);
+      float hgt=iScale*fade;
+      if(hgt<1e-4){gl_Position=vec4(2.0,2.0,2.0,1.0);return;}
+
+      vec3 up=vec3(0.0,1.0,0.0);
+      vec2 wdir=normalize(vec2(.82,.42));
+      // Blades comb downwind — a random lean carried most of the way toward the
+      // prevailing direction — so the meadow flows instead of bristling.
+      vec2 lean=normalize(mix(vec2(cos(iPhase),sin(iPhase)),wdir,.46));
+      vec3 front=vec3(lean.x,0.0,lean.y);
+      vec3 side=normalize(cross(up,front));
+      vec3 toCam=normalize(vec3(uCam.x-root.x,0.0,uCam.z-root.z)+vec3(1e-5));
+      vec3 facing=normalize(cross(up,toCam));
+      // Flip into the same hemisphere first: mixing a vector with its exact
+      // opposite cancels to zero, and normalizing that returns NaN — which
+      // renders as a scatter of black specks through the sward.
+      if(dot(side,facing)<0.0) facing=-facing;
+      side=normalize(mix(side,facing,smoothstep(9.0,38.0,dist)*.85));
+
+      float gust=sin(root.x*.12+root.z*.09-uTime*1.65);
+      gust+=sin(root.x*.31-root.z*.24-uTime*2.2)*.24;
+
+      // Reference blade model: the tip already arches at rest, gravity and wind
+      // lay it further over, and the curve is then rescaled back to its own
+      // length. A longer blade therefore reaches outward, not upward — which is
+      // what keeps a dense sward from becoming a picket fence across the view.
+      vec3 p0=root;
+      vec3 v2=p0+up*hgt*.97+front*hgt*(.38+iTint*.28);
+      float stiff=.55+iTint*.50;
+      vec3 push=vec3(wdir.x,0.0,wdir.y)*hgt*(.24+.20*gust)
+               +vec3(0.0,-1.0,0.0)*hgt*(.40+.20*iTint);
+      v2+=push/stiff*.5;
+      v2+=side*sin(uTime*4.2*(.7+iTint)+iPhase*3.0)*hgt*.045*(.4+.6*abs(gust));
+
+      // Inextensible blade: lift the tip back above ground, derive the mid
+      // control point, then rescale the whole curve to the blade's true length.
+      v2-=up*min(dot(up,v2-p0),0.0);
+      vec3 d20=v2-p0;
+      float lproj=length(d20-up*dot(d20,up));
+      vec3 v1=p0+hgt*up*max(1.0-lproj/hgt,.05*max(lproj/hgt,1.0));
+      float L0=length(v2-p0);
+      float L1=length(v1-p0)+length(v2-v1);
+      float rr=hgt/max((2.0*L0+L1)/3.0,1e-4);
+      v1=p0+rr*(v1-p0);
+      v2=v1+rr*(v2-v1);
+
+      vec3 a=mix(p0,v1,t),b=mix(v1,v2,t),c=mix(a,b,t);
+      vec3 tang=normalize(b-a+vec3(0.0,1e-5,0.0));
+      float wid=max(.012+iTint*.012,dist*.0014)*fade*(1.0+uNearFade*.55);
+      float wprof=sqrt(max(1.0-t,0.0))*(.60+.42*smoothstep(0.0,.16,t));
+      vec3 sideW=normalize(side-tang*dot(side,tang)+vec3(1e-6));
+      vec3 pos=c+sideW*(u*wid*wprof*2.0);
+      // A rolled cross-section rather than a flat chip: this is most of what
+      // makes a blade read as a leaf instead of a coloured triangle.
+      vec3 faceN=normalize(cross(sideW,tang));
+      vec3 rolled=normalize(faceN+sideW*(u*2.0)*.42);
+      // Flatten toward vertical with distance so far blades stop sparkling.
+      // Pick the pole on the blade's own side, or the mix can cancel to zero.
+      vec3 pole=dot(rolled,up)<0.0?-up:up;
+      vN=normalize(mix(rolled,pole,smoothstep(14.0,55.0,dist)*.55));
+
+      vT=t;vTint=iTint;vSide=u*2.0;vWorld=pos;
+      vBend=clamp(1.0-dot(normalize(v2-p0),up),0.0,1.0);
+      // A blade shorter than its neighbours sits in their shade; this is what
+      // gives the sward interior depth instead of one flat wall of green.
+      vOccl=smoothstep(.18,1.0,hgt/.62);
+      gl_Position=projectionMatrix*viewMatrix*vec4(pos,1.0);
+    }`;
+const bladeFragmentShader = `${paintGLSL}
+    uniform vec3 uCam;
+    varying float vT,vTint,vSide,vBend,vOccl; varying vec3 vWorld,vN;
+    void main(){
+      vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;
+      vec3 view=normalize(uCam-vWorld);
+      // MSAA can shade just outside a thin triangle: its interpolated blade
+      // coordinate must stay in range before fractional powers (negative => NaN).
+      float t=clamp(vT,0.0,1.0);
+      float softness=meadowSoftness(vWorld);
+      float detail=1.0-softness;
+      float sunlight=smoothstep(.22,.84,uAmbient);
+      // The reference's vertical hue path: teal at the root, yellow-green at the tip.
+      vec3 lit=mix(${glColor(P.gLow)},${glColor(P.gMid)},smoothstep(.0,.26,t));
+      lit=mix(lit,${glColor(P.gUpper)},smoothstep(.20,.66,t));
+      lit=mix(lit,${glColor(P.gTip)},smoothstep(.72,1.0,t)*.85);
+      vec3 mid=mix(${glColor(P.gBase)},${glColor(P.gMid)},smoothstep(.05,.80,t));
+      vec3 shade=mix(${glColor(P.gBase)}*.82,${glColor(P.gLow)},smoothstep(.15,.95,t));
+      // Meadow mosaic: no two patches, and no two blades, are the same green.
+      lit=mix(lit,${glColor(P.gPatchC)},smoothstep(.35,.85,vTint)*.45);
+      lit=mix(lit,${glColor(P.gPatchA)},(1.0-smoothstep(.15,.65,vTint))*.35);
+      mid=mix(mid,${glColor(P.gPatchB)},smoothstep(.30,.80,vTint)*.40);
+      shade=mix(shade,${glColor(P.tHollow)},smoothstep(.40,.90,vTint)*.35);
+      float dry=smoothstep(.72,.99,vTint)*smoothstep(.45,.98,t);
+      lit=mix(lit,${glColor(P.gDry)},dry*.55);
+      float jitter=.93+.15*vTint;
+      lit*=jitter;mid*=jitter*.98;shade*=.92+.20*vTint;
+
+      float broadShadow=islandShadow(vWorld)*cloudShade(vWorld);
+      float sh=broadShadow;
+      float selfShade=mix(.62,1.0,pow(t,.75));
+      sh*=selfShade*mix(.52,1.0,vOccl);
+      float light=smoothstep(-.35,.80,dot(n,uSunDir))*sh;
+      vec3 c=mix(shade,mid,smoothstep(-.24,.58,light));
+      c=mix(c,lit,smoothstep(.22,1.05,light));
+      c=mix(c,${glColor(P.gSheen)},smoothstep(.75,1.0,light)*smoothstep(.35,1.0,t)*.06*detail*sunlight);
+      c*=mix(.58,1.0,pow(t,.55));            // the sward floor is genuinely dark
+      float back=pow(max(dot(view,-uSunDir),0.0),2.4);
+      c+=${glColor(P.gTrans)}*back*smoothstep(.10,.72,t)*.22*(.35+.65*sh)*detail*sunlight;
+      c=mix(c,mid*1.06,(1.0-light)*.22);
+      // A blade laid over by a gust turns its face up and catches the light:
+      // this is what makes a gust legible as a pale band crossing the meadow.
+      float geom=pow(clamp(1.0-abs(dot(n,view)),0.0,1.0),1.9)*.45
+                +pow(clamp(dot(n,normalize(uSunDir+view)),0.0,1.0),3.2)*.55;
+      float flash=smoothstep(.34,.86,vBend)*smoothstep(.14,.78,t);
+      c=mix(c,${glColor(P.gSheen)},geom*flash*.09*(.30+.70*sh)*detail*sunlight);
+      c*=mix(vec3(.60,.78,.86),uLightColor,.52)*uAmbient*1.30;
+      // Retire per-blade contrast smoothly, earlier and more fully at night.
+      c=mix(c,meadowWash(vWorld,broadShadow),softness);
+      // An opaque draw still carries a softness mask in the HDR target alpha.
+      gl_FragColor=vec4(aerial(c,vWorld),1.0-.5*softness);
+    }`;
+function makeBladeMaterial(nearFade){
+  return new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: { ...paintUniforms, uCam: { value: new THREE.Vector3() }, uNearFade: { value: nearFade } },
+    vertexShader: bladeVertexShader,
+    fragmentShader: bladeFragmentShader
+  });
+}
+const bladeMat = makeBladeMaterial(0);
+const nearBladeMat = makeBladeMaterial(1);
+const bladeMaterials = [bladeMat, nearBladeMat];
+
+const grass = new THREE.Group(); scene.add(grass);
+let grassBladeCount = 0;
+const nearGrassTiles = [];
+const grassRand = mulberry32(20260912);
+function buildGrassLayer(perAxis, scaleBase, scaleVary, material, near){
+  for(let cz=-48;cz<48;cz+=8) for(let cx=-64;cx<64;cx+=8){
+    const blades=[];
+    for(let iz=0;iz<perAxis;iz++) for(let ix=0;ix<perAxis;ix++){
+      const x=cx+(ix+grassRand())*8/perAxis,z=cz+(iz+grassRand())*8/perAxis;
+      const y=terrainHeight(x,z),r=Math.hypot(x/67,z/54);
+      if(y<.4||r>.83||grassRand()>meadowMask(x,z))continue;
+      // Tussocks: height clusters at metre and decametre scales, so the sward
+      // has taller and balder patches instead of one uniform pile.
+      const tussock=.68+.42*(Math.sin(x*.21+Math.cos(z*.17))*.5+.5)
+                       +.26*(Math.sin(z*.09-x*.06)*.5+.5);
+      blades.push([x-cx-4,y-.025,z-cz-4,(scaleBase+grassRand()*scaleVary)*tussock,grassRand()*Math.PI*2,grassRand()]);
+    }
+    if(!blades.length)continue;
+    for(let i=blades.length-1;i>0;i--){const j=Math.floor(grassRand()*(i+1));[blades[i],blades[j]]=[blades[j],blades[i]];}
+    const geometry=buildBladeGeometry(3);
+    geometry.setAttribute('iOffset',new THREE.InstancedBufferAttribute(new Float32Array(blades.flatMap(b=>b.slice(0,3))),3));
+    for(const [name,index] of [['iScale',3],['iPhase',4],['iTint',5]])geometry.setAttribute(name,new THREE.InstancedBufferAttribute(new Float32Array(blades.map(b=>b[index])),1));
+    geometry.instanceCount=blades.length;
+    geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,2,0),7.5);
+    const mesh=new THREE.Mesh(geometry,material);mesh.position.set(cx+4,0,cz+4);
+    grass.add(mesh);grassBladeCount+=blades.length;
+    if(near)nearGrassTiles.push(mesh);
+  }
+}
+// 23x23 jittered cells per tile: ~8 blades/m², each with a readable silhouette.
+// Lengths are the blade's arc, not its height — an arching blade stands roughly
+// six tenths as tall as it is long, so these reach much further than they rise.
+buildGrassLayer(28,.28,.28,bladeMat,false);
+// A second, thicker mat of shorter blades fills the ground underfoot. Only the
+// tiles near the player are drawn, so the island keeps its cheap far-field
+// density while the grass you actually stand in is roughly three times as dense.
+buildGrassLayer(56,.15,.21,nearBladeMat,true);
+const NEAR_GRASS_RANGE = 31;
+function updateNearGrass(){
+  for(const tile of nearGrassTiles){
+    const dx=tile.position.x-playerRig.position.x, dz=tile.position.z-playerRig.position.z;
+    tile.visible = dx*dx+dz*dz < NEAR_GRASS_RANGE*NEAR_GRASS_RANGE;
+  }
+}
+
+const meadowLife=buildMeadowLife({scene,terrainHeight,meadowMask,
+  random:mulberry32(812731),timeUniform:paintUniforms.uTime});
+const {flowerSpots}=meadowLife;
+
+/* -------------------------------------------------------------------------- */
+/* Ocean-view bench and party garden                                          */
+/* -------------------------------------------------------------------------- */
+
+const interactive = [];
+let partyLightMaterial = null;
+const partyHaloMaterial=new THREE.SpriteMaterial({map:glowTexture,color:0xffd496,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
+
+// A slatted bench at human scale: seat at .55, back cresting near 1.45, so a
+// walker reads as a person standing beside furniture rather than a child.
+function buildBench() {
+  const g = new THREE.Group();
+  // Warmer than the tree trunks so the bench reads as worked timber, not driftwood.
+  const plank = new THREE.MeshStandardMaterial({ color: 0xb08a5e, roughness: .82 });
+  const frame = new THREE.MeshStandardMaterial({ color: 0x6b543d, roughness: .88 });
+
+  // Side frames. The bench faces -z; the back posts live on the +z side.
+  for (const sx of [-1.42, 1.42]) {
+    const frontLeg = box(.13, .58, .14, frame); frontLeg.position.set(sx, .29, -.46); g.add(frontLeg);
+    const rail = box(.11, .1, 1.06, frame); rail.position.set(sx, .5, 0); g.add(rail);
+    const armPost = box(.1, .32, .11, frame); armPost.position.set(sx, .72, -.42); g.add(armPost);
+    const arm = box(.15, .09, 1.1, plank); arm.position.set(sx, .92, -.02); g.add(arm);
+    const armCap = cylinder(.075, .075, .15, 10, plank); armCap.rotation.z = Math.PI / 2;
+    armCap.position.set(sx, .92, -.57); g.add(armCap);
+  }
+
+  // Seat slats, each with a sliver of daylight between them.
+  for (let i = 0; i < 5; i++) {
+    const slat = box(3.08, .07, .19, plank);
+    slat.position.set(0, .585, -.5 + i * .25);
+    g.add(slat);
+  }
+
+  // Backrest, leaned back as a whole so it looks sat-in rather than bolted on.
+  const back = new THREE.Group();
+  back.position.set(0, .52, .44);
+  back.rotation.x = .15;
+  for (const sx of [-1.42, 1.42]) {
+    const post = box(.13, .96, .13, frame); post.position.set(sx, .46, 0); back.add(post);
+  }
+  for (const [y, h] of [[.3, .17], [.56, .17], [.83, .2]]) {
+    const slat = box(3.04, h, .07, plank); slat.position.set(0, y, 0); back.add(slat);
+  }
+  g.add(back);
+
+  // A blanket folded over one end, waiting for whoever sits down second.
+  const blanket = box(.92, .13, .96, mats.cloth); blanket.position.set(-.92, .68, -.02); blanket.rotation.y = .07; g.add(blanket);
+
+  // A jar of flowers set on the grass beside the bench.
+  const jar = cylinder(.13, .16, .3, 12, new THREE.MeshStandardMaterial({ color: 0x7ba2a0, roughness: .55 }));
+  jar.position.set(1.95, .15, -.3); g.add(jar);
+  for (let i = 0; i < 9; i++) {
+    const lean = rand() * .5, turn = rand() * Math.PI * 2;
+    const stem = cylinder(.009, .013, .26, 5, mats.leaf);
+    stem.position.set(1.95 + Math.cos(turn) * lean * .18, .38, -.3 + Math.sin(turn) * lean * .18);
+    stem.rotation.set(Math.sin(turn) * lean, 0, -Math.cos(turn) * lean); g.add(stem);
+    const flower = new THREE.Mesh(new THREE.SphereGeometry(.055, 8, 6), i % 3 ? mats.pink : mats.gold);
+    flower.scale.y = .8;
+    flower.position.set(1.95 + Math.cos(turn) * lean * .34, .5 + rand() * .04, -.3 + Math.sin(turn) * lean * .34);
+    g.add(flower);
+  }
+
+  g.rotation.y = Math.PI / 2;
+  putOnGround(g, -43, -3);
+  interactive.push({
+    type: 'bench', object: g, reach: 4.2,
+    prompt: 'sit on our bench and watch the sunset',
+    action: () => { setMood('sunset'); toast('THE HORIZON SAVED FOR THE TWO OF US'); audio.chime([523.25, 659.25, 783.99]); }
+  });
+}
+buildBench();
+
+const candleFlames = [];
+let candlesLit = true;
+function buildParty() {
+  const party = new THREE.Group();
+  // Four poles and warm string lights.
+  const poles = [[-6,-6],[6,-6],[6,6],[-6,6]];
+  for (const [x,z] of poles) { const p = cylinder(.07,.09,4.1,7,mats.darkWood); p.position.set(x,2.05,z); party.add(p); }
+  const lightMat = new THREE.MeshStandardMaterial({ color: 0xffe4a5, emissive: 0xffbd62, emissiveIntensity: 1.9 });
+  partyLightMaterial = lightMat;
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x4a4038 });
+  for (let side = 0; side < 4; side++) {
+    const a = poles[side], b = poles[(side+1)%4];
+    const pts = [];
+    for (let j=0;j<=10;j++) {
+      const t=j/10, x=lerp(a[0],b[0],t), z=lerp(a[1],b[1],t), y=4.02-Math.sin(t*Math.PI)*.52;
+      pts.push(new THREE.Vector3(x,y,z));
+      if(j>0 && j<10 && j%2===0){ const bulb=new THREE.Mesh(new THREE.SphereGeometry(.085,7,5),lightMat);bulb.position.set(x,y-.11,z);bulb.userData.partyLight=true;party.add(bulb);const halo=new THREE.Sprite(partyHaloMaterial);halo.position.copy(bulb.position);halo.scale.set(.65,.65,1);party.add(halo); }
+    }
+    party.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+  }
+
+  // Cake table, kept low so the cake sits below eye level and you look down on
+  // it the way you would lean over a real one.
+  const table = cylinder(.98, .98, .1, 64, cakeTableMaterials(mats.cream)); table.position.y=.62; party.add(table);
+  const pedestal = cylinder(.2,.34,.56,16,mats.wood); pedestal.position.y=.28; party.add(pedestal);
+  const cakeMat = new THREE.MeshStandardMaterial({ color: 0xf3c9bd, roughness:.8 });
+  const icingMat = new THREE.MeshStandardMaterial({ color: 0xffeee0, roughness:.78 });
+  const cake1=cylinder(.56,.59,.4,48,cakeMat);cake1.position.y=.87;party.add(cake1);
+  const cake2=cylinder(.4,.42,.3,48,icingMat);cake2.position.y=1.22;party.add(cake2);
+  decorateCake(party,icingMat);
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
+  // A narrow teardrop rather than a sphere; at this scale a round flame reads
+  // as a lollipop on a stick.
+  const flameGeo = new THREE.ConeGeometry(.022, .105, 7);
+  for(let i=0;i<5;i++){
+    const a=i/5*Math.PI*2;
+    const candle=cylinder(.022,.026,.24,7,i%2?mats.pink:mats.gold);candle.position.set(Math.cos(a)*.25,1.49,Math.sin(a)*.25);party.add(candle);
+    const flame=new THREE.Mesh(flameGeo,flameMat);flame.position.set(Math.cos(a)*.25,1.66,Math.sin(a)*.25);party.add(flame);
+    const light=new THREE.PointLight(0xffaa54,.32,3);light.position.copy(flame.position);party.add(light);
+    candleFlames.push({flame,light,phase:rand()*6});
+  }
+  putOnGround(party, -8, -10);
+  interactive.push({
+    type:'cake', object:party, reach:4.8,
+    get prompt(){ return candlesLit ? 'make a wish and blow out the candles' : 'the wish is on its way'; },
+    action: blowCandles
+  });
+}
+buildParty();
+const celebration=buildCelebration({scene,terrainHeight,lampSites:lanternSites,glowTexture});
+
+function updatePartyLight() {
+  const intensity = lerp(.25, 2.2, 1 - moodLive.ambient);
+  if (partyLightMaterial) partyLightMaterial.emissiveIntensity = intensity;
+  partyHaloMaterial.opacity=.035+paintUniforms.uPartyGlow.value*.19;
+}
+
+function blowCandles() {
+  if (!candlesLit) { toast('YOUR WISH IS ALREADY ON ITS WAY'); return; }
+  candlesLit = false;
+  candleFlames.forEach(({flame,light}) => { flame.visible=false; light.visible=false; });
+  audio.softBlow();
+  toast('WISH MADE  ·  MAY IT FIND US SOON');
+  setTimeout(() => launchFireworks(4), 650);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gifts                                                                      */
+/* -------------------------------------------------------------------------- */
+
+const gifts = [];
+let foundCount = 0;
+function makeGift(data, index) {
+  const g = new THREE.Group();
+  const baseMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: .8,emissive:data.color,emissiveIntensity:.15 });
+  const base = box(1.15, .88, 1.02, baseMat); base.position.y=.48; g.add(base);
+  const lid = box(1.27,.18,1.13,baseMat);lid.position.y=.97;g.add(lid);
+  const glow=new THREE.PointLight(data.color,1,7,2);glow.position.y=2.6;g.add(glow);
+  const haloMat=new THREE.SpriteMaterial({map:glowTexture,color:data.color,transparent:true,opacity:.12,depthWrite:false,blending:THREE.AdditiveBlending});
+  const halo=new THREE.Sprite(haloMat);halo.position.y=.7;halo.scale.set(3.5,3.5,1);g.add(halo);
+  const [x,z] = data.pos;
+  // Present-sized rather than crate-sized, but still standing clear of the tallest
+  // grass so finding them never turns into a search.
+  g.scale.setScalar(.62);
+  putOnGround(g,x,z,.05);
+  g.rotation.y=rand()*Math.PI;
+  const gift = { type:'gift', object:g,glow,haloMat,baseMat, data, index, found:false, baseY:g.position.y, phase:rand()*6, reach:CONFIG.giftReach,
+    prompt:`unwrap “${data.title}”`, action:()=>collectGift(gift) };
+  gifts.push(gift); interactive.push(gift);
+}
+CONFIG.gifts.forEach(makeGift);
+
+function collectGift(gift) {
+  if (gift.found) return;
+  gift.found = true;
+  foundCount++;
+  gift.object.visible = false;
+  paintUniforms.uGiftLights.value[gift.index].w=0;
+  $('#gift-count').textContent = `${foundCount} / ${gifts.length}`;
+  audio.gift(foundCount);
+  openGiftNote(gift);
+}
+
+function openGiftNote(gift) {
+  const modal=$('#gift-note');
+  $('.note-number').textContent=`LITTLE GIFT ${String(gift.index+1).padStart(2,'0')} OF ${gifts.length}`;
+  $('.note-icon').textContent=gift.data.icon;
+  $('.note-paper h2').textContent=gift.data.title;
+  $('.note-paper p').textContent=gift.data.note;
+  modal.classList.add('open');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+function closeGiftNote() {
+  $('#gift-note').classList.remove('open');
+  if(foundCount===gifts.length) setTimeout(openFinale,420);
+  else setTimeout(()=>requestPointerLock(),120);
+}
+$('.close-note').addEventListener('click',closeGiftNote);
+$('.keep-walking').addEventListener('click',closeGiftNote);
+
+function openFinale(){
+  setMood('night');
+  $('#finale').classList.add('open');
+  launchFireworks(7);
+}
+$('#finale-close').addEventListener('click',()=>{ $('#finale').classList.remove('open'); setTimeout(()=>requestPointerLock(),120); });
+$('#finale-fireworks').addEventListener('click',()=>{ $('#finale').classList.remove('open'); launchFireworks(12); setTimeout(()=>requestPointerLock(),120); });
+
+/* -------------------------------------------------------------------------- */
+/* Butterflies, clouds and fireflies                                           */
+/* -------------------------------------------------------------------------- */
+
+const butterflies=[];
+
+// One shared wing, swept as a polar grid around the hinge: a pointed forewing
+// lobe, a rounder hindwing lobe and a notch between them. Building the interior
+// rings ourselves (rather than triangulating an outline) is what makes the
+// shading possible — a dark root, a luminous middle and a dark outer margin all
+// need vertices inside the silhouette to interpolate between.
+function wingRadius(a){
+  const fore=.92*Math.exp(-(((a-.45)/.78)**2));
+  const hind=.78*Math.exp(-(((a+.80)/.62)**2));
+  const notch=.13*Math.exp(-(((a+.05)/.20)**2));
+  return Math.max(fore+hind-notch,0);
+}
+function makeWingGeometry(){
+  const rings=[.07,.3,.55,.75,.88,.96,1],steps=34;
+  const positions=[],colors=[],indices=[];
+  for(let r=0;r<rings.length;r++) for(let s=0;s<=steps;s++){
+    const a=1.55-(s/steps)*3.40,u=rings[r],radius=wingRadius(a)*u;
+    positions.push(Math.cos(a)*radius,Math.sin(a)*radius,.07*u*u); // cupped, not a flat cutout
+    // Root shadow, bright wing field, then a dark margin with a pale band just
+    // inside it — the reading that separates a butterfly from a paper cutout.
+    const edge=smoothstep(.78,1,u);
+    let wash=(.26+1.00*smoothstep(0,.70,u))*(1-.62*edge)+.34*Math.exp(-(((u-.87)/.05)**2));
+    wash+=.34*Math.exp(-(((u-.64)/.09)**2))*Math.exp(-(((a-.46)/.24)**2)); // forewing eyespot
+    colors.push(wash,wash*(.98-u*.07),wash*(.92-u*.17));
+  }
+  for(let r=0;r<rings.length-1;r++) for(let s=0;s<steps;s++){
+    const i0=r*(steps+1)+s,i1=i0+1,i2=i0+steps+1,i3=i2+1;
+    indices.push(i0,i2,i1,i1,i2,i3);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+  geo.setIndex(indices);
+  geo.rotateX(-Math.PI/2); // lay the wing flat; the sweep's +y becomes -z, the heading
+  geo.computeVertexNormals();
+  return geo;
+}
+const wingGeo=makeWingGeometry();
+const bodyMat=new THREE.MeshBasicMaterial({color:0x4b3c34});
+const BUTTERFLY_TINTS=[0xefa48e,0xe9c473,0x9dc3b4,0xb9a3d2,0x8fb4cc,0xe7cdb0];
+
+for(let i=0;i<22;i++){
+  const group=new THREE.Group();
+  const mat=new THREE.MeshBasicMaterial({
+    color:BUTTERFLY_TINTS[i%BUTTERFLY_TINTS.length],vertexColors:true,side:THREE.DoubleSide
+  });
+  const left=new THREE.Mesh(wingGeo,mat),right=new THREE.Mesh(wingGeo,mat);
+  right.scale.x=-1;                    // mirrored, so both hinge at the thorax
+  left.position.y=right.position.y=.03;
+  group.add(left,right);
+
+  // Abdomen, thorax, head and clubbed antennae, all pointing along -z.
+  const abdomen=cylinder(.016,.05,.32,6,bodyMat);abdomen.rotation.x=Math.PI/2;abdomen.position.z=.12;group.add(abdomen);
+  const thorax=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),bodyMat);thorax.position.z=-.04;thorax.scale.z=1.5;group.add(thorax);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.042,8,6),bodyMat);head.position.z=-.15;group.add(head);
+  for(const sx of [-1,1]){
+    const antenna=cylinder(.005,.007,.22,4,bodyMat);
+    antenna.position.set(sx*.03,.08,-.225);antenna.rotation.set(-.75,0,sx*.25);group.add(antenna);
+    const club=new THREE.Mesh(new THREE.SphereGeometry(.017,6,5),bodyMat);
+    club.position.set(sx*.05,.17,-.30);group.add(club);
+  }
+  group.traverse(o=>{o.castShadow=false;o.receiveShadow=false;});
+
+  const a=rand()*Math.PI*2,r=10+rand()*40,x=Math.cos(a)*r,z=Math.sin(a)*r;
+  group.position.set(x,terrainHeight(x,z)+1.5,z);
+  group.scale.setScalar(.26+rand()*.14);
+  scene.add(group);
+  butterflies.push({
+    group,left,right,base:new THREE.Vector3(x,0,z),
+    phase:rand()*10,speed:.26+rand()*.3,radius:1.2+rand()*2.6,
+    height:1.1+rand()*1.4,heading:0,bank:0
+  });
+}
+
+const clouds=buildPaintedClouds(scene,paintUniforms,P);
+function updateClouds(){clouds.update(elapsed);}
+
+// The retired 12-sprite cloud layout consumed four shared draws per sprite.
+// Keep the downstream firefly layout stable; cloud noise has its own seed now.
+for(let i=0;i<48;i++)rand();
+
+// Restore the earlier spread: most fireflies loosely follow flowers, with
+// the rest wandering independently across the open meadow.
+const fireflyPos=[],fireflyBase=[];
+for(let i=0;i<400;i++){
+  let x,z,y;
+  if(flowerSpots.length && rand()<.72){
+    const f=flowerSpots[Math.floor(rand()*flowerSpots.length)];
+    const a=rand()*Math.PI*2,r=Math.sqrt(rand())*1.5;
+    x=f[0]+Math.cos(a)*r;z=f[2]+Math.sin(a)*r;
+    y=f[1]+.06+rand()*.55;
+  }else{
+    const a=rand()*Math.PI*2,r=Math.sqrt(rand())*46;
+    x=Math.cos(a)*r;z=Math.sin(a)*r;y=terrainHeight(x,z)+.6+rand()*2.4;
+  }
+  fireflyPos.push(x,y,z);fireflyBase.push(x,y,z,rand()*Math.PI*2);
+}
+const fireflyGeo=new THREE.BufferGeometry();fireflyGeo.setAttribute('position',new THREE.Float32BufferAttribute(fireflyPos,3));
+// Per-point colour, driven each frame, is what lets them blink one at a time —
+// a whole swarm pulsing together reads as a light, not as insects.
+fireflyGeo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(fireflyPos.length),3));
+const fireflyMat=new THREE.PointsMaterial({size:.20,vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,map:glowTexture,alphaTest:.01});
+const fireflies=new THREE.Points(fireflyGeo,fireflyMat);scene.add(fireflies);
+
+/* -------------------------------------------------------------------------- */
+/* Fireworks                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const fireworks=buildFireworks(scene,glowTexture,()=>audio.pop());
+function launchFireworks(amount=6){
+  if(currentMood!=='night')setMood('night');
+  toast('LOOK UP  ·  THE SKY IS YOURS');
+  fireworks.launch(playerRig.position,playerRig.rotation.y,amount);
+}
+function updateFireworks(dt){fireworks.update(dt);}
+
+/* -------------------------------------------------------------------------- */
+/* Small synthesised soundscape                                               */
+/* -------------------------------------------------------------------------- */
+
+const audio={
+  ctx:null,master:null,muted:false,
+  init(){
+    if(this.ctx)return;
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    this.ctx=new AC();this.master=this.ctx.createGain();this.master.gain.value=.5;this.master.connect(this.ctx.destination);
+    const buffer=this.ctx.createBuffer(1,this.ctx.sampleRate*3,this.ctx.sampleRate),data=buffer.getChannelData(0);
+    let last=0;for(let i=0;i<data.length;i++){last=last*.985+(Math.random()*2-1)*.015;data[i]=last;}
+    const noise=this.ctx.createBufferSource();noise.buffer=buffer;noise.loop=true;
+    const filter=this.ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=430;
+    const gain=this.ctx.createGain();gain.gain.value=.11;noise.connect(filter).connect(gain).connect(this.master);noise.start();
+    this.chime([261.63,329.63,392]);
+  },
+  resume(){this.ctx?.resume();},
+  tone(freq,when=0,duration=1,volume=.06,type='sine'){
+    if(!this.ctx||this.muted)return;
+    const t=this.ctx.currentTime+when,osc=this.ctx.createOscillator(),gain=this.ctx.createGain();
+    osc.type=type;osc.frequency.setValueAtTime(freq,t);gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(volume,t+.025);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
+    osc.connect(gain).connect(this.master);osc.start(t);osc.stop(t+duration+.05);
+  },
+  chime(notes){notes.forEach((n,i)=>this.tone(n,i*.12,1.4,.045,'sine'));},
+  gift(n){this.chime([392+n*6,523.25+n*4,659.25+n*3]);},
+  pop(){this.tone(90,.05,.45,.055,'triangle');this.tone(620+rand()*240,0,.7,.018,'sine');},
+  softBlow(){this.chime([659.25,587.33,523.25,392]);},
+  toggle(){this.muted=!this.muted;if(this.master)this.master.gain.setTargetAtTime(this.muted?0:.5,this.ctx.currentTime,.08);$('#sound-button').textContent=this.muted?'×':'♪';toast(this.muted?'SOUND RESTING':'SOUND ON');}
+};
+
+/* -------------------------------------------------------------------------- */
+/* Player, interaction and commands                                           */
+/* -------------------------------------------------------------------------- */
+
+const playerRig=new THREE.Group();
+const cameraPivot=new THREE.Group();
+playerRig.add(cameraPivot);cameraPivot.add(camera);scene.add(playerRig);
+camera.position.set(0,CONFIG.eyeHeight,0);
+playerRig.position.set(4,terrainHeight(4,18),18);
+// Begin facing the warm side of the sky and the party garden, not the cool
+// anti-sun horizon. The sky remains intentionally asymmetric like the source.
+playerRig.rotation.y=0;
+cameraPivot.rotation.x=-.055;
+const keys={};
+let playing=false;
+let nearest=null;
+
+function onIsland(x,z){return Math.sqrt((x/67)**2+(z/54)**2)<.89;}
+function movePlayer(dt){
+  if(document.pointerLockElement!==renderer.domElement)return;
+  let sx=(keys.KeyD?1:0)-(keys.KeyA?1:0),sz=(keys.KeyS?1:0)-(keys.KeyW?1:0);
+  if(sx||sz){
+    const len=Math.hypot(sx,sz);sx/=len;sz/=len;
+    const speed=CONFIG.walkSpeed*(keys.ShiftLeft||keys.ShiftRight?1.7:1);
+    tmp.set(sx,0,sz).applyAxisAngle(new THREE.Vector3(0,1,0),playerRig.rotation.y).multiplyScalar(speed*dt);
+    const nx=playerRig.position.x+tmp.x,nz=playerRig.position.z+tmp.z;
+    if(onIsland(nx,nz)){playerRig.position.x=nx;playerRig.position.z=nz;}
+  }
+  // Ease onto the ground rather than snapping, so crests and troughs feel like
+  // gliding over the land instead of stepping up and down it.
+  const ground=terrainHeight(playerRig.position.x,playerRig.position.z);
+  playerRig.position.y+=(ground-playerRig.position.y)*Math.min(1,dt*14);
+  camera.position.y=CONFIG.eyeHeight+Math.sin(performance.now()*.012)*.025;
+}
+
+function updateInteraction(){
+  nearest=null;let best=Infinity;
+  for(const item of interactive){
+    if(item.found)continue;
+    item.object.getWorldPosition(tmp);
+    const d=tmp.distanceTo(playerRig.position);
+    if(d<item.reach&&d<best){best=d;nearest=item;}
+  }
+  const el=$('#interaction');
+  if(nearest){el.innerHTML=`<b>E</b> ${nearest.prompt}`;el.classList.add('show');}
+  else el.classList.remove('show');
+}
+
+function setMood(name){
+  if(!MOODS[name])return;
+  currentMood=name;moodTarget={...MOODS[name]};
+  document.querySelectorAll('#moods button').forEach(b=>b.classList.toggle('active',b.dataset.mood===name));
+  toast(`${name.toUpperCase()} ON THE ISLAND`);
+}
+document.querySelectorAll('#moods button').forEach(b=>b.addEventListener('click',()=>setMood(b.dataset.mood)));
+
+function openCommand(){
+  if(document.pointerLockElement)document.exitPointerLock();
+  $('#command').classList.add('open');
+  setTimeout(()=>$('#command-input').focus(),50);
+}
+function closeCommand(lock=true){
+  $('#command').classList.remove('open');$('#command-input').value='';
+  if(lock&&playing)setTimeout(()=>requestPointerLock(),100);
+}
+function runCommand(raw){
+  const cmd=raw.trim().toLowerCase().replace(/^\//,'');
+  if(cmd==='fireworks'||cmd==='firework'||cmd==='celebrate')launchFireworks(9);
+  else if(MOODS[cmd])setMood(cmd);
+  else if(cmd==='gifts'||cmd==='gift')toast(`${foundCount} FOUND  ·  ${gifts.length-foundCount} STILL HIDING`);
+  else if(cmd==='blow'||cmd==='candles'){
+    const cake=interactive.find(i=>i.type==='cake');cake.object.getWorldPosition(tmp);
+    if(tmp.distanceTo(playerRig.position)<cake.reach)blowCandles();else toast('FIND THE CAKE IN THE PARTY GARDEN FIRST');
+  } else if(cmd==='help'||cmd==='commands')toast('TRY: FIREWORKS · DAY · SUNSET · NIGHT · GIFTS');
+  else if(cmd)toast(`THE ISLAND DOESN’T KNOW “${cmd.toUpperCase()}” YET`);
+  closeCommand();
+}
+$('#command').addEventListener('submit',e=>{e.preventDefault();runCommand($('#command-input').value);});
+$('#command-button').addEventListener('click',openCommand);
+$('#sound-button').addEventListener('click',()=>audio.toggle());
+
+window.addEventListener('keydown',e=>{
+  if($('#command').classList.contains('open')){if(e.code==='Escape')closeCommand();return;}
+  if($('.note-modal.open'))return;
+  keys[e.code]=true;
+  if(e.code==='Slash'){e.preventDefault();openCommand();}
+  if(e.code==='KeyE'&&nearest)nearest.action();
+  if(e.code==='KeyF')launchFireworks(7);
+  if(e.code==='KeyM')audio.toggle();
+  if(e.code==='Digit1')setMood('day');
+  if(e.code==='Digit2')setMood('sunset');
+  if(e.code==='Digit3')setMood('night');
+});
+window.addEventListener('keyup',e=>{keys[e.code]=false;});
+window.addEventListener('blur',()=>Object.keys(keys).forEach(k=>keys[k]=false));
+function requestPointerLock(){
+  const result=renderer.domElement.requestPointerLock?.();
+  result?.catch(()=>{ /* A browser can decline; clicking the world retries. */ });
+}
+renderer.domElement.addEventListener('click',()=>{if(playing&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();});
+window.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==renderer.domElement)return;
+  playerRig.rotation.y-=e.movementX*.0022;
+  cameraPivot.rotation.x=clamp(cameraPivot.rotation.x-e.movementY*.0018,-1.25,1.15);
+});
+
+let toastTimer;
+function toast(message){
+  const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+/* The original film-print idea: lifted violet shadows, cream highlights, a
+   gentle hand-painted S curve, paper tooth, warm vignette and ordered dither. */
+const sceneTarget=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{
+  type:THREE.HalfFloatType,
+  minFilter:THREE.LinearFilter,
+  magFilter:THREE.LinearFilter,
+  depthBuffer:true,
+  // The renderer's own antialiasing does not apply when drawing into a target,
+  // so without this every blade edge is a hard step — which is what makes a
+  // dense sward read as noise rather than as grass.
+  samples:4
+});
+sceneTarget.samples=2;
+const postScene=new THREE.Scene();
+const postCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+// The reference's HDR firewall: a non-finite source texel must never spread
+// through the low-resolution bloom into a large rectangular patch.
+const safeColorGLSL=`vec3 safeColor(vec3 c){return vec3(
+  c.r>=0.0?min(c.r,16.0):0.0,c.g>=0.0?min(c.g,16.0):0.0,c.b>=0.0?min(c.b,16.0):0.0);}`;
+const bloomTargets=Array.from({length:2},()=>new THREE.WebGLRenderTarget(Math.ceil(innerWidth/4),Math.ceil(innerHeight/4),{
+  type:THREE.HalfFloatType,depthBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter
+}));
+const bloomMaterial=new THREE.ShaderMaterial({
+  depthTest:false,depthWrite:false,
+  uniforms:{uSrc:{value:sceneTarget.texture},uStep:{value:new THREE.Vector2()},uExtract:{value:1}},
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
+  fragmentShader:`${safeColorGLSL}
+    uniform sampler2D uSrc;uniform vec2 uStep;uniform float uExtract;varying vec2 vUv;
+    vec3 readLight(vec2 uv){vec3 c=safeColor(texture2D(uSrc,uv).rgb);float l=dot(c,vec3(.2126,.7152,.0722));return c*mix(1.0,smoothstep(.65,1.5,l),uExtract);}
+    void main(){vec3 c=readLight(vUv)*.227;
+      c+=(readLight(vUv+uStep*1.3846)+readLight(vUv-uStep*1.3846))*.316;
+      c+=(readLight(vUv+uStep*3.2308)+readLight(vUv-uStep*3.2308))*.070;
+      gl_FragColor=vec4(c,1.0);}`
+});
+const bloomScene=new THREE.Scene();bloomScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),bloomMaterial));
+function renderBloom(){
+  bloomMaterial.uniforms.uSrc.value=sceneTarget.texture;
+  bloomMaterial.uniforms.uExtract.value=1;
+  bloomMaterial.uniforms.uStep.value.set(2/sceneTarget.width,0);
+  renderer.setRenderTarget(bloomTargets[0]);renderer.render(bloomScene,postCamera);
+  bloomMaterial.uniforms.uSrc.value=bloomTargets[0].texture;
+  bloomMaterial.uniforms.uExtract.value=0;
+  bloomMaterial.uniforms.uStep.value.set(0,1/bloomTargets[0].height);
+  renderer.setRenderTarget(bloomTargets[1]);renderer.render(bloomScene,postCamera);
+}
+const postMaterial=new THREE.ShaderMaterial({
+  depthTest:false,depthWrite:false,toneMapped:false,
+  uniforms:{uScene:{value:sceneTarget.texture},uBloom:{value:bloomTargets[1].texture},uTime:{value:0},uExposure:{value:moodLive.exposure},uRes:{value:new THREE.Vector2(innerWidth,innerHeight)}},
+  vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
+  fragmentShader:`
+    precision highp float;
+    ${safeColorGLSL}
+    uniform sampler2D uScene,uBloom; uniform float uTime,uExposure; uniform vec2 uRes;
+    varying vec2 vUv;
+    float hash12(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
+    float luma(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
+    vec3 tonemap(vec3 x){x=max(x,vec3(0.0));vec3 a=x*(x*.36+.42);vec3 b=x*(x*.34+.66)+.11;return clamp(a/b,0.0,1.0);}
+    vec3 softMeadowSample(vec2 uv){
+      vec4 centre=texture2D(uScene,uv);
+      float amount=clamp((1.0-centre.a)*2.0,0.0,1.0);
+      vec3 original=safeColor(centre.rgb);
+      if(amount<.04)return original;
+      // Small, local pigment blending from the reference's watercolor pass.
+      // The alpha mask stops the filter crossing into cake, trees or sky.
+      vec2 radius=vec2(mix(.6,1.1,amount))/uRes;
+      vec3 sum=original;float total=1.0;
+      for(int i=0;i<4;i++){
+        vec2 offset=i==0?vec2(1.0,0.0):i==1?vec2(-1.0,0.0):i==2?vec2(0.0,1.0):vec2(0.0,-1.0);
+        vec4 tap=texture2D(uScene,uv+offset*radius);
+        float w=.65*(1.0-smoothstep(.025,.12,abs(tap.a-centre.a)));
+        sum+=safeColor(tap.rgb)*w;total+=w;
+      }
+      return mix(original,sum/total,amount*.55);
+    }
+    void main(){
+      vec2 d=vUv-.5;float r2=dot(d,d);
+      vec3 c=softMeadowSample(vUv)*uExposure;
+      c+=safeColor(texture2D(uBloom,vUv).rgb)*.18;
+      // Preserve pigment hue: per-channel compression alone bleaches green
+      // leaves and blue sky toward gray. Blend a luminance-preserving print.
+      float sceneL=max(luma(c),.0001);
+      c=mix(tonemap(c),c*(tonemap(vec3(sceneL)).r/sceneL),.65);
+      float l=luma(c);
+      vec3 shadowPush=mix(vec3(.90,.95,1.16),vec3(1.0),smoothstep(0.0,.34,l));
+      vec3 highPush=mix(vec3(1.0),vec3(1.055,1.012,.925),smoothstep(.44,.98,l));
+      c*=mix(vec3(1.0),shadowPush,.85)*mix(vec3(1.0),highPush,.90);
+      vec3 lift=vec3(.009,.012,.022);c=c*(1.0-lift)+lift;
+      // Saturated emissive colors can exceed one after luminance tonemapping.
+      // Bound the S-curve input so bright gift lights never invert their hue.
+      vec3 curveInput=clamp(c,0.0,1.0);
+      c=mix(c,curveInput*curveInput*(3.0-2.0*curveInput),.24);
+      l=luma(c);float sat=1.0+.16*smoothstep(.10,.42,l)*(1.0-smoothstep(.62,.96,l));
+      c=mix(vec3(l),c,sat);
+      float grain=(hash12(gl_FragCoord.xy*.47+floor(uTime*9.0))-.5)*.008;
+      float fibre=(hash12(vec2(gl_FragCoord.x*.07,gl_FragCoord.y*.91))-.5)*.004;
+      c*=1.0+grain+fibre;
+      float vig=pow(clamp(1.0-r2*1.15,0.0,1.0),1.55);
+      c*=mix(vec3(.88,.89,.94),vec3(1.0),vig);
+      float dither=fract(dot(gl_FragCoord.xy,vec2(.7548776662,.5698402909)));
+      c+=(dither-.5)/255.0;
+      gl_FragColor=vec4(clamp(c,0.0,1.0),1.0);
+      #include <colorspace_fragment>
+    }
+  `
+});
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMaterial));
+
+/* -------------------------------------------------------------------------- */
+/* Animation                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const clock=new THREE.Clock();
+let elapsed=0;
+let lastShadowTime=-1;
+let lastFrameTime=-Infinity;
+let resolutionScale=1;
+let frameWindow=0,frameCount=0,qualityCooldown=0;
+const gl=renderer.getContext();
+const gpuTimer=gl.getExtension('EXT_disjoint_timer_query_webgl2');
+const gpuQueries=[];
+let gpuMs=0,cpuMs=0;
+function beginGpuSample(){
+  if(!gpuTimer)return null;
+  while(gpuQueries.length&&gl.getQueryParameter(gpuQueries[0],gl.QUERY_RESULT_AVAILABLE)){
+    const query=gpuQueries.shift();
+    if(!gl.getParameter(gpuTimer.GPU_DISJOINT_EXT)){
+      const ms=gl.getQueryParameter(query,gl.QUERY_RESULT)/1e6;
+      gpuMs=gpuMs?lerp(gpuMs,ms,.12):ms;
+    }
+    gl.deleteQuery(query);
+  }
+  if(gpuQueries.length>3)return null;
+  const query=gl.createQuery();gl.beginQuery(gpuTimer.TIME_ELAPSED_EXT,query);return query;
+}
+const inspect = new URLSearchParams(location.search).has('inspect');
+const diagnostic = inspect ? document.createElement('output') : null;
+if(diagnostic){diagnostic.id='render-stats';diagnostic.style.cssText='position:fixed;left:20px;top:90px;padding:10px;background:#102a30cc;color:#fff;font:12px monospace;z-index:100;white-space:pre';document.body.appendChild(diagnostic);}
+function resizeTargets(){
+  // Bound total scene pixels as well as DPR: Retina should not quadruple GPU work.
+  const pixelScale=Math.min(1,Math.sqrt(1600000/(innerWidth*innerHeight)))*resolutionScale;
+  const w=Math.max(1,Math.round(innerWidth*pixelScale)),h=Math.max(1,Math.round(innerHeight*pixelScale));
+  sceneTarget.setSize(w,h);postMaterial.uniforms.uRes.value.set(w,h);
+  bloomTargets.forEach(t=>t.setSize(Math.ceil(w/4),Math.ceil(h/4)));
+}
+resizeTargets();
+function updateQuality(rawDt){
+  if(document.hidden||rawDt>.15){frameWindow=0;frameCount=0;return;}
+  frameWindow+=rawDt;frameCount++;
+  if(frameWindow<2)return;
+  const ms=frameWindow*1000/frameCount;
+  qualityCooldown=Math.max(0,qualityCooldown-frameWindow);
+  if(elapsed>6&&qualityCooldown===0){
+    const overloaded=gpuTimer?gpuMs>18:document.hasFocus()&&ms>23&&cpuMs>10;
+    const headroom=gpuTimer?gpuMs>0&&gpuMs<11:ms<17;
+    const next=overloaded?Math.max(.7,resolutionScale-.1):headroom?Math.min(1,resolutionScale+.05):resolutionScale;
+    if(next!==resolutionScale){resolutionScale=next;resizeTargets();qualityCooldown=6;}
+  }
+  if(diagnostic)diagnostic.textContent=`${Math.round(1000/ms)} fps · ${ms.toFixed(1)} ms/frame${gpuMs?` · GPU ${gpuMs.toFixed(1)} ms`:""}\n${sceneTarget.width} × ${sceneTarget.height} · ${grassBladeCount.toLocaleString()} grass blades\n${renderer.info.render.calls} draws · ${renderer.info.render.triangles.toLocaleString()} triangles\n${currentMood} · ${playerRig.position.x.toFixed(1)}, ${playerRig.position.z.toFixed(1)}`;
+  frameWindow=0;frameCount=0;
+}
+// Read-only inspection views make the visual acceptance pass reproducible.
+const inspectParams=new URLSearchParams(location.search);
+if(inspect){
+  const views={flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],
+    bench:[-38.5,-3,1.57,-.06],cake:[-8,-6.4,0,-.16],hills:[14,26,2.5,-.03],
+    // Facing away from the sun with the camera up: the anti-sun meridian is
+    // where sky shader math degenerates, and nothing else in the scene looks there.
+    antisun:[-9.7,17.4,3.76,.62]};
+  const v=views[inspectParams.get('view')];
+  if(v){playerRig.position.set(v[0],terrainHeight(v[0],v[1]),v[1]);playerRig.rotation.y=v[2];cameraPivot.rotation.x=v[3];}
+}
+renderer.info.autoReset=false;
+function approachColor(color,key,dt){color.lerp(new THREE.Color(moodTarget[key]),1-Math.exp(-dt*1.2));}
+function updateMood(dt){
+  const k=1-Math.exp(-dt*1.15);
+  for(const name of ['sunPower','hemi','exposure','stars','ambient','elevation'])moodLive[name]=lerp(moodLive[name],moodTarget[name],k);
+  approachColor(skyUniforms.uTop.value,'top',dt);approachColor(skyUniforms.uUpper.value,'upper',dt);approachColor(skyUniforms.uMid.value,'mid',dt);
+  approachColor(skyUniforms.uHorizon.value,'horizon',dt);approachColor(skyUniforms.uHorizonSun.value,'horizonSun',dt);approachColor(skyUniforms.uAnti.value,'anti',dt);
+  approachColor(skyUniforms.uGlow.value,'glow',dt);approachColor(skyUniforms.uDisc.value,'disc',dt);
+  approachColor(scene.fog.color,'fog',dt);approachColor(oceanUniforms.uColorA.value,'oceanA',dt);approachColor(oceanUniforms.uColorB.value,'oceanB',dt);approachColor(oceanUniforms.uSunColor.value,'glow',dt);
+  sunLight.color.lerp(new THREE.Color(moodTarget.sun),k);
+  skyUniforms.uSunDir.value.set(-.58,moodLive.elevation,-.82).normalize();
+  sunLight.position.copy(skyUniforms.uSunDir.value).multiplyScalar(125);
+  paintUniforms.uLightColor.value.copy(sunLight.color);
+  paintUniforms.uAmbient.value=moodLive.ambient;
+  paintUniforms.uPartyGlow.value=clamp((.92-moodLive.ambient)/.76,0,1);
+  sunLight.intensity=moodLive.sunPower;hemi.intensity=moodLive.hemi;
+  stars.update(elapsed,moodLive.stars,renderer.getPixelRatio()*resolutionScale);fireflyMat.opacity=clamp((moodLive.stars-.2)*.78,0,.7);
+  oceanUniforms.uNight.value=moodLive.stars;
+  updatePartyLight();
+  celebration.update(elapsed,paintUniforms.uPartyGlow.value);
+}
+function animate(now,force){
+  // A quiet scene should not spend power chasing a 120 Hz display refresh.
+  if(!force && (document.hidden || now-lastFrameTime < 1000/60-1))return;
+  lastFrameTime=now;
+  const rawDt=clock.getDelta();const dt=Math.min(rawDt,.05);elapsed+=dt;
+  updateQuality(rawDt);renderer.info.reset();
+  renderer.shadowMap.needsUpdate=elapsed-lastShadowTime>1/15;
+  if(renderer.shadowMap.needsUpdate)lastShadowTime=elapsed;
+  oceanUniforms.uTime.value=elapsed;
+  paintUniforms.uTime.value=elapsed;
+  camera.getWorldPosition(tmp2);
+  for(const material of bladeMaterials)material.uniforms.uCam.value.copy(tmp2);
+  movePlayer(dt);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);
+  gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.5+paintUniforms.uPartyGlow.value*4.5;g.haloMat.opacity=.04+paintUniforms.uPartyGlow.value*.14;g.baseMat.emissiveIntensity=.12+paintUniforms.uPartyGlow.value*.42;}});
+  candleFlames.forEach(c=>{if(c.flame.visible){const s=1+Math.sin(elapsed*11+c.phase)*.16;c.flame.scale.set(2-s,s,2-s);}});
+  butterflies.forEach(b=>{
+    const t=elapsed*b.speed+b.phase;
+    // A drifting figure-eight reads as wandering; a plain circle reads as a machine.
+    const x=b.base.x+Math.cos(t)*b.radius+Math.sin(t*.41)*b.radius*.42;
+    const z=b.base.z+Math.sin(t*1.73)*b.radius*.55+Math.cos(t*.37)*b.radius*.5;
+    const vx=x-b.group.position.x,vz=z-b.group.position.z;
+    b.group.position.set(x,terrainHeight(x,z)+b.height+Math.sin(t*2.4)*.4,z);
+    if(vx||vz){
+      let d=Math.atan2(-vx,-vz)-b.heading;
+      d=Math.atan2(Math.sin(d),Math.cos(d));
+      b.heading+=d*Math.min(1,dt*6);
+      b.bank+=(clamp(d*2.2,-.55,.55)-b.bank)*Math.min(1,dt*5);
+    }
+    b.group.rotation.set(0,b.heading,b.bank);
+    // Bursts of quick beats broken by short glides, wings resting in a shallow V.
+    const glide=.5+.5*Math.sin(t*.6+b.phase);
+    const flap=Math.sin(elapsed*(9+b.speed*12)+b.phase)*(.32+glide*.72);
+    b.left.rotation.z=.16+flap;b.right.rotation.z=-.16-flap;
+  });
+  updateClouds();
+  // Each firefly wanders around its own anchor. Spinning the whole cloud about
+  // the origin, as this used to, would drag them away from their flowers.
+  if(fireflyMat.opacity>.01){
+    const fp=fireflyGeo.attributes.position;
+    for(let i=0;i<fp.count;i++){
+      const bx=fireflyBase[i*4],by=fireflyBase[i*4+1],bz=fireflyBase[i*4+2],ph=fireflyBase[i*4+3];
+      fp.setXYZ(i,
+        bx+Math.sin(elapsed*.42+ph)*.55,
+        by+Math.sin(elapsed*.63+ph*1.7)*.22,
+        bz+Math.cos(elapsed*.35+ph*1.3)*.55);
+    }
+    const fc=fireflyGeo.attributes.color;
+    for(let i=0;i<fp.count;i++){
+      const ph=fireflyBase[i*4+3];
+      const tw=.22+.78*Math.pow(Math.max(Math.sin(elapsed*1.5+ph*3.1),0),1.6);
+      const warm=.78+.22*Math.sin(ph*2.3);
+      fc.setXYZ(i,tw,tw*(.80+.13*warm),tw*(.30+.22*warm));
+    }
+    fp.needsUpdate=true;fc.needsUpdate=true;
+  }
+  sky.position.copy(camera.getWorldPosition(tmp2));
+  const renderStart=performance.now();
+  const gpuQuery=beginGpuSample();
+  renderer.setRenderTarget(sceneTarget);
+  renderer.clear();
+  renderer.render(scene,camera);
+  paintUniforms.uShadowMap.value=sunLight.shadow.map?.texture;
+  paintUniforms.uShadowReady.value=sunLight.shadow.map?1:0;
+  renderBloom();
+  renderer.setRenderTarget(null);
+  postMaterial.uniforms.uTime.value=elapsed;
+  postMaterial.uniforms.uExposure.value=moodLive.exposure;
+  renderer.render(postScene,postCamera);
+  if(gpuQuery){gl.endQuery(gpuTimer.TIME_ELAPSED_EXT);gpuQueries.push(gpuQuery);}
+  cpuMs=lerp(cpuMs,performance.now()-renderStart,.1);
+}
+renderer.setAnimationLoop(animate);
+// Headless capture environments never run requestAnimationFrame, so inspection
+// needs a way to step the scene by hand.
+if(inspect)window.__step=()=>animate(performance.now(),true);
+
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
+  resizeTargets();
+});
+
+/* -------------------------------------------------------------------------- */
+/* Welcome                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const loadingStages=['drawing the shoreline…','growing wildflowers…','wrapping little gifts…','saving the sunset…','the island is ready'];
+let stage=0;
+const loadingTimer=setInterval(()=>{
+  stage++;
+  $('#load-bar').style.width=`${Math.min(stage/loadingStages.length*100,100)}%`;
+  $('#load-copy').textContent=loadingStages[Math.min(stage,loadingStages.length-1)];
+  if(stage>=loadingStages.length){clearInterval(loadingTimer);$('#enter').disabled=false;$('#enter').classList.add('ready');}
+},260);
+
+$('#enter').addEventListener('click',()=>{
+  playing=true;document.body.classList.add('playing');$('#welcome').classList.add('gone');audio.init();audio.resume();
+  setTimeout(()=>requestPointerLock(),300);
+  setTimeout(()=>toast('TEN LITTLE GIFTS ARE WAITING FOR YOU'),1300);
+});
+
+if(CONFIG.herName) $('.welcome-card .eyebrow').textContent=`A LITTLE WORLD FOR ${CONFIG.herName.toUpperCase()}`;
+if(CONFIG.fromName) $('.brand small').textContent=CONFIG.fromName;
+setMood(CONFIG.startingMood);
