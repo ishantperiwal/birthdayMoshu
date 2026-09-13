@@ -1,11 +1,26 @@
+import { buildHandPose } from './hand-pose.js?v=9';
+import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
+import { buildCompanion } from './companion.js?v=reach-swap-2';
+import { addGiftAura } from './gift-aura.js';
+import { buildGiftFinish, giftBox } from './gift-finish.js?v=2';
+import { buildDandelions } from './dandelions.js?v=2';
+import { buildOceanLife } from './ocean-life.js?v=cruise-4';
+import { MONEY_TIERS, LEGENDARY_RESERVE, rupees, decorateMoneyGift } from './money-gifts.js?v=finish-2';
+import { STAGE_HEIGHT, STAGE_RADIUS } from './celebration-stage.js';
+import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=hats-2';
+import { buildShootingStars } from './shooting-stars.js';
+import { auroraGLSL } from './aurora.js?v=4';
+import { buildCharacter } from './character.js?v=reach-swap-2';
+import { buildFireside } from './fireside.js?v=benches-2';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js';
 import { GL_HASH, GL_NOISE } from './reference-noise.js';
-import { buildCelebration } from './celebration.js';
-import { cakeTableMaterials, decorateCake } from './cake-details.js';
-import { buildStars, buildPaintedClouds } from './painted-sky.js';
-import { buildFireworks } from './fireworks.js';
+import { buildCelebration } from './celebration.js?v=stage-2';
+import { cakeTableMaterials } from './cake-details.js?v=ambient-1';
+import { buildStars, buildPaintedClouds } from './painted-sky.js?v=star-trails-1';
+import { buildFireworks } from './fireworks.js?v=attention-1';
 import { buildMeadowLife } from './meadow-life.js';
+import { buildCandleSmoke } from './candle-smoke.js';
 
 /*
   OUR LITTLE ISLAND
@@ -20,11 +35,13 @@ const CONFIG = {
   herName: '',
   fromName: '',
   eyeHeight: 1.86,
+  thirdPerson: false, // Set true to restore the character and follow camera.
   walkSpeed: 5.0,
   giftReach: 3.2,
-  startingMood: 'day',
+  radioMusicUrl: '', // Add a local audio file URL when the music is ready.
+  startingMood: 'night', // Night preview while refining the celebration lighting.
   gifts: [
-    { pos: [-31, -4], title: 'A pocket of sunshine', icon: '☀', color: 0xf2bd6b,
+    { pos: [1.5, 8], title: 'A pocket of sunshine', icon: '☀', color: 0xf2bd6b,
       note: 'For every morning when I wish I could be there beside you. Keep this little bit of warmth for me.' },
     { pos: [25, 21], title: 'One very long hug', icon: '♡', color: 0xe997a0,
       note: 'It has been folded very carefully so it can travel any distance. Open whenever you need it.' },
@@ -42,10 +59,19 @@ const CONFIG = {
       note: 'You already give me so many. This is one small reason being sent back to you.' },
     { pos: [-38, -24], title: 'A little envelope', icon: '✉', color: 0xd58f93,
       note: 'Choose something you truly love. Until I can bring a present to your door, this one is on me.' },
-    { pos: [2, 6], title: 'The best one', icon: '♥', color: 0xed858e,
-      note: 'Not a thing at all—just the reminder that you are deeply loved, today and on every ordinary day too.' }
+    { pos: [-20, 18], title: 'The best one', icon: '♥', color: 0xed858e,
+      note: 'For something that makes you smile—a little treat, a new adventure, or a wish you have been saving. You are deeply loved, today and every ordinary day too.' }
   ]
 };
+
+// Optional inspection only; the normal experience remains first person.
+if(new URLSearchParams(location.search).has('inspect')&&new URLSearchParams(location.search).has('thirdPerson'))CONFIG.thirdPerson=true;
+
+// Ten regular presents total ₹20,000. Legendary rewards remain unplaced.
+const giftTiers=['small','medium','large','medium','medium','medium','small','medium','large','medium'];
+CONFIG.gifts.forEach((gift,i)=>Object.assign(gift,{tier:giftTiers[i],...MONEY_TIERS[giftTiers[i]]}));
+CONFIG.legendaryReserve=LEGENDARY_RESERVE;
+if(CONFIG.gifts.reduce((sum,g)=>sum+g.amount,0)!==20000)throw new Error('Gift budget must total ₹20,000');
 
 // The source valley's actual color script, reused here rather than approximated.
 const P = {
@@ -124,41 +150,43 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;
 world.appendChild(renderer.domElement);
 
-scene.fog = new THREE.FogExp2(0x9caeb0, 0.0038);
+scene.fog = new THREE.FogExp2(0x9caeb0, 0.0044);
 
 const hemi = new THREE.HemisphereLight(0xc2deff, 0x476855, 1.15);
 scene.add(hemi);
 const sunLight = new THREE.DirectionalLight(0xffd5a2, 3.2);
 sunLight.position.set(-85, 58, -72);
 sunLight.castShadow = true;
-sunLight.shadow.mapSize.set(2048, 2048);
+const shadowMapSize=Math.min(4096,renderer.capabilities.maxTextureSize);
+sunLight.shadow.mapSize.set(shadowMapSize,shadowMapSize);
 sunLight.shadow.camera.left = -75;
 sunLight.shadow.camera.right = 75;
 sunLight.shadow.camera.top = 75;
 sunLight.shadow.camera.bottom = -75;
 sunLight.shadow.camera.near = 10;
 sunLight.shadow.camera.far = 220;
-sunLight.shadow.bias = -0.00045;
+sunLight.shadow.bias = -0.00012;
+sunLight.shadow.normalBias = .02;
 scene.add(sunLight);
 
 const MOODS = {
   day: {
     top: P.skyZenith, upper:P.skyUpper, mid:P.skyMid, horizon:P.skyHorizon,
     horizonSun:P.skyHorizonSun, anti:P.skyAnti, glow:P.sunGlow, disc:P.sunDisc, fog:P.haze,
-    oceanA: P.wDeep, oceanB: P.wShallow, sun: 0xfff1d5, sunPower: 2.8,
-    hemi: 1.25, exposure: 0.94, stars: 0, ambient: 0.92, elevation: 0.48
+    oceanA: 0x155b83, oceanB: 0x398fa7, sun: 0xfff1d5, sunPower: 2.8,
+    hemi: 1.42, exposure: 0.97, stars: 0, ambient: 0.96, elevation: 0.48
   },
   sunset: {
     top: 0x415f8c, upper:0x718eae, mid:0xb5b4bd, horizon:0xe9c4ad,
     horizonSun:0xffd59f, anti:0xaebfc9, glow:0xffd09a, disc:0xffffe8, fog:0xb4a7a0,
     oceanA: 0x294f66, oceanB: 0x8ab0aa, sun: 0xffc886, sunPower: 2.4,
-    hemi: 0.85, exposure: 0.94, stars: 0.03, ambient: 0.64, elevation: 0.105
+    hemi: 1.04, exposure: 0.97, stars: 0.03, ambient: 0.70, elevation: 0.105
   },
   night: {
-    top: 0x071326, upper:0x102440, mid:0x203a57, horizon:0x526477,
-    horizonSun:0x776d79, anti:0x405773, glow:0x8196ba, disc:0xd8e3ef, fog:0x172d42,
-    oceanA: 0x0c2639, oceanB: 0x34576a, sun: 0x9fb3d8, sunPower: 0.42,
-    hemi: 0.34, exposure: 0.82, stars: 1, ambient: 0.16, elevation: 0.38
+    top: 0x071326, upper:0x102440, mid:0x182c46, horizon:0x26364c,
+    horizonSun:0x353b51, anti:0x20334d, glow:0x50678e, disc:0xd8e3ef, fog:0x172d42,
+    oceanA: 0x0c2639, oceanB: 0x34576a, sun: 0xa6b9dc, sunPower: 0.48,
+    hemi: 0.32, exposure: 0.74, stars: 1, ambient: 0.13, elevation: 0.38
   }
 };
 let currentMood = CONFIG.startingMood;
@@ -166,6 +194,8 @@ let moodTarget = { ...MOODS[currentMood] };
 const moodLive = { ...moodTarget };
 
 const skyUniforms = {
+  uAuroraTime: { value: 0 },
+  uAuroraNight: { value: moodLive.stars },
   uTop: { value: new THREE.Color(moodLive.top) },
   uUpper: { value: new THREE.Color(moodLive.upper) },
   uMid: { value: new THREE.Color(moodLive.mid) },
@@ -179,6 +209,7 @@ const skyUniforms = {
 // The sky's colour is a function so the ocean can reflect the actual sky rather
 // than tinting toward a single horizon colour.
 const skyGLSL = `
+  ${auroraGLSL}
   uniform vec3 uTop, uUpper, uMid, uHorizon, uHorizonSun, uAnti, uGlow, uDisc, uSunDir;
   vec3 skyDome(vec3 d, float discGain){
     float yy = max(d.y, -0.18);
@@ -198,7 +229,7 @@ const skyGLSL = `
     col = mix(col, uGlow, clamp(pow(max(ang,0.0),12.0)*0.40 + pow(max(ang,0.0),2.9)*0.06,0.0,0.9));
     col = mix(col, uDisc * 1.42, smoothstep(0.9992, 0.99972, ang) * discGain);
     col = mix(col, mix(uHorizon,uAnti,.35), (1.0-smoothstep(-0.16,0.0,d.y)));
-    return col;
+    return col+auroraGlow(d,uSunDir);
   }
 `;
 const sky = new THREE.Mesh(
@@ -224,6 +255,7 @@ const sky = new THREE.Mesh(
 scene.add(sky);
 
 const stars=buildStars(scene);
+const shootingStars=buildShootingStars(scene);
 // Preserve the layout seed used by the original 900-star sampler.
 for(let i=0;i<1800;i++)rand();
 
@@ -251,7 +283,8 @@ function islandHeight(x, z) {
 
 // Keep the birthday clearing level, blending gently back into the hills.
 // x, z, lantern height: shared by the fixtures and the grass lighting.
-const lanternSites=[[1,20,1.4],[27,28,1.4],[-28,-23,1.4],[-34,0,1.4]];
+// The approach lantern sits beyond the right shoulder, nested in the grass.
+const lanternSites=[[3.2,20,1.4],[27,28,1.4],[-28,-23,1.4],[-34,0,1.4]];
 const gardenHeight=islandHeight(-8,-10);
 function terrainHeight(x,z){
   return lerp(gardenHeight,islandHeight(x,z),smoothstep(8.2,16.5,Math.hypot(x+8,z+10)));
@@ -281,8 +314,9 @@ function meadowMask(x, z) {
   const shoulder=.68+.10*Math.sin(z*.43+side);
   const path=1-strength*(1-smoothstep(width,width+shoulder,Math.abs(x-pathX)));
   let lamps=1;
-  for(const [lx,lz] of lanternSites)lamps*=smoothstep(.32,.92,Math.hypot(x-lx,z-lz));
-  return garden * bench * path * lamps;
+  for(const [lx,lz] of lanternSites)lamps*=smoothstep(.25,.50,Math.hypot(x-lx,z-lz));
+  const hearth=smoothstep(2.5,3.8,Math.hypot(x-22,z+20));
+  return garden * bench * path * lamps * hearth;
 }
 
 // ~0.75 m cells. The meadow mask is baked into these vertex colors, so a coarser
@@ -355,7 +389,8 @@ const oceanGLSL = `
   // Amplitudes here are chosen for SLOPE, not for height: a wave that displaces
   // the surface but barely tilts it leaves the water looking like tinted glass.
   // These four sum to roughly a 17 degree tilt, which is what catches the light.
-  vec2 oceanRipple(vec2 p, float t){
+  vec2 oceanRipple(vec2 p, float t, float footprint){
+    p += vec2(sin(p.y*.13+t*.15),sin(p.x*.11-t*.12))*1.8;
     vec2 d4=vec2(0.941,-0.339), d5=vec2(0.179,0.984), d6=vec2(-0.721,-0.693);
     vec2 g=vec2(0.0); float ph;
     ph=dot(p,d4)*0.55+t*1.55; g+=d4*(0.55*cos(ph)*0.160);
@@ -397,11 +432,12 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
       vec2 g; float h = oceanSwell(vWorld.xz, uTime, g);
       // Retire the fine ripples with distance: sub-pixel normal detail does not
       // resolve, it sparkles.
-      g += oceanRipple(vWorld.xz, uTime) * (1.0 - smoothstep(30.0, 240.0, dist)*.78);
+      float footprint=max(length(dFdx(vWorld.xz)),length(dFdy(vWorld.xz)));
+      g += oceanRipple(vWorld.xz, uTime, footprint) * .68 * (1.0 - smoothstep(25.0, 170.0, dist));
       vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
 
       float shore = 1.0 - smoothstep(.86, 1.2, length(vWorld.xz/vec2(67.0,54.0)));
-      vec3 body = mix(uColorA, uColorB, clamp(.18 + shore*.62 + h*.30, 0.0, 1.0));
+      vec3 body = mix(uColorA, uColorB, clamp(.18 + shore*.62 + h*.12, 0.0, 1.0));
       // Wave faces tilted toward the sky read lighter; this is the surface's own form.
       body *= .90 + .26*clamp(n.y*n.y*n.y, 0.0, 1.0) + .18*clamp(-g.y, -.4, .4);
 
@@ -410,15 +446,16 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
       vec3 R = reflect(-view, n);
       vec3 refl = skyDome(normalize(vec3(R.x, max(R.y, 0.012), R.z)), 0.55);
       float fres = clamp(.025 + .80*pow(1.0 - max(dot(n,view),0.0), 4.5), 0.0, .44);
-      vec3 col = mix(body, refl, fres);
+      vec3 col = mix(body, refl, fres*mix(.66,1.0,uNight));
 
       // Quantised glitter: a noise gate breaks the specular into separate
       // sparks, which is what a sun path on water actually looks like.
       float f = dot(normalize(R), uSunDir);
       float broad = pow(max(f,0.0), 24.0);
-      float twinkle = step(.45, oceanNoise(vWorld.xz*vec2(1.7,3.2) - vec2(uTime*1.1, uTime*.35)))
+      float twinkle = smoothstep(.35,.60, oceanNoise(vWorld.xz*vec2(1.7,3.2) - vec2(uTime*1.1, uTime*.35)))
                     * (.55 + .75*oceanNoise(vWorld.xz*6.5 - uTime*2.0));
-      float glint = smoothstep(.9970, .99930, f) * twinkle;
+      float aa=max(fwidth(f),.0001);
+      float glint = smoothstep(.9970-aa, .99930+aa, f) * mix(twinkle,.5,smoothstep(.15,1.2,footprint));
       float glitterPath = smoothstep(.25, 1.0, dot(normalize(vec2(view.x,view.z)), -normalize(uSunDir.xz)));
       col += uSunColor * (glint*2.1 + broad*.45) * (.35 + .75*glitterPath) * (1.0 - uNight*.72);
 
@@ -429,7 +466,8 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
       float foam = (1.0 - smoothstep(.008, .052, abs(rim - band))) * (.45 + .85*scal);
       col = mix(col, uHorizon*1.05, clamp(foam,0.0,1.0)*.40);
 
-      col = mix(col, uHorizon, 1.0 - exp(-dist*.0013));
+      vec3 seaHaze=mix(uHorizon,uColorA,.26*(1.0-uNight));
+      col = mix(col, seaHaze, 1.0 - exp(-dist*mix(.0010,.0017,uNight)));
       gl_FragColor = vec4(col, 1.0);
     }
   `
@@ -437,6 +475,8 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
 ocean.position.y = 0;
 ocean.renderOrder = 2;
 scene.add(ocean);
+const oceanLife=buildOceanLife(scene);
+buildDistantIsland(scene,skyUniforms.uHorizon);
 
 /* -------------------------------------------------------------------------- */
 /* Procedural helpers and island decoration                                   */
@@ -449,10 +489,12 @@ const paintUniforms = {
   uPartyGlow: { value: 0 },
   uCakeLight: {value:new THREE.Vector3(-8,gardenHeight+2.4,-10)},
   uGiftLights:{value:CONFIG.gifts.map(g=>new THREE.Vector4(g.pos[0],terrainHeight(...g.pos)+.8,g.pos[1],1))},
+  uFireflyPools:{value:Array.from({length:8},()=>new THREE.Vector4(0,0,0,0))},
   uGiftColors:{value:CONFIG.gifts.map(g=>new THREE.Color(g.color).lerp(new THREE.Color(0xffe6b8),.35))},
   uLanterns: {value:lanternSites.map(([x,z,h])=>new THREE.Vector4(x,terrainHeight(x,z)+h,z,4.8))},
   uFogColor: { value: scene.fog.color },
   uShadowMap: { value: null },
+  uShadowTexel: { value: 1/shadowMapSize },
   uShadowMatrix: { value: sunLight.shadow.matrix },
   uShadowReady: { value: 0 },
   uTime: { value: 0 }
@@ -462,9 +504,11 @@ const paintGLSL = `
   uniform vec3 uSunDir, uLightColor, uFogColor;
   uniform float uAmbient, uTime, uShadowReady, uPartyGlow;
   uniform vec3 uCakeLight;
+  uniform vec4 uFireflyPools[8];
   uniform vec4 uGiftLights[10];uniform vec3 uGiftColors[10];
   uniform vec4 uLanterns[${lanternSites.length}];
   uniform sampler2D uShadowMap;
+  uniform float uShadowTexel;
   uniform mat4 uShadowMatrix;
   #include <packing>
   float islandShadow(vec3 p) {
@@ -476,10 +520,33 @@ const paintGLSL = `
     // on open ground reads as the shadow map's own texel grid.
     float sh = 0.0;
     for(int x=-1;x<=1;x++) for(int y=-1;y<=1;y++) {
-      vec2 d = vec2(float(x),float(y))*1.4/2048.0;
-      sh += step(uv.z-.0012, unpackRGBAToDepth(texture2D(uShadowMap,uv.xy+d)));
+      vec2 d = vec2(float(x),float(y))*2.8*uShadowTexel;
+      sh += step(uv.z-.00035, unpackRGBAToDepth(texture2D(uShadowMap,uv.xy+d)));
     }
     return sh/9.0;
+  }
+  // Interpolate depth comparisons, never packed depth values. This removes
+  // the square steps between shadow texels on bare ground and the cake clearing.
+  float groundShadowTap(vec2 uv,float depth){
+    vec2 grid=uv/uShadowTexel-.5;
+    vec2 f=fract(grid),base=(floor(grid)+.5)*uShadowTexel;
+    float a=step(depth,unpackRGBAToDepth(texture2D(uShadowMap,base)));
+    float b=step(depth,unpackRGBAToDepth(texture2D(uShadowMap,base+vec2(uShadowTexel,0.0))));
+    float c=step(depth,unpackRGBAToDepth(texture2D(uShadowMap,base+vec2(0.0,uShadowTexel))));
+    float d=step(depth,unpackRGBAToDepth(texture2D(uShadowMap,base+vec2(uShadowTexel))));
+    return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+  }
+  float islandGroundShadow(vec3 p){
+    if(uShadowReady<.5)return 1.0;
+    vec4 q=uShadowMatrix*vec4(p,1.0);vec3 uv=q.xyz/q.w;
+    if(uv.z>1.0||uv.z<0.0||min(uv.x,uv.y)<.002||max(uv.x,uv.y)>.998)return 1.0;
+    float depth=uv.z-.00020,shade=0.0;
+    // Overlapping tent taps avoid ghost copies of narrow pole shadows.
+    for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){
+      float weight=(x==0?2.0:1.0)*(y==0?2.0:1.0);
+      shade+=groundShadowTap(uv.xy+vec2(float(x),float(y))*uShadowTexel,depth)*weight;
+    }
+    return shade/16.0;
   }
   float cloudShade(vec3 p) {
     float f = sin(p.x*.053+p.z*.027-uTime*.045)*sin(p.z*.061-uTime*.026);
@@ -512,16 +579,32 @@ const paintGLSL = `
     // Lift and warm the existing pigment, keeping individual grass blades
     // legible instead of laying an opaque orange wash over the ground.
     c+=(c*vec3(5.0,2.7,.8)+vec3(.012,.007,.002))*lampLight*uPartyGlow;
-    vec3 cakeDelta=p-uCakeLight;
-    float cakeFill=max(1.0-dot(cakeDelta,cakeDelta)/36.0,0.0);
-    c+=(c*vec3(1.3,.95,.55)+vec3(.008,.006,.003))*cakeFill*cakeFill*uPartyGlow;
+    // A broad ambient lift belongs to the clearing's ground, independent of
+    // lamp distance and shadows. A level centre avoids a spotlight-like disc.
+    vec2 clearing=p.xz-uCakeLight.xz;
+    float clearingRadius=length(clearing/vec2(1.08,1.0));
+    float clearingFill=1.0-smoothstep(3.8,9.2,clearingRadius);
+    float groundHeight=uCakeLight.y-2.4;
+    clearingFill*=1.0-smoothstep(.65,2.0,max(0.0,p.y-groundHeight));
+    float evening=uPartyGlow*uPartyGlow;
+    c+=(c*vec3(1.8,1.45,1.05)+vec3(.040,.027,.014))*clearingFill*evening;
+    vec3 hearthDelta=p-vec3(22.,0,-20.);
+    float hearthPool=pow(max(0.,1.-dot(hearthDelta.xz,hearthDelta.xz)/20.),2.);
+    c+=(c*vec3(.75,.38,.12)+vec3(.03,.013,.003))*hearthPool*(.25+.75*uPartyGlow);
     for(int i=0;i<10;i++){
       vec3 d=p-uGiftLights[i].xyz;
-      float f=max(0.0,1.0-dot(d,d)/22.0);
-      c+=(c*1.9+vec3(.035))*uGiftColors[i]*f*f*uGiftLights[i].w*(.16+.84*uPartyGlow);
+      float f=max(0.0,1.0-dot(d.xz,d.xz)/12.0);
+      f*=1.0-smoothstep(.7,1.8,abs(d.y));
+      c+=(c*.9+vec3(.025))*uGiftColors[i]*f*f*uGiftLights[i].w*(.16+.84*uPartyGlow);
+    }
+    for(int i=0;i<8;i++){
+      vec3 d=p-uFireflyPools[i].xyz;
+      float pool=max(0.0,1.0-dot(d.xz,d.xz)/1.44);
+      pool*=pool*(1.0-smoothstep(.15,1.0,abs(d.y)));
+      c+=(c*.55+vec3(.024,.022,.008))*pool*uFireflyPools[i].w;
     }
     float dist = distance(cameraPosition,p);
-    return mix(c,uFogColor,1.0-exp(-dist*dist*.000014));
+    return mix(c,uFogColor,1.0-exp(-pow(max(0.0,dist-18.0),2.0)*.000026));
   }
 `;
 function paintedMaterial(low, mid, high, sway = false, sand = false) {
@@ -551,7 +634,7 @@ function paintedMaterial(low, mid, high, sway = false, sand = false) {
       varying vec3 vWorld,vNormal,vColor;
       ${sand ? 'varying float vSand;' : ''}
       void main(){
-        float sh=islandShadow(vWorld)*cloudShade(vWorld);
+        float sh=${sand ? 'islandGroundShadow' : 'islandShadow'}(vWorld)*cloudShade(vWorld);
         float light=smoothstep(-.25,.85,dot(normalize(vNormal),uSunDir))*sh;
         vec3 cLow=${glColor(low)}, cMid=${glColor(mid)}, cHigh=${glColor(high)};
         ${sand ? `
@@ -628,14 +711,14 @@ terrain.material.dispose();
 terrain.material = groundMaterial;
 
 const mats = {
-  wood: new THREE.MeshStandardMaterial({ color: P.trunkLit, roughness: .9 }),
-  darkWood: new THREE.MeshStandardMaterial({ color: P.trunkShade, roughness: .92 }),
+  wood: new THREE.MeshStandardMaterial({ color: P.trunkLit, roughness: .68 }),
+  darkWood: new THREE.MeshStandardMaterial({ color: P.trunkShade, roughness: .72 }),
   leaf: paintedMaterial(P.cDeep, P.cMid, P.cLit),
   stone: new THREE.MeshStandardMaterial({ color: P.rockLit, roughness: 1, flatShading: true }),
-  cream: new THREE.MeshStandardMaterial({ color: 0xf4dec1, roughness: .85 }),
-  pink: new THREE.MeshStandardMaterial({ color: 0xdc8e96, roughness: .82 }),
+  cream: new THREE.MeshStandardMaterial({ color: 0xf4dec1, roughness: .58 }),
+  pink: new THREE.MeshStandardMaterial({ color: 0xdc8e96, roughness: .60 }),
   cloth: new THREE.MeshStandardMaterial({ color: 0xb76768, roughness: 1, side: THREE.DoubleSide }),
-  gold: new THREE.MeshStandardMaterial({ color: 0xe8bd64, roughness: .7 }),
+  gold: new THREE.MeshStandardMaterial({ color: 0xe8bd64, roughness: .36, metalness: .25 }),
 };
 
 function box(w, h, d, material, cast = true) {
@@ -1034,6 +1117,8 @@ const {flowerSpots}=meadowLife;
 /* -------------------------------------------------------------------------- */
 
 const interactive = [];
+const dandelions=buildDandelions({scene,terrainHeight,meadowMask,random:mulberry32(41551),interactive,
+  onRelease:()=>toast('A LITTLE WISH, ON ITS WAY')});
 let partyLightMaterial = null;
 const partyHaloMaterial=new THREE.SpriteMaterial({map:glowTexture,color:0xffd496,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
 
@@ -1042,8 +1127,8 @@ const partyHaloMaterial=new THREE.SpriteMaterial({map:glowTexture,color:0xffd496
 function buildBench() {
   const g = new THREE.Group();
   // Warmer than the tree trunks so the bench reads as worked timber, not driftwood.
-  const plank = new THREE.MeshStandardMaterial({ color: 0xb08a5e, roughness: .82 });
-  const frame = new THREE.MeshStandardMaterial({ color: 0x6b543d, roughness: .88 });
+  const plank = new THREE.MeshStandardMaterial({ color: 0xb08a5e, roughness: .64 });
+  const frame = new THREE.MeshStandardMaterial({ color: 0x6b543d, roughness: .70 });
 
   // Side frames. The bench faces -z; the back posts live on the +z side.
   for (const sx of [-1.42, 1.42]) {
@@ -1102,6 +1187,7 @@ function buildBench() {
 buildBench();
 
 const candleFlames = [];
+let candleSmoke, candleBlownAt=-1, candleFrameCheck=null;
 let candlesLit = true;
 function buildParty() {
   const party = new THREE.Group();
@@ -1122,26 +1208,32 @@ function buildParty() {
     party.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
   }
 
+  const furniture=new THREE.Group();furniture.position.y=STAGE_HEIGHT;party.add(furniture);
   // Cake table, kept low so the cake sits below eye level and you look down on
   // it the way you would lean over a real one.
-  const table = cylinder(.98, .98, .1, 64, cakeTableMaterials(mats.cream)); table.position.y=.62; party.add(table);
-  const pedestal = cylinder(.2,.34,.56,16,mats.wood); pedestal.position.y=.28; party.add(pedestal);
-  const cakeMat = new THREE.MeshStandardMaterial({ color: 0xf3c9bd, roughness:.8 });
-  const icingMat = new THREE.MeshStandardMaterial({ color: 0xffeee0, roughness:.78 });
-  const cake1=cylinder(.56,.59,.4,48,cakeMat);cake1.position.y=.87;party.add(cake1);
-  const cake2=cylinder(.4,.42,.3,48,icingMat);cake2.position.y=1.22;party.add(cake2);
-  decorateCake(party,icingMat);
+  const table = cylinder(1.30, 1.30, .1, 64, cakeTableMaterials(mats.cream)); table.position.y=.62; furniture.add(table);
+  const pedestal = cylinder(.25,.42,.56,24,mats.wood); pedestal.position.y=.28; furniture.add(pedestal);
+  const {hats}=addBirthdayCentrepiece(furniture,party);
+  const hatInteractions=hats.map(hat=>({type:'hat',object:hat,reach:2.5,
+    prompt:'put on our party hats',found:false,action:()=>{
+      if(hatInteractions[0].found)return;
+      hatInteractions.forEach(item=>item.found=true);
+      companion.wearHat(hats[1]);avatar.wearHat(hats[0]);
+      toast('PARTY HATS ON · BOTH OF US');
+    }}));
+  interactive.push(...hatInteractions);
   const flameMat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
   // A narrow teardrop rather than a sphere; at this scale a round flame reads
   // as a lollipop on a stick.
   const flameGeo = new THREE.ConeGeometry(.022, .105, 7);
   for(let i=0;i<5;i++){
     const a=i/5*Math.PI*2;
-    const candle=cylinder(.022,.026,.24,7,i%2?mats.pink:mats.gold);candle.position.set(Math.cos(a)*.25,1.49,Math.sin(a)*.25);party.add(candle);
-    const flame=new THREE.Mesh(flameGeo,flameMat);flame.position.set(Math.cos(a)*.25,1.66,Math.sin(a)*.25);party.add(flame);
-    const light=new THREE.PointLight(0xffaa54,.32,3);light.position.copy(flame.position);party.add(light);
+    const candle=cylinder(.022,.026,.24,7,i%2?mats.pink:mats.gold);candle.position.set(Math.cos(a)*.25,1.49,Math.sin(a)*.25);furniture.add(candle);
+    const flame=new THREE.Mesh(flameGeo,flameMat);flame.position.set(Math.cos(a)*.25,1.66,Math.sin(a)*.25);furniture.add(flame);
+    const light=new THREE.PointLight(0xffaa54,.32,3);light.position.copy(flame.position);furniture.add(light);
     candleFlames.push({flame,light,phase:rand()*6});
   }
+  candleSmoke=buildCandleSmoke(furniture,candleFlames.map(c=>c.flame.position));
   putOnGround(party, -8, -10);
   interactive.push({
     type:'cake', object:party, reach:4.8,
@@ -1150,6 +1242,11 @@ function buildParty() {
   });
 }
 buildParty();
+const fireside=buildFireside({scene,terrainHeight,x:22,z:-20,musicUrl:CONFIG.radioMusicUrl});
+interactive.push({type:'radio',object:fireside.radio,reach:2.5,prompt:'listen to the radio',action:()=>{
+  if(!fireside.audio){toast('A LITTLE MUSIC WILL LIVE HERE SOON');return;}
+  if(fireside.audio.paused)fireside.audio.play().catch(()=>toast('THE RADIO TRACK COULD NOT BE LOADED'));else fireside.audio.pause();
+}});
 const celebration=buildCelebration({scene,terrainHeight,lampSites:lanternSites,glowTexture});
 
 function updatePartyLight() {
@@ -1161,7 +1258,12 @@ function updatePartyLight() {
 function blowCandles() {
   if (!candlesLit) { toast('YOUR WISH IS ALREADY ON ITS WAY'); return; }
   candlesLit = false;
-  candleFlames.forEach(({flame,light}) => { flame.visible=false; light.visible=false; });
+  candleBlownAt=elapsed;
+  companion.celebrate();
+  if(inspect)candleFrameCheck={start:performance.now(),maxFrame:0,programs:renderer.info.programs.length};
+  // Keep all five lights in Three's light list. Removing them changes the
+  // shader light-count defines and recompiles standard materials on interaction.
+  candleFlames.forEach(({flame}) => { flame.visible=false; });
   audio.softBlow();
   toast('WISH MADE  ·  MAY IT FIND US SOON');
   setTimeout(() => launchFireworks(4), 650);
@@ -1172,23 +1274,44 @@ function blowCandles() {
 /* -------------------------------------------------------------------------- */
 
 const gifts = [];
-let foundCount = 0;
+const giftFinish = buildGiftFinish(renderer);
+let foundCount = 0, collectedAmount=0;
 function makeGift(data, index) {
   const g = new THREE.Group();
-  const baseMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: .8,emissive:data.color,emissiveIntensity:.15 });
-  const base = box(1.15, .88, 1.02, baseMat); base.position.y=.48; g.add(base);
-  const lid = box(1.27,.18,1.13,baseMat);lid.position.y=.97;g.add(lid);
+  const baseMat = giftFinish(data.color);
+  // Flat crossed wrapping bands continue over the lid and down all four sides.
+  // Paint them in the existing material: no bow geometry or extra draw calls.
+  baseMat.onBeforeCompile = shader => {
+    shader.vertexShader = 'varying vec3 vGiftPosition; varying vec3 vGiftNormal;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\nvGiftPosition = position; vGiftNormal = normal;');
+    shader.fragmentShader = 'varying vec3 vGiftPosition; varying vec3 vGiftNormal;\n' + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+      #include <color_fragment>
+      vec3 face = abs(vGiftNormal);
+      float ribbonDistance = face.y > .5 ? min(abs(vGiftPosition.x), abs(vGiftPosition.z))
+        : (face.z > .5 ? abs(vGiftPosition.x) : abs(vGiftPosition.z));
+      float feather = max(fwidth(ribbonDistance), .001);
+      float ribbon = 1.0 - smoothstep(.085 - feather, .085 + feather, ribbonDistance);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.94, .79, .49), ribbon);
+    `);
+  };
+  baseMat.customProgramCacheKey = () => 'gift-wrapping-bands-v1';
+  const base = giftBox(1.15, .88, 1.02, baseMat); base.position.y=.48; g.add(base);
+  const lid = giftBox(1.27,.18,1.13,baseMat);lid.position.y=.97;g.add(lid);
   const glow=new THREE.PointLight(data.color,1,7,2);glow.position.y=2.6;g.add(glow);
   const haloMat=new THREE.SpriteMaterial({map:glowTexture,color:data.color,transparent:true,opacity:.12,depthWrite:false,blending:THREE.AdditiveBlending});
   const halo=new THREE.Sprite(haloMat);halo.position.y=.7;halo.scale.set(3.5,3.5,1);g.add(halo);
+  const auraMat=addGiftAura(g,data.color);
+  decorateMoneyGift(g,data);
   const [x,z] = data.pos;
   // Present-sized rather than crate-sized, but still standing clear of the tallest
   // grass so finding them never turns into a search.
-  g.scale.setScalar(.62);
+  g.scale.setScalar(data.scale);
   putOnGround(g,x,z,.05);
   g.rotation.y=rand()*Math.PI;
-  const gift = { type:'gift', object:g,glow,haloMat,baseMat, data, index, found:false, baseY:g.position.y, phase:rand()*6, reach:CONFIG.giftReach,
-    prompt:`unwrap “${data.title}”`, action:()=>collectGift(gift) };
+  const gift = { type:'gift', object:g,glow,haloMat,auraMat,baseMat, data, index, found:false, baseY:g.position.y, phase:rand()*6, reach:CONFIG.giftReach,
+    prompt:`unwrap ${rupees(data.amount)} · ${data.title}`, action:()=>collectGift(gift) };
   gifts.push(gift); interactive.push(gift);
 }
 CONFIG.gifts.forEach(makeGift);
@@ -1197,6 +1320,8 @@ function collectGift(gift) {
   if (gift.found) return;
   gift.found = true;
   foundCount++;
+  collectedAmount+=gift.data.amount;
+  $('#gift-value').textContent=rupees(collectedAmount);
   gift.object.visible = false;
   paintUniforms.uGiftLights.value[gift.index].w=0;
   $('#gift-count').textContent = `${foundCount} / ${gifts.length}`;
@@ -1208,6 +1333,8 @@ function openGiftNote(gift) {
   const modal=$('#gift-note');
   $('.note-number').textContent=`LITTLE GIFT ${String(gift.index+1).padStart(2,'0')} OF ${gifts.length}`;
   $('.note-icon').textContent=gift.data.icon;
+  $('#reward-value').textContent=rupees(gift.data.amount);
+  $('#reward-tier').textContent=MONEY_TIERS[gift.data.tier].label;
   $('.note-paper h2').textContent=gift.data.title;
   $('.note-paper p').textContent=gift.data.note;
   modal.classList.add('open');
@@ -1309,7 +1436,9 @@ for(let i=0;i<22;i++){
 }
 
 const clouds=buildPaintedClouds(scene,paintUniforms,P);
-function updateClouds(){clouds.update(elapsed);}
+// The clouds need the sun in view space to light their baked normals, so they
+// warm and turn with the mood instead of carrying a fixed top-down gradient.
+function updateClouds(){clouds.update(elapsed,camera,skyUniforms.uSunDir.value);}
 
 // The retired 12-sprite cloud layout consumed four shared draws per sprite.
 // Keep the downstream firefly layout stable; cloud noise has its own seed now.
@@ -1336,13 +1465,14 @@ const fireflyGeo=new THREE.BufferGeometry();fireflyGeo.setAttribute('position',n
 // a whole swarm pulsing together reads as a light, not as insects.
 fireflyGeo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(fireflyPos.length),3));
 const fireflyMat=new THREE.PointsMaterial({size:.20,vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,map:glowTexture,alphaTest:.01});
+const poolCandidates=Array.from({length:400},(_,i)=>({i,d:0}));
 const fireflies=new THREE.Points(fireflyGeo,fireflyMat);scene.add(fireflies);
 
 /* -------------------------------------------------------------------------- */
 /* Fireworks                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const fireworks=buildFireworks(scene,glowTexture,()=>audio.pop());
+const fireworks=buildFireworks(scene,glowTexture,origin=>{audio.pop();companion.watchFirework(origin);});
 function launchFireworks(amount=6){
   if(currentMood!=='night')setMood('night');
   toast('LOOK UP  ·  THE SKY IS YOURS');
@@ -1388,22 +1518,59 @@ const audio={
 const playerRig=new THREE.Group();
 const cameraPivot=new THREE.Group();
 playerRig.add(cameraPivot);cameraPivot.add(camera);scene.add(playerRig);
-camera.position.set(0,CONFIG.eyeHeight,0);
+cameraPivot.position.y=CONFIG.thirdPerson?1.25:CONFIG.eyeHeight;
+camera.position.set(0,0,CONFIG.thirdPerson?4.6:0);
+const avatar=buildCharacter(playerRig);
+avatar.root.visible=CONFIG.thirdPerson;
+const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_HEIGHT,stageRadius:STAGE_RADIUS});
+const firstPersonHand=buildHandPose(playerRig,{floating:true});
+const joinedHands=new THREE.Vector3(),partnerHand=new THREE.Vector3();
+const claspRotation=new THREE.Quaternion(),partnerLinkRotation=new THREE.Quaternion(),playerLinkRotation=new THREE.Quaternion();
+const partnerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2),playerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
+const claspAxis=new THREE.Vector3(),claspShoulder=new THREE.Vector3(),ringNormal=new THREE.Vector3(0,0,1);
+let handAmount=0;
+const handInteraction={type:'companion',object:companion.anchor,reach:3.7,prompt:'hold hands',action:()=>{
+  const held=companion.toggleHolding();toast(held?'HOLDING HANDS · H TO LET GO':'HANDS FREE');
+}};
+interactive.push(handInteraction);
+function updateHoldingHands(dt){
+  handAmount+=((companion.holding&&companion.holdReady?1:0)-handAmount)*(1-Math.exp(-dt*6));
+  // The clasp belongs to his lowered hand, not to the player's view direction.
+  companion.anchor.updateWorldMatrix(true,false);
+  partnerHand.set(-.38,1.05,-.50);companion.anchor.localToWorld(partnerHand);
+  claspShoulder.set(-.36*1.06,1.14*1.06,0);companion.anchor.localToWorld(claspShoulder);
+  claspAxis.subVectors(partnerHand,claspShoulder).normalize();
+  partnerHand.copy(claspShoulder).addScaledVector(claspAxis,(.38+.112+.025)*1.06);
+  // Both link planes contain the arm axis, with a quarter turn between them.
+  claspRotation.setFromUnitVectors(ringNormal,claspAxis);
+  partnerLinkRotation.copy(claspRotation).multiply(partnerLinkTurn);
+  playerLinkRotation.copy(claspRotation).multiply(playerLinkTurn);
+  joinedHands.copy(partnerHand).addScaledVector(claspAxis,.09);
+  firstPersonHand.update(joinedHands,CONFIG.thirdPerson?0:handAmount,playerLinkRotation,claspAxis);
+  avatar.poseHand(joinedHands,CONFIG.thirdPerson?handAmount:0,playerLinkRotation);
+  companion.poseHand(partnerHand,handAmount,partnerLinkRotation);
+  handInteraction.prompt=companion.holding?'let go of his hand':'hold hands';
+}
+let avatarHeading=0;
 playerRig.position.set(4,terrainHeight(4,18),18);
 // Begin facing the warm side of the sky and the party garden, not the cool
 // anti-sun horizon. The sky remains intentionally asymmetric like the source.
 playerRig.rotation.y=0;
-cameraPivot.rotation.x=-.055;
+cameraPivot.rotation.x=-.20;
 const keys={};
 let playing=false;
 let nearest=null;
 
 function onIsland(x,z){return Math.sqrt((x/67)**2+(z/54)**2)<.89;}
 function movePlayer(dt){
-  if(document.pointerLockElement!==renderer.domElement)return;
+  const active=document.pointerLockElement===renderer.domElement;
   let sx=(keys.KeyD?1:0)-(keys.KeyA?1:0),sz=(keys.KeyS?1:0)-(keys.KeyW?1:0);
+  if(!active){sx=0;sz=0;}
+  const running=!!(keys.ShiftLeft||keys.ShiftRight);
+  if(CONFIG.thirdPerson)avatar.update(dt,!!(sx||sz),running);
   if(sx||sz){
     const len=Math.hypot(sx,sz);sx/=len;sz/=len;
+    avatarHeading=playerRig.rotation.y+Math.atan2(-sx,-sz);
     const speed=CONFIG.walkSpeed*(keys.ShiftLeft||keys.ShiftRight?1.7:1);
     tmp.set(sx,0,sz).applyAxisAngle(new THREE.Vector3(0,1,0),playerRig.rotation.y).multiplyScalar(speed*dt);
     const nx=playerRig.position.x+tmp.x,nz=playerRig.position.z+tmp.z;
@@ -1411,21 +1578,38 @@ function movePlayer(dt){
   }
   // Ease onto the ground rather than snapping, so crests and troughs feel like
   // gliding over the land instead of stepping up and down it.
-  const ground=terrainHeight(playerRig.position.x,playerRig.position.z);
+  const stageDistance=Math.hypot(playerRig.position.x+8,playerRig.position.z+10);
+  const ground=terrainHeight(playerRig.position.x,playerRig.position.z)+STAGE_HEIGHT*(1-smoothstep(STAGE_RADIUS-.06,STAGE_RADIUS+.12,stageDistance));
   playerRig.position.y+=(ground-playerRig.position.y)*Math.min(1,dt*14);
-  camera.position.y=CONFIG.eyeHeight+Math.sin(performance.now()*.012)*.025;
+  if(!CONFIG.thirdPerson)return;
+  const targetHeading=avatarHeading-playerRig.rotation.y;
+  const delta=Math.atan2(Math.sin(targetHeading-avatar.root.rotation.y),Math.cos(targetHeading-avatar.root.rotation.y));
+  avatar.root.rotation.y+=delta*(1-Math.exp(-dt*12));
+  // Shorten the camera boom before it passes through a hillside.
+  let boom=4.6;
+  const pitch=cameraPivot.rotation.x,yaw=playerRig.rotation.y;
+  for(let d=.4;d<=4.6;d+=.15){
+    const wx=playerRig.position.x+Math.sin(yaw)*Math.cos(pitch)*d;
+    const wz=playerRig.position.z+Math.cos(yaw)*Math.cos(pitch)*d;
+    const wy=playerRig.position.y+1.25-Math.sin(pitch)*d;
+    if(wy<terrainHeight(wx,wz)+.22){boom=Math.max(.35,d-.2);break;}
+  }
+  camera.position.z=boom<camera.position.z?boom:lerp(camera.position.z,boom,1-Math.exp(-dt*8));
+  avatar.root.visible=camera.position.z>.65;
 }
 
 function updateInteraction(){
   nearest=null;let best=Infinity;
   for(const item of interactive){
-    if(item.found)continue;
+    if(item.found||item===handInteraction)continue;
     item.object.getWorldPosition(tmp);
     const d=tmp.distanceTo(playerRig.position);
     if(d<item.reach&&d<best){best=d;nearest=item;}
   }
+  const canHold=companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach;
+  if(!nearest&&canHold)nearest=handInteraction;
   const el=$('#interaction');
-  if(nearest){el.innerHTML=`<b>E</b> ${nearest.prompt}`;el.classList.add('show');}
+  if(nearest){el.innerHTML=`<b>E</b> ${nearest.prompt}${nearest!==handInteraction&&canHold?` · <b>H</b> ${companion.holding?'let go':'hold hands'}`:''}`;el.classList.add('show');}
   else el.classList.remove('show');
 }
 
@@ -1467,7 +1651,8 @@ window.addEventListener('keydown',e=>{
   if($('.note-modal.open'))return;
   keys[e.code]=true;
   if(e.code==='Slash'){e.preventDefault();openCommand();}
-  if(e.code==='KeyE'&&nearest)nearest.action();
+  if(e.code==='KeyE'&&nearest&&!e.repeat)nearest.action();
+  if(e.code==='KeyH'&&!e.repeat&&(companion.holding||companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach))handInteraction.action();
   if(e.code==='KeyF')launchFireworks(7);
   if(e.code==='KeyM')audio.toggle();
   if(e.code==='Digit1')setMood('day');
@@ -1484,7 +1669,7 @@ renderer.domElement.addEventListener('click',()=>{if(playing&&!$('.note-modal.op
 window.addEventListener('mousemove',e=>{
   if(document.pointerLockElement!==renderer.domElement)return;
   playerRig.rotation.y-=e.movementX*.0022;
-  cameraPivot.rotation.x=clamp(cameraPivot.rotation.x-e.movementY*.0018,-1.25,1.15);
+  cameraPivot.rotation.x=clamp(cameraPivot.rotation.x-e.movementY*.0018,CONFIG.thirdPerson?-1.15:-Math.PI/2+.02,CONFIG.thirdPerson?.35:Math.PI/2-.02);
 });
 
 let toastTimer;
@@ -1539,12 +1724,12 @@ function renderBloom(){
 }
 const postMaterial=new THREE.ShaderMaterial({
   depthTest:false,depthWrite:false,toneMapped:false,
-  uniforms:{uScene:{value:sceneTarget.texture},uBloom:{value:bloomTargets[1].texture},uTime:{value:0},uExposure:{value:moodLive.exposure},uRes:{value:new THREE.Vector2(innerWidth,innerHeight)}},
+  uniforms:{uScene:{value:sceneTarget.texture},uBloom:{value:bloomTargets[1].texture},uTime:{value:0},uExposure:{value:moodLive.exposure},uNight:{value:moodLive.stars},uRes:{value:new THREE.Vector2(innerWidth,innerHeight)}},
   vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
   fragmentShader:`
     precision highp float;
     ${safeColorGLSL}
-    uniform sampler2D uScene,uBloom; uniform float uTime,uExposure; uniform vec2 uRes;
+    uniform sampler2D uScene,uBloom; uniform float uTime,uExposure,uNight; uniform vec2 uRes;
     varying vec2 vUv;
     float hash12(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
     float luma(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
@@ -1578,11 +1763,11 @@ const postMaterial=new THREE.ShaderMaterial({
       vec3 shadowPush=mix(vec3(.90,.95,1.16),vec3(1.0),smoothstep(0.0,.34,l));
       vec3 highPush=mix(vec3(1.0),vec3(1.055,1.012,.925),smoothstep(.44,.98,l));
       c*=mix(vec3(1.0),shadowPush,.85)*mix(vec3(1.0),highPush,.90);
-      vec3 lift=vec3(.009,.012,.022);c=c*(1.0-lift)+lift;
+      vec3 lift=vec3(.009,.012,.022)*mix(1.0,.40,uNight);c=c*(1.0-lift)+lift;
       // Saturated emissive colors can exceed one after luminance tonemapping.
       // Bound the S-curve input so bright gift lights never invert their hue.
       vec3 curveInput=clamp(c,0.0,1.0);
-      c=mix(c,curveInput*curveInput*(3.0-2.0*curveInput),.24);
+      c=mix(c,curveInput*curveInput*(3.0-2.0*curveInput),mix(.24,.38,uNight));
       l=luma(c);float sat=1.0+.16*smoothstep(.10,.42,l)*(1.0-smoothstep(.62,.96,l));
       c=mix(vec3(l),c,sat);
       float grain=(hash12(gl_FragCoord.xy*.47+floor(uTime*9.0))-.5)*.008;
@@ -1590,7 +1775,8 @@ const postMaterial=new THREE.ShaderMaterial({
       c*=1.0+grain+fibre;
       float vig=pow(clamp(1.0-r2*1.15,0.0,1.0),1.55);
       c*=mix(vec3(.88,.89,.94),vec3(1.0),vig);
-      float dither=fract(dot(gl_FragCoord.xy,vec2(.7548776662,.5698402909)));
+      // Uncorrelated static dither avoids a diagonal lattice on smooth water.
+      float dither=hash12(floor(gl_FragCoord.xy)+vec2(71.7,19.3));
       c+=(dither-.5)/255.0;
       gl_FragColor=vec4(clamp(c,0.0,1.0),1.0);
       #include <colorspace_fragment>
@@ -1655,7 +1841,7 @@ function updateQuality(rawDt){
 // Read-only inspection views make the visual acceptance pass reproducible.
 const inspectParams=new URLSearchParams(location.search);
 if(inspect){
-  const views={flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],
+  const views={hats:[-6.4,-8.4,.55,-.35],moonisland:[-35,-38,.615,.08],companion:[-5.9,-6.7,0,-.22],dandelions:[-1.8,15.5,0,-.65],boat:[-46,23,2.25,.025],money:[1.5,10.5,0,-.25],shadows:[-8,-4,0,-.48],aurora:[14,26,3.757,.36],character:[22,-14,Math.PI,-.18],fireside:[22,-14,0,-.25],flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],
     bench:[-38.5,-3,1.57,-.06],cake:[-8,-6.4,0,-.16],hills:[14,26,2.5,-.03],
     // Facing away from the sun with the camera up: the anti-sun meridian is
     // where sky shader math degenerates, and nothing else in the scene looks there.
@@ -1677,27 +1863,45 @@ function updateMood(dt){
   sunLight.position.copy(skyUniforms.uSunDir.value).multiplyScalar(125);
   paintUniforms.uLightColor.value.copy(sunLight.color);
   paintUniforms.uAmbient.value=moodLive.ambient;
-  paintUniforms.uPartyGlow.value=clamp((.92-moodLive.ambient)/.76,0,1);
+  paintUniforms.uPartyGlow.value=clamp((.96-moodLive.ambient)/.83,0,1);
   sunLight.intensity=moodLive.sunPower;hemi.intensity=moodLive.hemi;
+  skyUniforms.uAuroraTime.value=elapsed;
+  skyUniforms.uAuroraNight.value=smoothstep(.25,1,moodLive.stars);
+  shootingStars.update(elapsed,moodLive.stars,camera);
   stars.update(elapsed,moodLive.stars,renderer.getPixelRatio()*resolutionScale);fireflyMat.opacity=clamp((moodLive.stars-.2)*.78,0,.7);
   oceanUniforms.uNight.value=moodLive.stars;
   updatePartyLight();
   celebration.update(elapsed,paintUniforms.uPartyGlow.value);
+  fireside.update(elapsed,paintUniforms.uPartyGlow.value);
 }
 function animate(now,force){
   // A quiet scene should not spend power chasing a 120 Hz display refresh.
   if(!force && (document.hidden || now-lastFrameTime < 1000/60-1))return;
   lastFrameTime=now;
   const rawDt=clock.getDelta();const dt=Math.min(rawDt,.05);elapsed+=dt;
+  if(candleFrameCheck){
+    candleFrameCheck.maxFrame=Math.max(candleFrameCheck.maxFrame,rawDt*1000);
+    if(performance.now()-candleFrameCheck.start>550){
+      console.info('Candle transition '+JSON.stringify({maxFrameMs:+candleFrameCheck.maxFrame.toFixed(1),
+        newShaderPrograms:renderer.info.programs.length-candleFrameCheck.programs}));
+      candleFrameCheck=null;
+    }
+  }
   updateQuality(rawDt);renderer.info.reset();
   renderer.shadowMap.needsUpdate=elapsed-lastShadowTime>1/15;
   if(renderer.shadowMap.needsUpdate)lastShadowTime=elapsed;
   oceanUniforms.uTime.value=elapsed;
+  oceanLife.update(elapsed,moodLive.stars,camera);
   paintUniforms.uTime.value=elapsed;
   camera.getWorldPosition(tmp2);
   for(const material of bladeMaterials)material.uniforms.uCam.value.copy(tmp2);
-  movePlayer(dt);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);
-  gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.5+paintUniforms.uPartyGlow.value*4.5;g.haloMat.opacity=.04+paintUniforms.uPartyGlow.value*.14;g.baseMat.emissiveIntensity=.12+paintUniforms.uPartyGlow.value*.42;}});
+  movePlayer(dt);companion.update(dt,playerRig.position,gifts,playerRig.rotation.y);updateHoldingHands(dt);dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);
+  gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.auraMat.opacity=(.30+paintUniforms.uPartyGlow.value*.32)*(1+Math.sin(elapsed*1.3+g.phase)*.07);g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
+  if(candleBlownAt>=0){
+    const age=elapsed-candleBlownAt;
+    candleSmoke.update(inspect&&inspectParams.has('smokePreview')?1.25:age);
+    for(const c of candleFlames)c.light.intensity=.32*Math.max(0,1-age/.16);
+  }
   candleFlames.forEach(c=>{if(c.flame.visible){const s=1+Math.sin(elapsed*11+c.phase)*.16;c.flame.scale.set(2-s,s,2-s);}});
   butterflies.forEach(b=>{
     const t=elapsed*b.speed+b.phase;
@@ -1737,8 +1941,21 @@ function animate(now,force){
       const warm=.78+.22*Math.sin(ph*2.3);
       fc.setXYZ(i,tw,tw*(.80+.13*warm),tw*(.30+.22*warm));
     }
+    // Reuse eight inexpensive surface fills, strongest only close to the viewer.
+    // Distance fade makes changes at the selection boundary inconspicuous.
+    for(const candidate of poolCandidates){
+      const i=candidate.i;
+      candidate.d=(fp.getX(i)-playerRig.position.x)**2+(fp.getZ(i)-playerRig.position.z)**2;
+    }
+    poolCandidates.sort((a,b)=>a.d-b.d);
+    paintUniforms.uFireflyPools.value.forEach((pool,k)=>{
+      const {i,d}=poolCandidates[k],x=fp.getX(i),z=fp.getZ(i),ground=terrainHeight(x,z);
+      const low=1-smoothstep(.7,2.2,fp.getY(i)-ground);
+      pool.set(x,ground,z,fc.getX(i)*fireflyMat.opacity*low*(1-smoothstep(4,100,d)));
+    });
     fp.needsUpdate=true;fc.needsUpdate=true;
   }
+  if(fireflyMat.opacity<=.01) paintUniforms.uFireflyPools.value.forEach(pool=>pool.w=0);
   sky.position.copy(camera.getWorldPosition(tmp2));
   const renderStart=performance.now();
   const gpuQuery=beginGpuSample();
@@ -1751,6 +1968,7 @@ function animate(now,force){
   renderer.setRenderTarget(null);
   postMaterial.uniforms.uTime.value=elapsed;
   postMaterial.uniforms.uExposure.value=moodLive.exposure;
+  postMaterial.uniforms.uNight.value=moodLive.stars;
   renderer.render(postScene,postCamera);
   if(gpuQuery){gl.endQuery(gpuTimer.TIME_ELAPSED_EXT);gpuQueries.push(gpuQuery);}
   cpuMs=lerp(cpuMs,performance.now()-renderStart,.1);

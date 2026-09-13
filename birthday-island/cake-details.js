@@ -19,13 +19,13 @@ export function cakeTableMaterials(edgeMaterial) {
   }
   ctx.putImageData(pixels,0,0);
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=4;
-  const top=new THREE.MeshStandardMaterial({map,roughness:.88});
+  const top=new THREE.MeshStandardMaterial({map,roughness:.64});
   // Cylinder cap groups use their own UVs: the contour pattern stays on top.
   return [edgeMaterial,top,edgeMaterial];
 }
 
 export function decorateCake(party,icingMaterial){
-  const berryMaterial=new THREE.MeshStandardMaterial({color:0xb85465,roughness:.75});
+  const berryMaterial=new THREE.MeshStandardMaterial({color:0xb85465,roughness:.44});
   const leafMaterial=new THREE.MeshStandardMaterial({color:0x7b985e,roughness:.92});
   const add=(geometry,material,x,y,z)=>{
     const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);

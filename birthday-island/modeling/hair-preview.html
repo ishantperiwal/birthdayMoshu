@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Hair model study</title>
+<style>body{margin:0;background:#ddd5c9;font:14px system-ui;color:#51483e}header{position:absolute;top:25px;left:32px}nav{position:absolute;bottom:30px;width:100%;display:flex;justify-content:space-around;letter-spacing:2px;font-size:11px}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head><body><header>Hair model study · Blender export</header><nav><span>FRONT</span><span>THREE-QUARTER</span><span>BACK</span></nav>
+<script type="module">
+import * as THREE from 'three';import {buildCharacter} from '../character.js?v=sidepart-17';
+const scene=new THREE.Scene();scene.background=new THREE.Color('#ddd5c9');
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(29,innerWidth/innerHeight,.01,30);camera.position.set(0,1.48,3.35);camera.lookAt(0,1.10,0);
+scene.add(new THREE.HemisphereLight(0xfff4df,0x948d92,2.2));
+for(const [x,y,z,power] of [[-3,5,4,3.2],[3,3,-2,2.4],[2,1,4,.8]]){const light=new THREE.DirectionalLight(0xfff4e6,power);light.position.set(x,y,z);scene.add(light);}
+for(const [x,angle] of [[-.97,Math.PI],[0,Math.PI-.85],[.97,0]]){const rig=new THREE.Group();rig.position.x=x;scene.add(rig);const avatar=buildCharacter(rig);avatar.root.rotation.y=angle;}
+renderer.render(scene,camera);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.render(scene,camera);});
+</script></body></html>

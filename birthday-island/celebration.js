@@ -1,9 +1,10 @@
+import { buildCelebrationStage, STAGE_HEIGHT } from './celebration-stage.js';
 import * as THREE from 'three';
 
 // Small handmade decorations, generated locally like the rest of the island.
 export function buildCelebration({scene, terrainHeight, lampSites, glowTexture}) {
-  const wood=new THREE.MeshStandardMaterial({color:0x67513e,roughness:.92});
-  const brass=new THREE.MeshStandardMaterial({color:0xb6945d,roughness:.65});
+  const wood=new THREE.MeshStandardMaterial({color:0x67513e,roughness:.70});
+  const brass=new THREE.MeshStandardMaterial({color:0xb6945d,roughness:.36,metalness:.25});
   const paper=new THREE.MeshStandardMaterial({color:0xffe8b5,emissive:0xffbe66,emissiveIntensity:.6,roughness:.95});
   const lamps=[],decorRoots=[];
   const mesh=(geo,mat,x,y,z,parent)=>{const o=new THREE.Mesh(geo,mat);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);if(parent===scene)decorRoots.push(o);return o;};
@@ -36,31 +37,7 @@ export function buildCelebration({scene, terrainHeight, lampSites, glowTexture})
   const cakeFill=new THREE.PointLight(0xffe6c8,0,7,2);
   cakeFill.position.set(-6.5,terrainHeight(-8,-10)+2.5,-6.5);scene.add(cakeFill);
 
-  // A woven cloth with a stitched border; fine threads soften into fabric at distance.
-  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
-  const ctx=canvas.getContext('2d');ctx.fillStyle='#aa7376';ctx.fillRect(0,0,512,512);
-  ctx.fillStyle='#d6b391';ctx.fillRect(20,20,472,472);
-  ctx.fillStyle='#a77378';ctx.fillRect(34,34,444,444);
-  ctx.strokeStyle='#e5c9a3';ctx.lineWidth=2;
-  for(let i=46;i<476;i+=18){ctx.beginPath();ctx.moveTo(i,42);ctx.lineTo(i+7,42);ctx.moveTo(i,470);ctx.lineTo(i+7,470);ctx.stroke();}
-  ctx.strokeStyle='rgba(248,216,173,.12)';ctx.lineWidth=1;
-  for(let i=0;i<512;i+=4){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,512);ctx.stroke();}
-  ctx.strokeStyle='rgba(75,47,59,.07)';
-  for(let i=0;i<512;i+=3){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(512,i);ctx.stroke();}
-  for(const [x,y] of [[120,120],[392,120],[120,392],[392,392]]){
-    ctx.fillStyle='#d9bd91';ctx.beginPath();ctx.moveTo(x,y-20);ctx.lineTo(x+12,y);ctx.lineTo(x,y+20);ctx.lineTo(x-12,y);ctx.fill();
-  }
-  const clothMap=new THREE.CanvasTexture(canvas);clothMap.colorSpace=THREE.SRGBColorSpace;clothMap.anisotropy=4;
-  const rugMat=new THREE.MeshStandardMaterial({map:clothMap,roughness:1,side:THREE.DoubleSide});
-  const rug=mesh(new THREE.PlaneGeometry(4.6,3.5),rugMat,-8,terrainHeight(-8,-10)+.045,-10,scene);
-  rug.rotation.set(-Math.PI/2,0,.12);
-  // Two low cushions keep the picnic setting quiet.
-  for(const [x,z,col,angle] of [[-10.0,-9.3,0xa9b59a,-.25],[-6.1,-10.8,0xd4ac81,.2]]){
-    const g=at(x,z);g.rotation.y=angle;
-    const pillow=mesh(new THREE.SphereGeometry(1,16,10),new THREE.MeshStandardMaterial({color:col,roughness:1}),0,.17,0,g);
-    pillow.scale.set(.54,.16,.44);
-    cylinder(.035,.035,.016,brass,0,.332,0,g);
-  }
+  buildCelebrationStage(scene,terrainHeight(-8,-10));
   // Just a few stepping stones at the entrance, leaving the clearing open.
   const stoneMat=new THREE.MeshStandardMaterial({color:0xb8b1a0,roughness:1});
   const stoneGeo=new THREE.CylinderGeometry(1,1,.055,7);

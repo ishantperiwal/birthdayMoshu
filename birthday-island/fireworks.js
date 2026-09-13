@@ -18,7 +18,7 @@ export function buildFireworks(scene,glowTexture,onBurst){
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setAttribute('color',new THREE.BufferAttribute(rgb,3));
     const mat=new THREE.PointsMaterial({vertexColors:true,size:.44,map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
     const points=new THREE.Points(geo,mat);points.frustumCulled=false;scene.add(points);
-    active.push({origin,points,velocities,trail,age:0,variant});onBurst();
+    active.push({origin,points,velocities,trail,age:0,variant});onBurst(origin);
   }
   function rocket(target,variant){
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(36*3),3));
