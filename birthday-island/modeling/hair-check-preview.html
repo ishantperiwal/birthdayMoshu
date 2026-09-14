@@ -1,0 +1,7 @@
+<!doctype html><html><head><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head><body style="margin:0;background:#bbb"><script type="module">
+import * as T from 'three';import {maleHairMesh as m} from '../assets/male-hair.js';
+const r=new T.WebGLRenderer({antialias:true});r.setSize(1200,500);document.body.append(r.domElement);r.setScissorTest(true);
+const s=new T.Scene();s.background=new T.Color(0xb5b5b5);s.add(new T.HemisphereLight(0xffffff,0x666677,3));let l=new T.DirectionalLight(0xffffff,3);l.position.set(2,4,3);s.add(l);
+const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(m.positions,3));g.setAttribute('normal',new T.Float32BufferAttribute(m.normals,3));g.setIndex(m.indices);g.center();s.add(new T.Mesh(g,new T.MeshStandardMaterial({color:0x444444,roughness:.5,side:T.DoubleSide})));
+for(let i=0;i<3;i++){let c=new T.OrthographicCamera(-.58,.58,.725,-.725,.01,10);c.position.set(...[[0,0,-3],[0,0,3],[3,0,0]][i]);c.lookAt(0,0,0);r.setViewport(i*400,0,400,500);r.setScissor(i*400,0,400,500);r.render(s,c);}
+</script></body></html>

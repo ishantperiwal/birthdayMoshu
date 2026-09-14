@@ -1,6 +1,10 @@
+import { buildStoneSkipping } from './stone-skipping.js?v=raised-bowl-1';
+import { moveAroundRocks } from './rock-collision.js';
+import { buildLovePlane } from './love-plane.js?v=2';
+import { insectVisibility, insectRank } from './insect-density.js';
 import { buildHandPose } from './hand-pose.js?v=9';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion } from './companion.js?v=reach-swap-2';
+import { buildCompanion } from './companion.js?v=throw-1';
 import { addGiftAura } from './gift-aura.js';
 import { buildGiftFinish, giftBox } from './gift-finish.js?v=2';
 import { buildDandelions } from './dandelions.js?v=2';
@@ -10,16 +14,16 @@ import { STAGE_HEIGHT, STAGE_RADIUS } from './celebration-stage.js';
 import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=hats-2';
 import { buildShootingStars } from './shooting-stars.js';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter } from './character.js?v=reach-swap-2';
-import { buildFireside } from './fireside.js?v=benches-2';
+import { buildCharacter } from './character.js?v=throw-1';
+import { buildFireside } from './fireside.js?v=warm-smoke-1';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js';
 import { GL_HASH, GL_NOISE } from './reference-noise.js';
 import { buildCelebration } from './celebration.js?v=stage-2';
 import { cakeTableMaterials } from './cake-details.js?v=ambient-1';
 import { buildStars, buildPaintedClouds } from './painted-sky.js?v=star-trails-1';
-import { buildFireworks } from './fireworks.js?v=attention-1';
-import { buildMeadowLife } from './meadow-life.js';
+import { buildFireworks } from './fireworks.js?v=festival-2';
+import { buildMeadowLife } from './meadow-life.js?v=colorful-caps-1';
 import { buildCandleSmoke } from './candle-smoke.js';
 
 /*
@@ -35,6 +39,7 @@ const CONFIG = {
   herName: '',
   fromName: '',
   eyeHeight: 1.86,
+  flowerGrassTints: false, // Preserved flower-linked moss/sage palette; opt back in here.
   thirdPerson: false, // Set true to restore the character and follow camera.
   walkSpeed: 5.0,
   giftReach: 3.2,
@@ -166,7 +171,7 @@ sunLight.shadow.camera.bottom = -75;
 sunLight.shadow.camera.near = 10;
 sunLight.shadow.camera.far = 220;
 sunLight.shadow.bias = -0.00012;
-sunLight.shadow.normalBias = .02;
+sunLight.shadow.normalBias = .008;
 scene.add(sunLight);
 
 const MOODS = {
@@ -284,10 +289,12 @@ function islandHeight(x, z) {
 // Keep the birthday clearing level, blending gently back into the hills.
 // x, z, lantern height: shared by the fixtures and the grass lighting.
 // The approach lantern sits beyond the right shoulder, nested in the grass.
-const lanternSites=[[3.2,20,1.4],[27,28,1.4],[-28,-23,1.4],[-34,0,1.4]];
+const lanternSites=[[3.2,20,1.4],[27,28,1.4],[-28,-23,1.4],[-34,0,1.4],[-3,-33,1.4],[39,3,1.4],[-12,27,1.4],[51,21.2,1.5]];
 const gardenHeight=islandHeight(-8,-10);
 function terrainHeight(x,z){
-  return lerp(gardenHeight,islandHeight(x,z),smoothstep(8.2,16.5,Math.hypot(x+8,z+10)));
+  const original=lerp(gardenHeight,islandHeight(x,z),smoothstep(8.2,16.5,Math.hypot(x+8,z+10)));
+  const shoreDistance=Math.hypot((x-50)/4.4,(z-17)/5.4);
+  return lerp(1.55,original,smoothstep(.95,1.8,shoreDistance));
 }
 
 function celebrationPathX(z){
@@ -315,8 +322,8 @@ function meadowMask(x, z) {
   const path=1-strength*(1-smoothstep(width,width+shoulder,Math.abs(x-pathX)));
   let lamps=1;
   for(const [lx,lz] of lanternSites)lamps*=smoothstep(.25,.50,Math.hypot(x-lx,z-lz));
-  const hearth=smoothstep(2.5,3.8,Math.hypot(x-22,z+20));
-  return garden * bench * path * lamps * hearth;
+  const hearth=smoothstep(3.1,4.5,Math.hypot(x-22,z+20));
+  return garden * bench * path * lamps * hearth * smoothstep(.72,1.08,Math.hypot((x-50)/3.8,(z-17)/4.4));
 }
 
 // ~0.75 m cells. The meadow mask is baked into these vertex colors, so a coarser
@@ -476,13 +483,20 @@ ocean.position.y = 0;
 ocean.renderOrder = 2;
 scene.add(ocean);
 const oceanLife=buildOceanLife(scene);
+const lovePlane=buildLovePlane(scene);
 buildDistantIsland(scene,skyUniforms.uHorizon);
 
 /* -------------------------------------------------------------------------- */
 /* Procedural helpers and island decoration                                   */
 /* -------------------------------------------------------------------------- */
 
+const flowerTintCanvas=document.createElement('canvas');flowerTintCanvas.width=flowerTintCanvas.height=512;
+const flowerTintContext=flowerTintCanvas.getContext('2d');
+flowerTintContext.fillStyle='#000';flowerTintContext.fillRect(0,0,512,512);
+const flowerTintTexture=new THREE.CanvasTexture(flowerTintCanvas);
+flowerTintTexture.flipY=false;flowerTintTexture.generateMipmaps=false;flowerTintTexture.minFilter=THREE.LinearFilter;
 const paintUniforms = {
+  uFlowerTint:{value:flowerTintTexture},
   uSunDir: skyUniforms.uSunDir,
   uLightColor: { value: new THREE.Color(moodLive.sun) },
   uAmbient: { value: moodLive.ambient },
@@ -500,8 +514,21 @@ const paintUniforms = {
   uTime: { value: 0 }
 };
 const glColor = hex => { const c = new THREE.Color(hex); return `vec3(${c.r.toFixed(5)},${c.g.toFixed(5)},${c.b.toFixed(5)})`; };
+// Shared world-space gust: broad, warped fronts drive both bending and the
+// distant meadow sheen, without simulation textures or additional draw calls.
+const meadowWindGLSL = `
+  float meadowWind(vec2 p,float time){
+    vec2 dir=normalize(vec2(.82,.42));
+    float along=dot(p,dir),across=dot(p,vec2(-dir.y,dir.x));
+    float phase=along*.23-time*.85+sin(across*.14+time*.09)*.9;
+    float front=smoothstep(-.25,.92,sin(phase));
+    return front*(.68+.32*sin(across*.095-time*.13)*sin(across*.095-time*.13));
+  }
+`;
 const paintGLSL = `
+  ${meadowWindGLSL}
   uniform vec3 uSunDir, uLightColor, uFogColor;
+  uniform sampler2D uFlowerTint;
   uniform float uAmbient, uTime, uShadowReady, uPartyGlow;
   uniform vec3 uCakeLight;
   uniform vec4 uFireflyPools[8];
@@ -540,7 +567,7 @@ const paintGLSL = `
     if(uShadowReady<.5)return 1.0;
     vec4 q=uShadowMatrix*vec4(p,1.0);vec3 uv=q.xyz/q.w;
     if(uv.z>1.0||uv.z<0.0||min(uv.x,uv.y)<.002||max(uv.x,uv.y)>.998)return 1.0;
-    float depth=uv.z-.00020,shade=0.0;
+    float depth=uv.z-.00006,shade=0.0;
     // Overlapping tent taps avoid ghost copies of narrow pole shadows.
     for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){
       float weight=(x==0?2.0:1.0)*(y==0?2.0:1.0);
@@ -559,6 +586,13 @@ const paintGLSL = `
     return mix(mix(.10,.16,night),mix(.60,.70,night),
       smoothstep(mix(6.0,4.0,night),mix(30.0,24.0,night),d));
   }
+  vec3 meadowPigment(vec3 p){
+    ${CONFIG.flowerGrassTints ? '' : 'return vec3(1.0);'}
+    // A baked field follows actual flower locations, including their overlaps.
+    vec2 pigment=texture2D(uFlowerTint,(p.xz+70.0)/140.0).rg;
+    return mix(vec3(1.0),vec3(1.23,1.13,.82),pigment.r*.8)
+      *mix(vec3(1.0),vec3(.92,1.12,1.21),pigment.g*.8);
+  }
   vec3 meadowWash(vec3 p,float shadow){
     // Like the reference's far sward mean, a single colour field ties the
     // blades to the floor. Slow variation reads as washes of pigment.
@@ -567,6 +601,7 @@ const paintGLSL = `
     pigment*=mix(.72,1.02,shadow);
     float daylight=smoothstep(.22,.84,uAmbient);
     pigment*=mix(vec3(1.12,1.22,1.36),vec3(1.0),daylight);
+    pigment*=1.0+meadowWind(p.xz,uTime)*mix(.07,.19,daylight);
     return pigment*mix(vec3(.60,.78,.86),uLightColor,.52)*uAmbient*1.30;
   }
   vec3 aerial(vec3 c, vec3 p) {
@@ -589,8 +624,8 @@ const paintGLSL = `
     float evening=uPartyGlow*uPartyGlow;
     c+=(c*vec3(1.8,1.45,1.05)+vec3(.040,.027,.014))*clearingFill*evening;
     vec3 hearthDelta=p-vec3(22.,0,-20.);
-    float hearthPool=pow(max(0.,1.-dot(hearthDelta.xz,hearthDelta.xz)/20.),2.);
-    c+=(c*vec3(.75,.38,.12)+vec3(.03,.013,.003))*hearthPool*(.25+.75*uPartyGlow);
+    float hearthPool=pow(max(0.,1.-dot(hearthDelta.xz,hearthDelta.xz)/27.),2.);
+    c+=(c*vec3(.95,.49,.16)+vec3(.038,.017,.004))*hearthPool*(.25+.75*uPartyGlow);
     for(int i=0;i<10;i++){
       vec3 d=p-uGiftLights[i].xyz;
       float f=max(0.0,1.0-dot(d.xz,d.xz)/12.0);
@@ -657,7 +692,7 @@ function paintedMaterial(low, mid, high, sway = false, sand = false) {
         // Skewed on purpose: a product of two axis-aligned sines is a
         // checkerboard, and on open ground it reads as tiling, not as grain.
         c*=.97+.035*sin(vWorld.x*3.1+vWorld.z*1.7)*sin(vWorld.z*2.6-vWorld.x*2.1);
-        ${sand ? 'c=mix(c,meadowWash(vWorld,sh),meadowSoftness(vWorld)*(1.0-vSand));' : ''}
+        ${sand ? 'c=mix(c,meadowWash(vWorld,sh),meadowSoftness(vWorld)*(1.0-vSand));c*=mix(meadowPigment(vWorld),vec3(1.0),vSand);' : ''}
         gl_FragColor=vec4(aerial(c,vWorld),${sand ? '1.0-.5*meadowSoftness(vWorld)*(1.0-vSand)' : '1.0'});
       }`
   });
@@ -858,6 +893,7 @@ for(let variant=0;variant<4;variant++){
 for(let i=0;i<treeSpots.length*50;i++)rand();
 
 // Soft-edged rocks around the beach and paths.
+const rockColliders=[];
 for (let i = 0; i < 34; i++) {
   const a = rand() * Math.PI * 2;
   const ring = i < 22 ? lerp(.78, .94, rand()) : lerp(.25, .68, rand());
@@ -870,6 +906,14 @@ for (let i = 0; i < 34; i++) {
   rock.rotation.set(rand() * .5, rand() * 6, rand() * .3);
   rock.castShadow = true;
   putOnGround(rock, x, z, .05);
+  rock.updateMatrixWorld(true);
+  const vertex=new THREE.Vector3(),positions=rock.geometry.attributes.position;
+  let radius=0;
+  for(let j=0;j<positions.count;j++){
+    vertex.fromBufferAttribute(positions,j).applyMatrix4(rock.matrixWorld);
+    radius=Math.max(radius,Math.hypot(vertex.x-x,vertex.z-z));
+  }
+  rockColliders.push({x,z,radius});
 }
 
 // Occasional single pebbles or pairs sit on alternating path shoulders.
@@ -918,6 +962,7 @@ function buildBladeGeometry(segments=4){
 // Stratified, shuffled 8 m tiles: short broad leaves retain coverage with fewer
 // instances, and off-screen tiles are culled by Three instead of drawn globally.
 const bladeVertexShader = `
+    ${meadowWindGLSL}
     uniform float uTime, uNearFade; uniform vec3 uCam;
     attribute vec3 iOffset; attribute float iScale, iPhase, iTint;
     varying float vT,vTint,vSide,vBend,vOccl; varying vec3 vWorld,vN;
@@ -950,8 +995,7 @@ const bladeVertexShader = `
       if(dot(side,facing)<0.0) facing=-facing;
       side=normalize(mix(side,facing,smoothstep(9.0,38.0,dist)*.85));
 
-      float gust=sin(root.x*.12+root.z*.09-uTime*1.65);
-      gust+=sin(root.x*.31-root.z*.24-uTime*2.2)*.24;
+      float gust=meadowWind(root.xz,uTime);
 
       // Reference blade model: the tip already arches at rest, gravity and wind
       // lay it further over, and the curve is then rescaled back to its own
@@ -960,7 +1004,7 @@ const bladeVertexShader = `
       vec3 p0=root;
       vec3 v2=p0+up*hgt*.97+front*hgt*(.38+iTint*.28);
       float stiff=.55+iTint*.50;
-      vec3 push=vec3(wdir.x,0.0,wdir.y)*hgt*(.24+.20*gust)
+      vec3 push=vec3(wdir.x,0.0,wdir.y)*hgt*(.14+.68*gust)
                +vec3(0.0,-1.0,0.0)*hgt*(.40+.20*iTint);
       v2+=push/stiff*.5;
       v2+=side*sin(uTime*4.2*(.7+iTint)+iPhase*3.0)*hgt*.045*(.4+.6*abs(gust));
@@ -1048,6 +1092,8 @@ const bladeFragmentShader = `${paintGLSL}
       c*=mix(vec3(.60,.78,.86),uLightColor,.52)*uAmbient*1.30;
       // Retire per-blade contrast smoothly, earlier and more fully at night.
       c=mix(c,meadowWash(vWorld,broadShadow),softness);
+      c*=1.0+meadowWind(vWorld.xz,uTime)*mix(.04,.10,sunlight)*(1.0-softness);
+      c*=meadowPigment(vWorld);
       // An opaque draw still carries a softness mask in the HDR target alpha.
       gl_FragColor=vec4(aerial(c,vWorld),1.0-.5*softness);
     }`;
@@ -1111,12 +1157,24 @@ function updateNearGrass(){
 const meadowLife=buildMeadowLife({scene,terrainHeight,meadowMask,
   random:mulberry32(812731),timeUniform:paintUniforms.uTime});
 const {flowerSpots}=meadowLife;
+// Bake once: each flower softly colors its immediate surroundings, while
+// overlapping flowers naturally make a broader patch. Empty meadow stays green.
+flowerTintContext.globalCompositeOperation='lighter';
+flowerSpots.forEach(([x,y,z],i)=>{
+  const px=(x+70)/140*512,pz=(z+70)/140*512,r=(1.7+(i%4)*.15)/140*512;
+  const color=i%3===0?'0,255,0':'255,0,0';
+  const gradient=flowerTintContext.createRadialGradient(px,pz,0,px,pz,r);
+  gradient.addColorStop(0,`rgba(${color},.8)`);gradient.addColorStop(.35,`rgba(${color},.55)`);gradient.addColorStop(1,`rgba(${color},0)`);
+  flowerTintContext.fillStyle=gradient;flowerTintContext.fillRect(px-r,pz-r,r*2,r*2);
+});
+flowerTintTexture.needsUpdate=true;
 
 /* -------------------------------------------------------------------------- */
 /* Ocean-view bench and party garden                                          */
 /* -------------------------------------------------------------------------- */
 
 const interactive = [];
+const stoneSkipping=buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion:()=>companion});
 const dandelions=buildDandelions({scene,terrainHeight,meadowMask,random:mulberry32(41551),interactive,
   onRelease:()=>toast('A LITTLE WISH, ON ITS WAY')});
 let partyLightMaterial = null;
@@ -1126,13 +1184,16 @@ const partyHaloMaterial=new THREE.SpriteMaterial({map:glowTexture,color:0xffd496
 // walker reads as a person standing beside furniture rather than a child.
 function buildBench() {
   const g = new THREE.Group();
+  const legs=[];
   // Warmer than the tree trunks so the bench reads as worked timber, not driftwood.
   const plank = new THREE.MeshStandardMaterial({ color: 0xb08a5e, roughness: .64 });
   const frame = new THREE.MeshStandardMaterial({ color: 0x6b543d, roughness: .70 });
 
   // Side frames. The bench faces -z; the back posts live on the +z side.
   for (const sx of [-1.42, 1.42]) {
-    const frontLeg = box(.13, .58, .14, frame); frontLeg.position.set(sx, .29, -.46); g.add(frontLeg);
+    for(const z of [-.46,.44]){
+      const leg=box(.13,.58,.14,frame);leg.position.set(sx,.29,z);g.add(leg);legs.push(leg);
+    }
     const rail = box(.11, .1, 1.06, frame); rail.position.set(sx, .5, 0); g.add(rail);
     const armPost = box(.1, .32, .11, frame); armPost.position.set(sx, .72, -.42); g.add(armPost);
     const arm = box(.15, .09, 1.1, plank); arm.position.set(sx, .92, -.02); g.add(arm);
@@ -1163,6 +1224,7 @@ function buildBench() {
   const blanket = box(.92, .13, .96, mats.cloth); blanket.position.set(-.92, .68, -.02); blanket.rotation.y = .07; g.add(blanket);
 
   // A jar of flowers set on the grass beside the bench.
+  const jarPartsStart=g.children.length;
   const jar = cylinder(.13, .16, .3, 12, new THREE.MeshStandardMaterial({ color: 0x7ba2a0, roughness: .55 }));
   jar.position.set(1.95, .15, -.3); g.add(jar);
   for (let i = 0; i < 9; i++) {
@@ -1178,6 +1240,17 @@ function buildBench() {
 
   g.rotation.y = Math.PI / 2;
   putOnGround(g, -43, -3);
+  g.updateMatrixWorld(true);
+  // Each foot meets the actual slope, while the seat stays level.
+  for(const leg of legs){
+    const foot=g.localToWorld(new THREE.Vector3(leg.position.x,0,leg.position.z));
+    const bottom=terrainHeight(foot.x,foot.z)-g.position.y-.025;
+    const height=.58-bottom;
+    leg.scale.y=height/.58;leg.position.y=(.58+bottom)/2;
+  }
+  const jarFoot=g.localToWorld(new THREE.Vector3(1.95,0,-.3));
+  const jarOffset=terrainHeight(jarFoot.x,jarFoot.z)-g.position.y;
+  for(const part of g.children.slice(jarPartsStart))part.position.y+=jarOffset;
   interactive.push({
     type: 'bench', object: g, reach: 4.2,
     prompt: 'sit on our bench and watch the sunset',
@@ -1266,7 +1339,7 @@ function blowCandles() {
   candleFlames.forEach(({flame}) => { flame.visible=false; });
   audio.softBlow();
   toast('WISH MADE  ·  MAY IT FIND US SOON');
-  setTimeout(() => launchFireworks(4), 650);
+  setTimeout(() => launchFireworks(7), 650);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1361,6 +1434,7 @@ $('#finale-fireworks').addEventListener('click',()=>{ $('#finale').classList.rem
 /* -------------------------------------------------------------------------- */
 
 const butterflies=[];
+const insectViewer=new THREE.Vector3();
 
 // One shared wing, swept as a polar grid around the hinge: a pointed forewing
 // lobe, a rounder hindwing lobe and a notch between them. Building the interior
@@ -1405,31 +1479,32 @@ const BUTTERFLY_TINTS=[0xefa48e,0xe9c473,0x9dc3b4,0xb9a3d2,0x8fb4cc,0xe7cdb0];
 for(let i=0;i<22;i++){
   const group=new THREE.Group();
   const mat=new THREE.MeshBasicMaterial({
-    color:BUTTERFLY_TINTS[i%BUTTERFLY_TINTS.length],vertexColors:true,side:THREE.DoubleSide
+    color:BUTTERFLY_TINTS[i%BUTTERFLY_TINTS.length],vertexColors:true,side:THREE.DoubleSide,transparent:true,depthWrite:false
   });
   const left=new THREE.Mesh(wingGeo,mat),right=new THREE.Mesh(wingGeo,mat);
   right.scale.x=-1;                    // mirrored, so both hinge at the thorax
   left.position.y=right.position.y=.03;
   group.add(left,right);
 
+  const insectBodyMat=bodyMat.clone();insectBodyMat.transparent=true;insectBodyMat.depthWrite=false;
   // Abdomen, thorax, head and clubbed antennae, all pointing along -z.
-  const abdomen=cylinder(.016,.05,.32,6,bodyMat);abdomen.rotation.x=Math.PI/2;abdomen.position.z=.12;group.add(abdomen);
-  const thorax=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),bodyMat);thorax.position.z=-.04;thorax.scale.z=1.5;group.add(thorax);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.042,8,6),bodyMat);head.position.z=-.15;group.add(head);
+  const abdomen=cylinder(.016,.05,.32,6,insectBodyMat);abdomen.rotation.x=Math.PI/2;abdomen.position.z=.12;group.add(abdomen);
+  const thorax=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),insectBodyMat);thorax.position.z=-.04;thorax.scale.z=1.5;group.add(thorax);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.042,8,6),insectBodyMat);head.position.z=-.15;group.add(head);
   for(const sx of [-1,1]){
-    const antenna=cylinder(.005,.007,.22,4,bodyMat);
+    const antenna=cylinder(.005,.007,.22,4,insectBodyMat);
     antenna.position.set(sx*.03,.08,-.225);antenna.rotation.set(-.75,0,sx*.25);group.add(antenna);
-    const club=new THREE.Mesh(new THREE.SphereGeometry(.017,6,5),bodyMat);
+    const club=new THREE.Mesh(new THREE.SphereGeometry(.017,6,5),insectBodyMat);
     club.position.set(sx*.05,.17,-.30);group.add(club);
   }
   group.traverse(o=>{o.castShadow=false;o.receiveShadow=false;});
 
   const a=rand()*Math.PI*2,r=10+rand()*40,x=Math.cos(a)*r,z=Math.sin(a)*r;
   group.position.set(x,terrainHeight(x,z)+1.5,z);
-  group.scale.setScalar(.26+rand()*.14);
+  group.scale.setScalar(.16+rand()*.15);
   scene.add(group);
   butterflies.push({
-    group,left,right,base:new THREE.Vector3(x,0,z),
+    group,left,right,mat,bodyMat:insectBodyMat,rank:insectRank(i),base:new THREE.Vector3(x,0,z),
     phase:rand()*10,speed:.26+rand()*.3,radius:1.2+rand()*2.6,
     height:1.1+rand()*1.4,heading:0,bank:0
   });
@@ -1464,7 +1539,14 @@ const fireflyGeo=new THREE.BufferGeometry();fireflyGeo.setAttribute('position',n
 // Per-point colour, driven each frame, is what lets them blink one at a time —
 // a whole swarm pulsing together reads as a light, not as insects.
 fireflyGeo.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(fireflyPos.length),3));
-const fireflyMat=new THREE.PointsMaterial({size:.20,vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,map:glowTexture,alphaTest:.01});
+const fireflyMat=new THREE.PointsMaterial({size:.16,vertexColors:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,map:glowTexture,alphaTest:.01});
+// Perspective attenuation alone left the surviving distant glows too broad.
+// Keep close sprites intact and tighten their halos gradually beyond 8 metres.
+fireflyMat.onBeforeCompile=shader=>{
+  shader.vertexShader=shader.vertexShader.replace('gl_PointSize = size;',
+    'gl_PointSize = size * mix(1.0, 0.35, smoothstep(8.0, 36.0, length(mvPosition.xyz)));');
+};
+fireflyMat.customProgramCacheKey=()=> 'firefly-distance-size-1';
 const poolCandidates=Array.from({length:400},(_,i)=>({i,d:0}));
 const fireflies=new THREE.Points(fireflyGeo,fireflyMat);scene.add(fireflies);
 
@@ -1478,7 +1560,7 @@ function launchFireworks(amount=6){
   toast('LOOK UP  ·  THE SKY IS YOURS');
   fireworks.launch(playerRig.position,playerRig.rotation.y,amount);
 }
-function updateFireworks(dt){fireworks.update(dt);}
+function updateFireworks(dt){if(inspect&&inspectParams.has('fireworkStill'))return;fireworks.update(dt);}
 
 /* -------------------------------------------------------------------------- */
 /* Small synthesised soundscape                                               */
@@ -1552,11 +1634,13 @@ function updateHoldingHands(dt){
   handInteraction.prompt=companion.holding?'let go of his hand':'hold hands';
 }
 let avatarHeading=0;
-playerRig.position.set(4,terrainHeight(4,18),18);
+const spawnZ=27; // Just before the grassy entrance finishes fading into the trail.
+const spawnX=celebrationPathX(spawnZ);
+playerRig.position.set(spawnX,terrainHeight(spawnX,spawnZ),spawnZ);
 // Begin facing the warm side of the sky and the party garden, not the cool
 // anti-sun horizon. The sky remains intentionally asymmetric like the source.
-playerRig.rotation.y=0;
-cameraPivot.rotation.x=-.20;
+playerRig.rotation.y=Math.atan2(spawnX-celebrationPathX(spawnZ-7),7);
+cameraPivot.rotation.x=-.12;
 const keys={};
 let playing=false;
 let nearest=null;
@@ -1573,8 +1657,8 @@ function movePlayer(dt){
     avatarHeading=playerRig.rotation.y+Math.atan2(-sx,-sz);
     const speed=CONFIG.walkSpeed*(keys.ShiftLeft||keys.ShiftRight?1.7:1);
     tmp.set(sx,0,sz).applyAxisAngle(new THREE.Vector3(0,1,0),playerRig.rotation.y).multiplyScalar(speed*dt);
-    const nx=playerRig.position.x+tmp.x,nz=playerRig.position.z+tmp.z;
-    if(onIsland(nx,nz)){playerRig.position.x=nx;playerRig.position.z=nz;}
+    const next=moveAroundRocks(playerRig.position.x,playerRig.position.z,tmp.x,tmp.z,rockColliders,onIsland);
+    playerRig.position.x=next.x;playerRig.position.z=next.z;
   }
   // Ease onto the ground rather than snapping, so crests and troughs feel like
   // gliding over the land instead of stepping up and down it.
@@ -1601,7 +1685,7 @@ function movePlayer(dt){
 function updateInteraction(){
   nearest=null;let best=Infinity;
   for(const item of interactive){
-    if(item.found||item===handInteraction)continue;
+    if(item.found||item===handInteraction||(item.available&&!item.available()))continue;
     item.object.getWorldPosition(tmp);
     const d=tmp.distanceTo(playerRig.position);
     if(d<item.reach&&d<best){best=d;nearest=item;}
@@ -1609,6 +1693,7 @@ function updateInteraction(){
   const canHold=companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach;
   if(!nearest&&canHold)nearest=handInteraction;
   const el=$('#interaction');
+  if(stoneSkipping.active){el.classList.remove('show');return;}
   if(nearest){el.innerHTML=`<b>E</b> ${nearest.prompt}${nearest!==handInteraction&&canHold?` · <b>H</b> ${companion.holding?'let go':'hold hands'}`:''}`;el.classList.add('show');}
   else el.classList.remove('show');
 }
@@ -1649,18 +1734,19 @@ $('#sound-button').addEventListener('click',()=>audio.toggle());
 window.addEventListener('keydown',e=>{
   if($('#command').classList.contains('open')){if(e.code==='Escape')closeCommand();return;}
   if($('.note-modal.open'))return;
+  if(stoneSkipping.keyDown(e))return;
   keys[e.code]=true;
   if(e.code==='Slash'){e.preventDefault();openCommand();}
   if(e.code==='KeyE'&&nearest&&!e.repeat)nearest.action();
   if(e.code==='KeyH'&&!e.repeat&&(companion.holding||companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach))handInteraction.action();
-  if(e.code==='KeyF')launchFireworks(7);
+  if(e.code==='KeyF'&&!e.repeat)launchFireworks(7);
   if(e.code==='KeyM')audio.toggle();
   if(e.code==='Digit1')setMood('day');
   if(e.code==='Digit2')setMood('sunset');
   if(e.code==='Digit3')setMood('night');
 });
-window.addEventListener('keyup',e=>{keys[e.code]=false;});
-window.addEventListener('blur',()=>Object.keys(keys).forEach(k=>keys[k]=false));
+window.addEventListener('keyup',e=>{stoneSkipping.keyUp(e);keys[e.code]=false;});
+window.addEventListener('blur',()=>{stoneSkipping.cancelCharge();Object.keys(keys).forEach(k=>keys[k]=false);});
 function requestPointerLock(){
   const result=renderer.domElement.requestPointerLock?.();
   result?.catch(()=>{ /* A browser can decline; clicking the world retries. */ });
@@ -1841,13 +1927,15 @@ function updateQuality(rawDt){
 // Read-only inspection views make the visual acceptance pass reproducible.
 const inspectParams=new URLSearchParams(location.search);
 if(inspect){
-  const views={hats:[-6.4,-8.4,.55,-.35],moonisland:[-35,-38,.615,.08],companion:[-5.9,-6.7,0,-.22],dandelions:[-1.8,15.5,0,-.65],boat:[-46,23,2.25,.025],money:[1.5,10.5,0,-.25],shadows:[-8,-4,0,-.48],aurora:[14,26,3.757,.36],character:[22,-14,Math.PI,-.18],fireside:[22,-14,0,-.25],flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],
+  const views={skippingshore:[45,20,-1.03,-.34],skipping:[48,17,-Math.PI/2,-.32],plane:[-8,4,0,.28],hats:[-6.4,-8.4,.55,-.35],moonisland:[-35,-38,.615,.08],companion:[-5.9,-6.7,0,-.22],dandelions:[-1.8,15.5,0,-.65],boat:[-46,23,2.25,.025],money:[1.5,10.5,0,-.25],shadows:[-8,-4,0,-.48],aurora:[14,26,3.757,.36],character:[22,-14,Math.PI,-.18],fireside:[22,-14,0,-.25],flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],
     bench:[-38.5,-3,1.57,-.06],cake:[-8,-6.4,0,-.16],hills:[14,26,2.5,-.03],
     // Facing away from the sun with the camera up: the anti-sun meridian is
     // where sky shader math degenerates, and nothing else in the scene looks there.
     antisun:[-9.7,17.4,3.76,.62]};
   const v=views[inspectParams.get('view')];
   if(v){playerRig.position.set(v[0],terrainHeight(v[0],v[1]),v[1]);playerRig.rotation.y=v[2];cameraPivot.rotation.x=v[3];}
+  if(inspectParams.has('fireworkStill')){fireworks.launch(playerRig.position,playerRig.rotation.y,7);for(let i=0;i<240;i++)fireworks.update(1/60);}
+  if(inspectParams.has('skipPartner')){companion.celebrate();companion.update(2.2,playerRig.position);companion.anchor.position.set(49,terrainHeight(49,20),20);}
 }
 renderer.info.autoReset=false;
 function approachColor(color,key,dt){color.lerp(new THREE.Color(moodTarget[key]),1-Math.exp(-dt*1.2));}
@@ -1892,9 +1980,11 @@ function animate(now,force){
   if(renderer.shadowMap.needsUpdate)lastShadowTime=elapsed;
   oceanUniforms.uTime.value=elapsed;
   oceanLife.update(elapsed,moodLive.stars,camera);
+  lovePlane.update(inspect&&inspectParams.has('planeStill')?3:elapsed,moodLive.stars);
   paintUniforms.uTime.value=elapsed;
   camera.getWorldPosition(tmp2);
   for(const material of bladeMaterials)material.uniforms.uCam.value.copy(tmp2);
+  stoneSkipping.update(dt,playerRig.position,elapsed);
   movePlayer(dt);companion.update(dt,playerRig.position,gifts,playerRig.rotation.y);updateHoldingHands(dt);dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);
   gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.auraMat.opacity=(.30+paintUniforms.uPartyGlow.value*.32)*(1+Math.sin(elapsed*1.3+g.phase)*.07);g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
   if(candleBlownAt>=0){
@@ -1903,6 +1993,7 @@ function animate(now,force){
     for(const c of candleFlames)c.light.intensity=.32*Math.max(0,1-age/.16);
   }
   candleFlames.forEach(c=>{if(c.flame.visible){const s=1+Math.sin(elapsed*11+c.phase)*.16;c.flame.scale.set(2-s,s,2-s);}});
+  camera.getWorldPosition(insectViewer);
   butterflies.forEach(b=>{
     const t=elapsed*b.speed+b.phase;
     // A drifting figure-eight reads as wandering; a plain circle reads as a machine.
@@ -1916,6 +2007,8 @@ function animate(now,force){
       b.heading+=d*Math.min(1,dt*6);
       b.bank+=(clamp(d*2.2,-.55,.55)-b.bank)*Math.min(1,dt*5);
     }
+    const visibility=insectVisibility(b.group.position.distanceTo(insectViewer),b.rank,12,46);
+    b.mat.opacity=b.bodyMat.opacity=visibility;b.group.visible=visibility>.005;
     b.group.rotation.set(0,b.heading,b.bank);
     // Bursts of quick beats broken by short glides, wings resting in a shallow V.
     const glide=.5+.5*Math.sin(t*.6+b.phase);
@@ -1937,7 +2030,9 @@ function animate(now,force){
     const fc=fireflyGeo.attributes.color;
     for(let i=0;i<fp.count;i++){
       const ph=fireflyBase[i*4+3];
-      const tw=.22+.78*Math.pow(Math.max(Math.sin(elapsed*1.5+ph*3.1),0),1.6);
+      const distance=Math.hypot(fp.getX(i)-insectViewer.x,fp.getY(i)-insectViewer.y,fp.getZ(i)-insectViewer.z);
+      const visibility=insectVisibility(distance,insectRank(i),10,40,.16);
+      const tw=(.22+.78*Math.pow(Math.max(Math.sin(elapsed*1.5+ph*3.1),0),1.6))*visibility;
       const warm=.78+.22*Math.sin(ph*2.3);
       fc.setXYZ(i,tw,tw*(.80+.13*warm),tw*(.30+.22*warm));
     }

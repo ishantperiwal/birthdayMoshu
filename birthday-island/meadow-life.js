@@ -32,18 +32,19 @@ function flowerGeometry(variant){
   return combine(parts);
 }
 function mushroomGeometry(variant){
-  const h=variant?.16:.21,r=variant?.11:.14;
+  const h=variant%2?.16:.21,r=variant%2?.11:.14;
+  const capColor=[0xe87883,0xb29ade,0xe5b75d,0x79bcb0][variant];
   const stem=new THREE.QuadraticBezierCurve3(new THREE.Vector3(),new THREE.Vector3(-.018,h*.5,0),new THREE.Vector3(.018,h,0));
   const profile=[new THREE.Vector2(0,h+.073),new THREE.Vector2(r*.35,h+.070),new THREE.Vector2(r*.72,h+.045),new THREE.Vector2(r,h+.002),new THREE.Vector2(r*.92,h-.018),new THREE.Vector2(0,h-.015)];
-  const parts=[[new THREE.TubeGeometry(stem,5,.022,6,false),0xd5c4a4],
-    [new THREE.LatheGeometry(profile.reverse(),14),variant?0xc5a078:0xbb806b,transform(.018,0,0)]];
+  const parts=[[new THREE.TubeGeometry(stem,5,.022,6,false),0xf0dfc3],
+    [new THREE.LatheGeometry(profile.reverse(),14),capColor,transform(.018,0,0)]];
   // A few flat cream flecks distinguish low caps from flower buds.
   for(const [x,z] of [[-.045,.025],[.032,.045],[.022,-.040]])parts.push([
-    new THREE.SphereGeometry(1,6,3),0xe7d4ad,transform(x+.018,h+.061,z,0,0,0,.014,.003,.010)]);
+    new THREE.SphereGeometry(1,6,3),0xffefd4,transform(x+.018,h+.061,z,0,0,0,.014,.003,.010)]);
   return combine(parts);
 }
 export function buildMeadowLife({scene,terrainHeight,meadowMask,random,timeUniform}){
-  const flowerSpots=[],flowerPlacements=Array.from({length:4},()=>[]),mushroomPlacements=[[],[]];
+  const flowerSpots=[],flowerPlacements=Array.from({length:4},()=>[]),mushroomPlacements=Array.from({length:4},()=>[]);
   const valid=(x,z)=>terrainHeight(x,z)>.5&&meadowMask(x,z)>.8;
   const sample=()=>{
     for(let tries=0;tries<1000;tries++){
@@ -65,7 +66,7 @@ export function buildMeadowLife({scene,terrainHeight,meadowMask,random,timeUnifo
   }
   for(let i=0;i<36;i++){
     const pos=sample();if(!pos)continue;
-    mushroomPlacements[i%2].push({x:pos[0],z:pos[1],scale:.8+random()*.6,turn:random()*Math.PI*2,tilt:(random()-.5)*.12});
+    mushroomPlacements[i%4].push({x:pos[0],z:pos[1],scale:.8+random()*.6,turn:random()*Math.PI*2,tilt:(random()-.5)*.12});
   }
   const windHeader=`uniform float uFlowerTime;
     vec3 flowerBend(){
@@ -92,7 +93,7 @@ export function buildMeadowLife({scene,terrainHeight,meadowMask,random,timeUnifo
   const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
   depth.onBeforeCompile=shader=>{shader.uniforms.uFlowerTime=timeUniform;shader.vertexShader=windHeader+'\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',deform);};
   depth.customProgramCacheKey=()=> 'arched-wildflower-depth-v1';
-  const mushroomMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1});
+  const mushroomMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.66});
   const place=(geometry,placements,isFlower)=>{
     const mesh=new THREE.InstancedMesh(geometry,isFlower?material:mushroomMaterial,placements.length);
     placements.forEach((p,i)=>mesh.setMatrixAt(i,transform(p.x,terrainHeight(p.x,p.z),p.z,p.tilt,p.turn,p.tilt*.6,p.scale,p.scale,p.scale)));

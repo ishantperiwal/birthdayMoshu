@@ -323,3 +323,37 @@ length, with a short wrist and the existing perpendicular chain-link clasp.
 The male held sleeve is fixed at .38 through the entire holding/release
 transition. Hand movement follows a constant-radius arc rather than a linear
 path that shortens the arm before the normal pose returns.
+
+Insect distance thinning (`insect-density.js`) preserves full firefly density
+within 10 metres and butterfly density within 12 metres of the camera. Stable
+per-insect ranks fade most out by 40/46 metres respectively, leaving roughly
+15–20% visible in the distance. Firefly ground pools follow the same fade.
+Nearby populations and flight paths are unchanged; selection never rerolls.
+
+The male companion now tries the supplied `assets/hairCheck.glb` hairstyle in
+soft black. `modeling/import-hair-check.py` extracts its single 3,306-triangle
+mesh into `assets/male-hair.js`; the original GLB is preserved. Character code
+turns the +X face opening forward, fits it to the head, and attaches it to the
+existing head pivot. Female hair is unchanged.
+
+Firefly sprite size additionally tapers from full size within 8 metres to 35%
+at 36 metres, on top of perspective attenuation and distance density thinning.
+
+The fireplace clearing now has a 3.1-metre bare center feathering into grass
+by 4.5 metres, with benches set slightly farther out. The three added lamps are now spread into
+unlit north, east and southwest meadow areas at (-3,-33), (39,3), and (-12,27). Its existing warm light and
+painted ground fill are stronger and wider; six reused low-opacity smoke
+sprites drift gently above the fire without additional shadow lights.
+
+The male companion has returned to short hair, now a single smooth molded
+mesh from `short-hair.js`: swept crown, shallow side part, rounded hairline
+and fitted nape in a near-black brown. The supplied long-hair GLB and extracted
+module remain preserved as unused alternatives. Female hair is unchanged.
+
+Grass has broad, irregular moss and cooler sage-green washes shared between
+blades and underlying terrain, with smooth boundaries and no extra per-blade
+noise. The path and bare celebration/fireplace surfaces keep their own colors.
+
+Moss/sage grass accents are now anchored to actual `flowerSpots` using one
+baked 512px tint map. Each flower has a softly feathered 1.7–2.15m patch;
+overlapping flowers blend into larger washes. Empty meadow has no added tint.

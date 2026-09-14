@@ -1,3 +1,4 @@
+import { shortHairGeometry } from './short-hair.js';
 import { roundedSleeve } from './rounded-sleeve.js';
 import { roundedToyBox } from './rounded-toy-box.js';
 import { buildHandPose } from './hand-pose.js?v=9';
@@ -32,12 +33,10 @@ export function buildCharacter(parent,options={}){
   for(let i=0;i<=6;i++){const a=i/6*Math.PI/2;profile.push(new THREE.Vector2(.205+.045*Math.cos(a),.15+.045*Math.sin(a)));}
   profile.push(new THREE.Vector2(0,.195));
   add(new THREE.LatheGeometry(profile,32),skin,0,1.49,0);
-  add(new THREE.CylinderGeometry(.105,.105,.075,16),skin,0,1.72,0);
+  if(!options.shortHair)add(new THREE.CylinderGeometry(.105,.105,.075,16),skin,0,1.72,0);
   if(options.shortHair){
-    // A fitted cap and one swept forelock; keep the forehead and eyes open.
-    const cap=add(new THREE.SphereGeometry(.272,20,12,0,Math.PI*2,0,Math.PI/2),hair,0,1.65,0);cap.scale.y=.64;
-    const back=add(new THREE.CylinderGeometry(.264,.255,.13,20,1,true,-Math.PI/2,Math.PI),hair,0,1.61,0);
-    const fringe=add(new THREE.SphereGeometry(1,16,10),hair,-.065,1.674,-.185);fringe.scale.set(.19,.065,.09);fringe.rotation.z=-.16;
+    const shortHair=mat(0x25201e);shortHair.roughness=.34;shortHair.emissiveIntensity=.035;
+    add(shortHairGeometry(),shortHair,0,0,0);
   }else{
   // Sculpted in Blender, fused and simplified into one static mesh.
   const hairShape=new THREE.BufferGeometry();
@@ -63,7 +62,16 @@ export function buildCharacter(parent,options={}){
   let stride=0,blend=0,pointBlend=0,waveBlend=0,previousHandAmount=0,releasingHand=false;
   const heldArm=options.shortHair?0:1;
   const handPose=buildHandPose(root,{color:options.top??0xeb94ad,shoulder:[heldArm? .36:-.36,1.14,0],side:heldArm?1:-1,sleeveLength:options.shortHair?.38:null});
-  return {root,poseHand(target,amount,rotation){
+  const throwStone=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat(0xd1dbe5));throwStone.scale.set(.075,.035,.055);throwStone.position.set(.025,-.39,-.02);throwStone.visible=false;arms[1].add(throwStone);
+  return {root,
+    poseThrow(age){
+      throwStone.visible=age>=0&&age<.42;
+      if(age<0)return;
+      const wind=Math.min(age/.26,1),snap=THREE.MathUtils.smoothstep(age,.26,.49),recover=THREE.MathUtils.smoothstep(age,.55,.95);
+      arms[1].rotation.set(THREE.MathUtils.lerp(-1.05*wind+2.65*snap,0,recover),0,.22*(1-recover)+.12*recover);
+    },
+    throwOrigin(target){return throwStone.getWorldPosition(target);},
+    poseHand(target,amount,rotation){
     handPose.update(target,amount,rotation);
     if(amount<previousHandAmount-.000001)releasingHand=true;
     else if(amount>previousHandAmount+.000001)releasingHand=false;
@@ -74,7 +82,7 @@ export function buildCharacter(parent,options={}){
     handPose.root.visible=useHoldingModel;
     arms[heldArm].visible=!useHoldingModel;
     if(amount>.001&&!useHoldingModel)arms[heldArm].quaternion.setFromUnitVectors(down,handPose.aim);
-  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.80:1.88)-1.28,0);hat.rotation.set(0,0,-.08);hat.scale.setScalar(1.65);},update(dt,moving,running,cheer=0,attention=null){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*.55*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend-cheer*1.7;arm.rotation.z=(i===0?-1:1)*(.12+cheer*.65);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
+  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.82:1.88)-1.28,0);hat.rotation.set(0,0,-.08);hat.scale.setScalar(1.65);},update(dt,moving,running,cheer=0,attention=null){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*.55*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend-cheer*1.7;arm.rotation.z=(i===0?-1:1)*(.12+cheer*.65);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
     waveBlend+=((attention?.wave?1:0)-waveBlend)*(1-Math.exp(-dt*7));
     if(waveBlend>.001){
       arms[1].rotation.x=THREE.MathUtils.lerp(arms[1].rotation.x,-.35,waveBlend);

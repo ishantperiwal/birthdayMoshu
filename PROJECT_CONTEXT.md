@@ -294,3 +294,84 @@ length, with a short wrist and the existing perpendicular chain-link clasp.
 The male held sleeve is fixed at .38 through the entire holding/release
 transition. Hand movement follows a constant-radius arc rather than a linear
 path that shortens the arm before the normal pose returns.
+
+Insect distance thinning (`insect-density.js`) preserves full firefly density
+within 10 metres and butterfly density within 12 metres of the camera. Stable
+per-insect ranks fade most out by 40/46 metres respectively, leaving roughly
+15–20% visible in the distance. Firefly ground pools follow the same fade.
+Nearby populations and flight paths are unchanged; selection never rerolls.
+
+The male companion now tries the supplied `assets/hairCheck.glb` hairstyle in
+soft black. `modeling/import-hair-check.py` extracts its single 3,306-triangle
+mesh into `assets/male-hair.js`; the original GLB is preserved. Character code
+turns the +X face opening forward, fits it to the head, and attaches it to the
+existing head pivot. Female hair is unchanged.
+
+Firefly sprite size additionally tapers from full size within 8 metres to 35%
+at 36 metres, on top of perspective attenuation and distance density thinning.
+
+The fireplace clearing now has a 3.1-metre bare center feathering into grass
+by 4.5 metres, with benches set slightly farther out. The three added lamps are now spread into
+unlit north, east and southwest meadow areas at (-3,-33), (39,3), and (-12,27). Its existing warm light and
+painted ground fill are stronger and wider; six reused low-opacity smoke
+sprites drift gently above the fire without additional shadow lights.
+
+The male companion has returned to short hair, now a single smooth molded
+mesh from `short-hair.js`: swept crown, shallow side part, rounded hairline
+and fitted nape in a near-black brown. The supplied long-hair GLB and extracted
+module remain preserved as unused alternatives. Female hair is unchanged.
+
+Grass has broad, irregular moss and cooler sage-green washes shared between
+blades and underlying terrain, with smooth boundaries and no extra per-blade
+noise. The path and bare celebration/fireplace surfaces keep their own colors.
+
+Moss/sage grass accents are now anchored to actual `flowerSpots` using one
+baked 512px tint map. Each flower has a softly feathered 1.7–2.15m patch;
+overlapping flowers blend into larger washes. Empty meadow has no added tint.
+
+### Meadow wind and quieter insects (13 September)
+- `CONFIG.flowerGrassTints = false` disables the flower-linked moss/sage tint non-destructively. Its baked field and palette remain available by setting this back to true.
+- Grass now uses a shared analytic travelling gust for blade bending and a matching soft meadow highlight, following the reference's near/far treatment. Warped fronts move at roughly 3.7 m/s; nighttime highlights are restrained. No additional draw calls or simulation textures.
+- Butterfly scales are now .16–.31 (previously .26–.40), with stable random size variation. Firefly point size is .16 (previously .20). Existing distance thinning and distant sprite shrinking remain enabled.
+
+### Love-letter flypast
+`love-plane.js` adds a small red-and-cream propeller plane towing an “I love you” cloth banner over the northern sea. It travels broadside at 49 m altitude, z=-155, on a 220-second loop, resetting beyond the camera far plane. The first pass is near the celebration view. A low-resolution segmented banner ripples through vertex updates; no shadows, lights or particle systems are added. Inspect with `?inspect&view=plane`.
+
+Mushroom caps now alternate rose, lavender, honey-gold and seafoam, with cream stems/flecks and slightly satin roughness (.66). Their 36 placements and alternating sizes remain unchanged; four instanced color species replace two brown species.
+
+### Trail arrival and crest
+Default arrival starts at z=27 with x from `celebrationPathX`, just before the grassy entrance finishes fading into the clear trail at z=25, facing along its first bend. Explicit inspector views still override spawn. The experimental crest lift was reverted at the user’s request; terrain heights use the original profile.
+
+### Bench ground contact
+The ocean bench now has both rear legs beneath its back posts. All four feet extend individually to the sampled terrain (with 2.5 cm overlap); the jar and its flowers also follow their own ground height. Reduced directional normal bias from .02 to .008 and custom ground shadow comparison offset from .00020 to .00006 to tighten contact shadows. Verified the bench preview without rendering errors.
+
+### Rock collision
+All 34 scenery boulders now register horizontal circular hitboxes measured from their transformed vertices. Player movement uses `rock-collision.js` with a .24 m body radius, 10 cm movement substeps and boundary projection for sliding. No physics engine or per-frame mesh intersection tests. Small path pebbles remain walkable. Applies to player movement in either camera mode; companion navigation is unchanged.
+
+### Stone skipping
+`stone-skipping.js` places a pebble bowl and small sign at (50,17) on the eastern shore with a soft cleared patch. E starts, hold/release Space charges/throws, Q or Escape leaves; walking beyond 6 m exits too. Each player throw is followed by an automated opponent throw. Session-only best distances and skip counts appear in a compact HUD. Reused pebble/ripple meshes animate a shore-to-water arc and diminishing skips; no physics engine. The opponent currently has an automated turn, without a dedicated companion throwing animation or multiplayer networking. Inspect via `?inspect&view=skipping`. Browser-checked a complete player/opponent round with scores and no console errors.
+
+### Stone-skipping shore polish
+- The shore clearing is now a softly edged ellipse (~8 × 9 m); lanterns at (48,12.6) and (51,21.2) share the island's existing warm fixture, glow and grass illumination system.
+- Polished ivory, sea-glass, pale blue and peach pebbles sit in a rimmed wooden tray beside a framed sign.
+- The dedicated shore card uses a continuously oscillating power meter while Space is held. Shared pure math in `skipping-physics.js` drives the guide dots, flight, impact locations and distance estimate. Scores now measure total horizontal distance from the shore, including the initial arc.
+- A projected distance label follows the airborne pebble. Every water contact (including initial touch and final settle) produces a ripple; rings conform to the ocean's three swell functions so they do not disappear under waves. Early contacts emit a small pooled splash of droplets. All crossed impact times are processed, even in a long frame.
+- UI is built once and updated in place. Guide dots are instanced; rings and droplets are reused. Tested power cycling, complete impact sequences at long timesteps, exact flight/guide contacts and a full browser round without console errors. `view=skippingshore` previews the decorations; `view=skipping` previews play.
+
+### Pick-up-and-throw revision
+The skipping terrace is flattened to 1.55 m with a smooth elliptical blend into the existing coast; the board, bowl and both lantern bases are on its level core, above the ocean swell. E now requires looking at the nearby bowl and equips one visible pebble in a simple first-person Lego hand. No automatic re-equip: pick up another after the opponent's turn. The compact timing meter appears only while Space is held; a broad pale band around 70% rewards clean skips. Maximum power is deliberately worse than a well-timed release. The guide is now only 12 short direction dots from the POV; actual throws launch from the held pebble and follow the camera's horizontal aim over the eastern water. Looking toward land or sharply down prevents release. Tested skill curve, custom launch origins, bounce locations, pickup HUD and held mesh without browser errors.
+
+### Free-aim pebble physics
+Replaced the authored skipping path with gravity-driven velocity integration (substeps ≤8 ms). The full camera direction, including pitch, determines the throw. Vertical tosses return nearby, shallow fast water contacts can skip with energy loss, steep water contacts sink, and land contacts settle without water ripples. The short guide samples the same initial ballistic velocity. Timing quality affects retained skip energy; maximum force still throws faster but does not guarantee the best skip result. The held hand now uses the normal character's exact open C-tip dimensions and opening rotation, with a smaller pebble nestled inside. Tested up/side/shallow/down throws and a browser ground toss, with no console errors.
+
+The thrown pebble now has a restrained pale trail: one pooled 18-vertex line showing its last 0.20 seconds, fading after landing and resetting per throw. Browser-tested player/opponent throws without shader errors. The skipping shore keeps only the seaward lantern at (51,21.2); the other added lamp at (48,12.6) was removed from the shared fixture/lighting list.
+
+### Visible throws and present-only companion turns
+First-person pickup shows only the pebble (hand/sleeve hidden). Releasing plays a 0.24 s pebble motion, then launches the world projectile from its release position with the captured aiming direction. His turn is scheduled only when he is within 6 m of the player and 9 m of the shore spot, following and not holding hands. His character faces the water, winds up, releases from the actual hand at 0.42 s and returns to rest by 0.95 s. Nearby presence is rechecked at release; no remote/phantom throws. `skipPartner` is an inspector-only fixture for placing a following companion at the shore.
+
+### Future multiplayer — documented only
+The user plans to join the same server later. Each participant should have the same first-person pebble pickup/aim/throw experience as the current local player. Other participants see a single third-person throw animation; release spawns a shared world-space pebble with position, aim, power and timing quality. Multiplayer transport, server synchronization and ownership have intentionally not been implemented. Preserve this as later work, not authorization to build networking now.
+
+### Raised bowl and richer fireworks
+The pebble bowl, rim and pebbles are raised 0.85 m on a three-legged wooden stand. Pickup gaze follows the bowl's new world height; the skipping inspector looks down less.
+Firework sequences are clamped to 6–7 staggered shells (candle celebration now requests 7). Targets lie 100–118 m ahead at 44–63 m altitude. Rocket particles remain dark below 12 m and reveal through 21 m; alternate rockets have intermittent glitter. Burst particles are brighter and live slightly longer, with tip/tail sparkle using existing vertices rather than added particle clouds. One shared shadowless PointLight creates a brief warm colored flash near viewers on each burst. No permanent ambient/exposure changes. Repeated-key firing is suppressed and queued/active sequences are bounded. Inspected overlapping blooms via `fireworkStill` and checked browser console without rendering errors.

@@ -54,3 +54,5 @@ to restart. Reloading the browser resets gifts, candles, hats and companion stat
 
 Near your companion, press **E** when “hold hands” appears, or **H** to hold hands.
 Press **H** again to let go. Other nearby objects retain their E interactions.
+
+Stone skipping: find the pebble bowl on the eastern shore. Look at the bowl and press **E** to pick up one pebble. Aim over the sea, hold **Space**, and release inside the pale timing band for cleaner skips. The short dots show direction; a distance label follows your pebble. Pick up another with **E** after the round. If he has followed you to the shore and is nearby with his hands free, he takes an animated turn after yours. Alone, you can simply pick up another pebble. Press **Q** to leave. Best distances last until refresh.

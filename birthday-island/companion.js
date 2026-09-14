@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=reach-swap-2';
+import { buildCharacter } from './character.js?v=throw-1';
 
 export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
   const character=buildCharacter(anchor,{shortHair:true,top:0x347f89,trousers:0x293d60,shoes:0x1c2b43});
   character.root.scale.setScalar(1.06);
+  let stoneThrow=null;
   let holding=false,holdReady=false,hasCelebrated=false,waveUntil=0,waveArmed=true;
   const previousPlayer=new THREE.Vector3();
   let hasPreviousPlayer=false;
@@ -13,7 +14,13 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
   const attention={yaw:0,pitch:0,tilt:0,point:false,wave:false,direction:new THREE.Vector3()};
   function ground(x,z){return terrainHeight(x,z)+stageHeight*(1-THREE.MathUtils.smoothstep(Math.hypot(x+8,z+10),stageRadius-.06,stageRadius+.12));}
   anchor.position.y=ground(anchor.position.x,anchor.position.z);anchor.rotation.y=Math.PI;
-  return {anchor,get holding(){return holding;},get holdReady(){return holdReady;},
+  return {anchor,
+    get throwing(){return !!stoneThrow;},
+    startThrow(direction,onRelease){
+      if(stoneThrow||holding||state!=='following')return false;
+      stoneThrow={age:0,direction:direction.clone(),onRelease,released:false};speed=0;return true;
+    },
+    get holding(){return holding;},get holdReady(){return holdReady;},
     toggleHolding(){if(state==='celebrating')return false;holding=!holding;holdReady=false;speed=0;if(!holding)state='following';return holding;},
     poseHand:(target,amount,rotation)=>character.poseHand(target,amount,rotation),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0){
     time+=dt;
@@ -24,7 +31,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       cheer=Math.sin(Math.min(cheerAge/2.1,1)*Math.PI)*.95;
       if(cheerAge>=2.1)state='following';
     }
-    if(state==='following'||holding){
+    if((state==='following'||holding)&&!stoneThrow){
       // Held hands shorten the following leash, never attach him to camera yaw.
       const spacing=holding?1.65:3.1;
       const radialPace=holding&&hasPreviousPlayer&&distance>.001
@@ -78,7 +85,16 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     if(interest==='player'&&time<glanceUntil&&state!=='celebrating'&&!attention.wave&&!holding){attention.yaw+=glanceYaw;attention.pitch*=.5;}
     const c=Math.cos(anchor.rotation.y),s=Math.sin(anchor.rotation.y);
     attention.direction.set(c*lx-s*lz,look.y-(anchor.position.y+1.2),s*lx+c*lz);
+    if(stoneThrow){attention.point=false;attention.wave=false;attention.yaw=0;attention.pitch=.08;
+      const heading=Math.atan2(-stoneThrow.direction.x,-stoneThrow.direction.z);
+      const delta=Math.atan2(Math.sin(heading-anchor.rotation.y),Math.cos(heading-anchor.rotation.y));anchor.rotation.y+=delta*(1-Math.exp(-dt*14));
+    }
     character.update(dt,moving,speed>5.2,cheer,attention);
+    if(stoneThrow){
+      stoneThrow.age+=dt;character.poseThrow(stoneThrow.age);
+      if(stoneThrow.age>=.42&&!stoneThrow.released){stoneThrow.released=true;anchor.updateMatrixWorld(true);const origin=character.throwOrigin(new THREE.Vector3());stoneThrow.onRelease(origin,stoneThrow.direction);}
+      if(stoneThrow.age>=.95){stoneThrow=null;character.poseThrow(-1);}
+    }
     anchor.position.y=ground(anchor.position.x,anchor.position.z)+hop;
   }};
 }

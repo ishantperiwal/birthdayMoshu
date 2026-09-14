@@ -34,10 +34,10 @@ export function buildFireside({scene,terrainHeight,x,z,musicUrl=''}) {
     const flame=mesh(new THREE.PlaneGeometry(.72,1.1),fireMat,Math.sin(i*2.1)*.15,.69,Math.cos(i*2.1)*.15);
     flame.rotation.y=i*Math.PI/3;flame.castShadow=false;
   }
-  const light=new THREE.PointLight(0xffb660,3,7,2);light.position.set(0,1.0,0);root.add(light);
+  const light=new THREE.PointLight(0xffb660,3.8,8.5,2);light.position.set(0,1.0,0);root.add(light);
   // Two open, inward-facing plank benches leave the radio side approachable.
   const seatWood=material(0x84634a);
-  for(const [bx,bz,angle] of [[-.15,2.2,-.07],[-2.2,-.2,-Math.PI/2-.09]]){
+  for(const [bx,bz,angle] of [[-.15,2.6,-.07],[-2.6,-.2,-Math.PI/2-.09]]){
     const bench=new THREE.Group();bench.position.set(bx,terrainHeight(x+bx,z+bz)-root.position.y,bz);
     bench.rotation.y=angle;root.add(bench);
     const part=(w,h,d,mat,px,py,pz)=>{
@@ -62,6 +62,23 @@ export function buildFireside({scene,terrainHeight,x,z,musicUrl=''}) {
   const dial=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.023,16),cream);dial.rotation.x=Math.PI/2;dial.position.set(.17,.14,.16);radio.add(dial);
   for(const px of [-.2,.2])radioPart(.025,.12,.025,dark,px,.45,0);
   radioPart(.425,.025,.025,dark,0,.51,0);
+  // Six softly feathered puffs, reused forever, with a faint windward drift.
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=64;
+  const ctx=canvas.getContext('2d'),gradient=ctx.createRadialGradient(32,32,0,32,32,31);
+  gradient.addColorStop(0,'rgba(255,255,255,.65)');gradient.addColorStop(.45,'rgba(255,255,255,.30)');gradient.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=gradient;ctx.fillRect(0,0,64,64);
+  const smokeTexture=new THREE.CanvasTexture(canvas),smoke=[];
+  for(let i=0;i<6;i++){
+    const mat=new THREE.SpriteMaterial({map:smokeTexture,color:0xaaa69f,transparent:true,depthWrite:false,opacity:0});
+    const puff=new THREE.Sprite(mat);root.add(puff);smoke.push(puff);
+  }
   const audio=musicUrl?new Audio(musicUrl):null;if(audio)audio.loop=true;
-  return {root,radio,audio,update(time,night){fireMat.uniforms.time.value=time;light.intensity=(1.3+night*2.0)*(1+.06*Math.sin(time*5)+.035*Math.sin(time*8.3));}};
+  return {root,radio,audio,update(time,night){fireMat.uniforms.time.value=time;light.intensity=(1.6+night*2.7)*(1+.06*Math.sin(time*5)+.035*Math.sin(time*8.3));
+    smoke.forEach((puff,i)=>{
+      const age=(time+i*1.15)%6.9,t=age/6.9;
+      puff.position.set(.10+age*.09+Math.sin(age*1.1+i)*.06,1.0+age*.35,-age*.035+Math.cos(age*.8+i)*.055);
+      puff.scale.setScalar(.38+age*.16);
+      puff.material.opacity=.095*Math.sin(t*Math.PI)**2;
+      puff.material.rotation=i*1.7+age*.06;
+    });}};
 }
