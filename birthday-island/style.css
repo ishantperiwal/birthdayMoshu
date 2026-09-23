@@ -20,35 +20,36 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .overlay {
   position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
-  background:
-    radial-gradient(circle at 72% 26%, rgba(255, 229, 173, .82), transparent 30%),
-    radial-gradient(circle at 30% 75%, rgba(105, 157, 153, .52), transparent 45%),
-    linear-gradient(150deg, #f4d7ae 0%, #b5c9c4 42%, #657d96 100%);
+  background: rgba(12, 23, 43, .58);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
   transition: opacity 1.5s ease, visibility 1.5s;
 }
 .overlay::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 44%, rgba(25, 38, 58, .25));
+  background: radial-gradient(ellipse at center, transparent 25%, rgba(6, 13, 29, .48));
 }
 .overlay.gone { opacity: 0; visibility: hidden; }
-.welcome-card { position: relative; z-index: 1; width: min(610px, 88vw); text-align: center; color: #2c3c50; }
-.eyebrow { margin-bottom: 20px; font: 600 10px/1.2 ui-sans-serif, system-ui; letter-spacing: .42em; opacity: .65; }
-h1 { margin: 0; font-size: clamp(42px, 8vw, 76px); font-weight: 400; letter-spacing: -.025em; line-height: .96; }
-.subtitle { margin: 19px auto 0; max-width: 450px; font-size: clamp(16px, 2vw, 19px); font-style: italic; opacity: .78; }
-.tiny-rule { width: 72px; height: 1px; margin: 28px auto; background: currentColor; opacity: .28; }
-.dedication { max-width: 455px; margin: auto; font-size: 14px; line-height: 1.8; opacity: .82; }
-.loading { width: 220px; height: 2px; margin: 31px auto 11px; overflow: hidden; background: rgba(37, 50, 73, .15); border-radius: 5px; }
-.loading span { display: block; width: 0; height: 100%; background: #537f78; transition: width .35s; }
-#load-copy { min-height: 15px; font: 600 9px/1 ui-sans-serif, system-ui; letter-spacing: .24em; text-transform: uppercase; opacity: .52; }
+.welcome-card { position: relative; z-index: 1; width: min(610px, 88vw); text-align: center; color: #fff2d9; }
+.welcome-heart { margin-bottom: 24px; color: #e2acb7; font: 400 38px/1 Georgia, serif; }
+h1 { margin: 0; font-size: clamp(40px, 7vw, 66px); font-weight: 400; letter-spacing: -.035em; line-height: 1.08; }
+.subtitle { margin: 18px auto 0; font-size: clamp(16px, 2vw, 19px); font-style: italic; opacity: .7; }
+.welcome-loading { position: absolute; top: 100%; left: 0; width: 100%; margin-top: 22px; transition: opacity .3s; }
+.welcome-card.loaded .welcome-loading { opacity: 0; visibility: hidden; }
+.loading { width: 100px; height: 2px; margin: 0 auto 10px; overflow: hidden; background: rgba(255, 242, 217, .16); border-radius: 5px; }
+.loading span { display: block; width: 0; height: 100%; background: #e2c7a1; transition: width .35s; }
+#load-copy { font: italic 12px/1.4 Georgia, serif; opacity: .6; }
 #enter, .keep-walking, #finale-fireworks {
   border: 0; border-radius: 999px; padding: 13px 30px; cursor: pointer;
   background: #354f59; color: #fff8e8; box-shadow: 0 10px 30px rgba(33, 50, 64, .18);
   font: 650 11px/1 ui-sans-serif, system-ui; letter-spacing: .19em; text-transform: uppercase;
   transition: transform .25s, background .25s, opacity .25s;
 }
-#enter { margin-top: 24px; opacity: 0; transform: translateY(8px); pointer-events: none; }
+#enter { background: #eadbc1; color: #28394b; box-shadow: 0 8px 30px rgba(0, 0, 0, .16); margin-top: 34px; padding: 15px 27px; font-size: 12px; font-weight: 500; letter-spacing: .04em; text-transform: none; opacity: .45; pointer-events: none; }
+#enter span { margin-left: 12px; }
 #enter.ready { opacity: 1; transform: none; pointer-events: auto; }
 #enter:hover, .keep-walking:hover, #finale-fireworks:hover { transform: translateY(-2px); background: #49706f; }
+#enter:hover { background: #fff0d5; }
 .sound-note { margin-top: 14px; font-size: 11px; font-style: italic; opacity: .5; }
 
 .hidden-ui { opacity: 0; visibility: hidden; transition: opacity 1s, visibility 1s; }
@@ -59,10 +60,25 @@ body.playing .hidden-ui { opacity: 1; visibility: visible; }
 .brand b, .brand small { display: block; }
 .brand b { font: 650 10px/1.2 ui-sans-serif, system-ui; letter-spacing: .24em; }
 .brand small { margin-top: 5px; font-size: 12px; font-style: italic; opacity: .7; }
-.treasure-card { min-width: 126px; padding: 10px 13px; text-align: right; border: 1px solid rgba(255, 247, 230, .17); border-radius: 9px; background: rgba(28, 40, 56, .45); backdrop-filter: blur(10px); }
-.treasure-card span, .treasure-card b { display: block; font-family: ui-sans-serif, system-ui; }
-.treasure-card span { font-size: 8px; letter-spacing: .2em; opacity: .65; }
-.treasure-card b { margin-top: 4px; font-size: 13px; letter-spacing: .09em; }
+.treasure-card { width: 250px; padding: 15px 17px 12px; color: #fff2d6; border: 1px solid #e6c99055; border-radius: 19px; background: linear-gradient(135deg,rgba(41,62,56,.93),rgba(23,38,46,.94)); box-shadow: 0 8px 28px #0d1c2830,inset 0 1px #fff5d51a; backdrop-filter: blur(12px); font-family: ui-sans-serif,system-ui; transform-origin: top right; }
+.cash-heading { display:flex; align-items:center; gap:10px; }
+.cash-icon { width:42px; height:42px; flex-shrink:0; filter:drop-shadow(0 3px 4px #0003); }
+.cash-icon svg { width:100%; height:100%; }
+.cash-caption { display:block; white-space:nowrap; font-size:8px; letter-spacing:.18em; color:#d0c6ab; }
+#gift-value { display:block; margin-top:3px; font-size:25px; line-height:1.15; font-weight:650; letter-spacing:-.035em; font-variant-numeric:tabular-nums; }
+#cash-gain { margin-left:auto; white-space:nowrap; color:#d8eaaa; font-size:11px; font-weight:600; }
+.cash-progress-track { height:4px; margin:13px 0 9px; background:#fff2d61a; border-radius:4px; overflow:hidden; }
+#cash-progress { display:block; width:0; height:100%; background:linear-gradient(90deg,#8dae86,#ead39a); border-radius:4px; transition:width .4s ease; }
+.cash-package-line { display:flex; justify-content:space-between; font-size:10px; color:#c6cebf; }
+#gift-count { color:#f1e5c9; font-size:10px; letter-spacing:.07em; }
+.cash-flight-layer { position:fixed; inset:0; z-index:85; pointer-events:none; overflow:hidden; }
+.cash-flight-layer { display:none; }
+body.playing .cash-flight-layer { display:block; }
+body.is-stargazing .cash-flight-layer { display:none; }
+.cash-flight-layer canvas { display:block; }
+.cash-sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+@media(max-width:600px){.treasure-card{width:178px;padding:11px 12px}.cash-heading{gap:6px}.cash-icon{width:32px;height:32px}#gift-value{font-size:22px}.cash-caption{font-size:7px}#cash-gain{display:none}}
+@media(prefers-reduced-motion:reduce){#cash-progress{transition:none}}
 
 #moods { position: fixed; z-index: 22; top: 50%; right: 22px; transform: translateY(-50%); display: flex; flex-direction: column; gap: 5px; padding: 9px; border-radius: 20px; background: rgba(25, 38, 55, .44); border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(12px); }
 #moods span { padding: 5px 0 3px; text-align: center; font: 650 8px/1 ui-sans-serif, system-ui; letter-spacing: .26em; opacity: .55; }
@@ -123,6 +139,15 @@ body.playing .hidden-ui { opacity: 1; visibility: visible; }
   .note-paper { padding: 40px 25px 30px; }
 }
 
-#gift-value{display:block;margin-top:5px;color:#efdbad;font-size:13px;}
+
 #reward-tier{font-size:10px;letter-spacing:2px;color:#947952;margin-bottom:6px;}
 #reward-value{display:block;font-size:36px;color:#927040;margin-bottom:18px;}
+
+#stargazing{position:fixed;inset:0;z-index:45;touch-action:none;cursor:none;}
+#stargazing[hidden]{display:none}
+.is-stargazing #reticle,.is-stargazing #interaction,.is-stargazing #controls,.is-stargazing #moods,.is-stargazing #command-button,.is-stargazing #topbar,.is-stargazing #sound-button,.is-stargazing #toast{display:none!important}
+
+#island-connection{position:fixed;left:50%;top:76px;transform:translateX(-50%);z-index:60;max-width:65vw;padding:9px 15px;border:1px solid #ead9b83b;border-radius:20px;background:#142734d9;color:#eee3cc;font:11px/1.5 system-ui,sans-serif;letter-spacing:.04em;text-align:center;pointer-events:none}
+#welcome .connection-note{color:#e6c799;font:12px/1.5 system-ui,sans-serif;margin-top:14px}
+
+.companion-view #moods,.companion-view #command-button,.companion-view #interaction{display:none!important}

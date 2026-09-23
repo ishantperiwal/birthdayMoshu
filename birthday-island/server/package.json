@@ -1,0 +1,17 @@
+{
+  "name": "island-multiplayer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "test": "node --test ../tests/multiplayer.test.mjs ../tests/remote-motion.test.mjs ../tests/companion-mode.test.mjs",
+    "test:integration": "node ../tests/companion-integration.mjs",
+    "test:browser": "node ../tests/companion-browser.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260923.1",
+    "wrangler": "^4.137.0",
+    "ws": "^8.21.3"
+  }
+}

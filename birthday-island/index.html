@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#17263b">
   <title>Our Little Island</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=smooth-cash-3">
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js" } }
   </script>
@@ -15,15 +16,14 @@
 
   <section id="welcome" class="overlay">
     <div class="welcome-card">
-      <div class="eyebrow">A LITTLE WORLD BETWEEN US</div>
+      <div class="welcome-heart" aria-hidden="true">♡</div>
       <h1>Our Little Island</h1>
-      <p class="subtitle">A quiet place made for you, where distance feels a little smaller.</p>
-      <div class="tiny-rule"></div>
-      <p class="dedication">Walk slowly. Follow the lights. There are <b>ten tiny gifts</b> hiding around the island—and a sunset waiting by the sea.</p>
-      <div class="loading" aria-label="Loading"><span id="load-bar"></span></div>
-      <div id="load-copy">growing wildflowers…</div>
-      <button id="enter" type="button" disabled>Enter our island</button>
-      <p class="sound-note">Headphones make the island feel warmer.</p>
+      <p class="subtitle">Just you, me &amp; a little magic.</p>
+      <button id="enter" type="button" disabled>Come on in <span aria-hidden="true">↗</span></button>
+      <div class="welcome-loading" role="status">
+        <div class="loading" aria-hidden="true"><span id="load-bar"></span></div>
+        <div id="load-copy">saving a little sunset…</div>
+      </div>
     </div>
   </section>
 
@@ -32,7 +32,11 @@
       <span class="brand-star">✦</span>
       <div><b>OUR LITTLE ISLAND</b><small>made with love, across the miles</small></div>
     </div>
-    <div class="treasure-card"><span>GIFTS FOUND</span><b id="gift-count">0 / 10</b><small id="gift-value">₹0</small></div>
+    <div class="treasure-card" aria-label="Collected cash">
+      <div class="cash-heading"><span class="cash-icon" aria-hidden="true"></span><div><span class="cash-caption">LITTLE FORTUNE</span><b id="gift-value">₹0</b></div><span id="cash-gain"></span></div>
+      <div class="cash-progress-track" aria-hidden="true"><span id="cash-progress"></span></div>
+      <div class="cash-package-line"><span>Cash packages</span><b id="gift-count">0 / 10</b></div>
+    </div>
   </header>
 
   <aside id="moods" class="hidden-ui" aria-label="Time of day">
@@ -57,7 +61,7 @@
   <form id="command" autocomplete="off">
     <label for="command-input">ISLAND COMMAND</label>
     <div><span>/</span><input id="command-input" placeholder="try: fireworks, night, sunset, day" spellcheck="false"></div>
-    <small>fireworks · day · sunset · night · gifts · help</small>
+    <small>fireworks · day · sunset · night · gifts · stargaze · help</small>
   </form>
 
   <section id="gift-note" class="note-modal" aria-modal="true" role="dialog">
@@ -83,6 +87,6 @@
   </section>
 
   <div id="error"></div>
-  <script type="module" src="./main.js?v=festival-2"></script>
+  <script type="module" src="./main.js?v=solid-trees-25"></script>
 </body>
 </html>

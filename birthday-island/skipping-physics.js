@@ -1,8 +1,8 @@
-export const SHORE={x:50,z:17};
+export const SHORE={x:47,z:26};
 export function throwPower(seconds){return (1-Math.cos(Math.max(0,seconds)*Math.PI/1.35))*.5;}
 export function throwPlan(power){
-  const p=Math.max(0,Math.min(1,power)),quality=Math.exp(-(((p-.70)/.21)**2));
-  return {speed:9+p*10,quality};
+  const p=Math.max(0,Math.min(1,power)),quality=Math.exp(-(((p-.55)/.25)**2));
+  return {speed:14+p*20,quality};
 }
 export function waterHeight(x,z,t){
   return Math.sin((x*.860+z*.510)*.082+t*.58)*.34
@@ -31,9 +31,9 @@ export function advanceThrow(f,dt,time,terrainHeight){
       if(ground>=water){f.done=true;f.landed=true;break;}
       events.push({x:p.x,z:p.z,index:f.contacts++});
       const horizontal=Math.hypot(v.x,v.z),shallow=-v.y/Math.max(horizontal,.001)<.68;
-      if(shallow&&horizontal>4.5&&f.skips<6){
-        f.skips++;const retention=.56+f.quality*.25;v.x*=retention;v.z*=retention;
-        v.y=Math.min(2.4,Math.max(.65,-v.y*.26))*(.75+f.quality*.25);p.y+=.015;
+      if(shallow&&horizontal>2.8&&f.skips<12){
+        f.skips++;const retention=.72+f.quality*.20;v.x*=retention;v.z*=retention;
+        v.y=Math.min(1.45,Math.max(.85,-v.y*.20))*(.90+f.quality*.10);p.y+=.015;
       }else f.done=true;
     }
     if(f.age>12)f.done=true;

@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "birthday-moshu-island",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-23",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ISLAND",
+        "class_name": "IslandRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "IslandRoom"
+      ]
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  },
+  "build": {
+    "command": "node ../scripts/build-public.mjs",
+    "watch_dir": [
+      "../main.js",
+      "../multiplayer.js",
+      "../companion.js",
+      "../stargazing.js",
+      "../stone-skipping.js",
+      "../index.html",
+      "../style.css",
+      "../remote-motion.js",
+      "../control-mode.js",
+      "../character.js",
+      "../date-suit.js"
+    ]
+  }
+}

@@ -1,28 +1,41 @@
-import { buildStoneSkipping } from './stone-skipping.js?v=raised-bowl-1';
+import { buildCashRewards } from './cash-rewards.js?v=3d-pool-3';
+import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
+import {companionMode} from './control-mode.js?v=companion-1';
+import {createRemoteMotion} from './remote-motion.js?v=1';
+const remoteMotion=createRemoteMotion();
+const ownMotion=createRemoteMotion({delay:180}),lookMotion=createRemoteMotion({delay:140});
+let ownPose=null,passengerLying=false,passengerPointing=false,pointBlend=0;
+let remoteWasOnline=false;
+import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested} from './multiplayer.js?v=companion-1';
+let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
+import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=subtle-hem-2';
+import { buildStoneSkipping } from './stone-skipping.js?v=more-skips-7';
+import { SHORE } from './skipping-physics.js?v=more-skips-7';
 import { moveAroundRocks } from './rock-collision.js';
 import { buildLovePlane } from './love-plane.js?v=2';
 import { insectVisibility, insectRank } from './insect-density.js';
 import { buildHandPose } from './hand-pose.js?v=9';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion } from './companion.js?v=throw-1';
+import { buildCompanion } from './companion.js?v=date-suit-1';
 import { addGiftAura } from './gift-aura.js';
-import { buildGiftFinish, giftBox } from './gift-finish.js?v=2';
+import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
-import { buildOceanLife } from './ocean-life.js?v=cruise-4';
-import { MONEY_TIERS, LEGENDARY_RESERVE, rupees, decorateMoneyGift } from './money-gifts.js?v=finish-2';
+import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
+import { MONEY_TIERS, LEGENDARY_RESERVE, rupees } from './money-gifts.js?v=no-plaques-5';
 import { STAGE_HEIGHT, STAGE_RADIUS } from './celebration-stage.js';
 import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=hats-2';
-import { buildShootingStars } from './shooting-stars.js';
+import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter } from './character.js?v=throw-1';
-import { buildFireside } from './fireside.js?v=warm-smoke-1';
+import { buildCharacter } from './character.js?v=date-suit-1';
+import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
-import { referenceTreeGeometry } from './reference-trees.js';
+import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';
 import { GL_HASH, GL_NOISE } from './reference-noise.js';
 import { buildCelebration } from './celebration.js?v=stage-2';
 import { cakeTableMaterials } from './cake-details.js?v=ambient-1';
-import { buildStars, buildPaintedClouds } from './painted-sky.js?v=star-trails-1';
-import { buildFireworks } from './fireworks.js?v=festival-2';
+import { buildStars, buildPaintedClouds } from './painted-sky.js?v=github-minus-01-16';
+import { buildSceneContext } from './scene-context.js?v=2';
+import { buildFireworks } from './fireworks.js?v=festival-3';
 import { buildMeadowLife } from './meadow-life.js?v=colorful-caps-1';
 import { buildCandleSmoke } from './candle-smoke.js';
 
@@ -71,6 +84,7 @@ const CONFIG = {
 
 // Optional inspection only; the normal experience remains first person.
 if(new URLSearchParams(location.search).has('inspect')&&new URLSearchParams(location.search).has('thirdPerson'))CONFIG.thirdPerson=true;
+if(isPassenger)CONFIG.thirdPerson=false;
 
 // Ten regular presents total ₹20,000. Legendary rewards remain unplaced.
 const giftTiers=['small','medium','large','medium','medium','medium','small','medium','large','medium'];
@@ -198,7 +212,14 @@ let currentMood = CONFIG.startingMood;
 let moodTarget = { ...MOODS[currentMood] };
 const moodLive = { ...moodTarget };
 
+// NASA/LROC surface map: keep a plain luminous disc until the local asset loads.
+const moonSurfaceReady={value:0};
+const moonSurface=new THREE.TextureLoader().load('./assets/moon-lroc.jpg',()=>{moonSurfaceReady.value=1;},undefined,()=>{});
+// Read as scalar surface detail; the sky palette supplies the moon's colour.
+moonSurface.colorSpace=THREE.NoColorSpace;
 const skyUniforms = {
+  uMoonSurface:{value:moonSurface},
+  uMoonSurfaceReady:moonSurfaceReady,
   uAuroraTime: { value: 0 },
   uAuroraNight: { value: moodLive.stars },
   uTop: { value: new THREE.Color(moodLive.top) },
@@ -216,6 +237,8 @@ const skyUniforms = {
 const skyGLSL = `
   ${auroraGLSL}
   uniform vec3 uTop, uUpper, uMid, uHorizon, uHorizonSun, uAnti, uGlow, uDisc, uSunDir;
+  uniform sampler2D uMoonSurface;
+  uniform float uMoonSurfaceReady;
   vec3 skyDome(vec3 d, float discGain){
     float yy = max(d.y, -0.18);
     vec3 col = mix(uHorizon, uMid, smoothstep(-0.02, 0.13, yy));
@@ -232,7 +255,20 @@ const skyGLSL = `
     col = mix(col, uHorizonSun, horiz * pow(az, 2.1) * 0.68);
     float ang = dot(d, uSunDir);
     col = mix(col, uGlow, clamp(pow(max(ang,0.0),12.0)*0.40 + pow(max(ang,0.0),2.9)*0.06,0.0,0.9));
-    col = mix(col, uDisc * 1.42, smoothstep(0.9992, 0.99972, ang) * discGain);
+    vec3 discColour=uDisc*1.42;
+    if(ang>.9992 && uAuroraNight>.01 && uMoonSurfaceReady>.5){
+      vec3 right=normalize(cross(uSunDir,vec3(0.0,1.0,0.0)));
+      vec3 up=normalize(cross(right,uSunDir));
+      vec2 lunar=vec2(dot(d,right),dot(d,up))/.034;
+      float radius2=dot(lunar,lunar);
+      float face=sqrt(max(0.0,1.0-radius2));
+      vec2 uv=vec2(.5+atan(lunar.x,max(face,.0001))/6.2831853,
+                   .5+asin(clamp(lunar.y,-1.0,1.0))/3.14159265);
+      float albedo=dot(texture2D(uMoonSurface,uv).rgb,vec3(.2126,.7152,.0722));
+      float detail=clamp(.40+.95*albedo,.58,1.05)*(.97+.03*face);
+      discColour*=mix(1.0,detail,smoothstep(.35,.85,uAuroraNight));
+    }
+    col = mix(col, discColour, smoothstep(0.9992, 0.99972, ang) * discGain);
     col = mix(col, mix(uHorizon,uAnti,.35), (1.0-smoothstep(-0.16,0.0,d.y)));
     return col+auroraGlow(d,uSunDir);
   }
@@ -289,11 +325,11 @@ function islandHeight(x, z) {
 // Keep the birthday clearing level, blending gently back into the hills.
 // x, z, lantern height: shared by the fixtures and the grass lighting.
 // The approach lantern sits beyond the right shoulder, nested in the grass.
-const lanternSites=[[3.2,20,1.4],[27,28,1.4],[-28,-23,1.4],[-34,0,1.4],[-3,-33,1.4],[39,3,1.4],[-12,27,1.4],[51,21.2,1.5]];
+const lanternSites=[[3.2,20,1.4],[27,28,1.4],[-28,-23,1.4],[-34,0,1.4],[-3,-33,1.4],[39,3,1.4],[-12,27,1.4],[SHORE.x-1.5,SHORE.z+1.6,1.5]];
 const gardenHeight=islandHeight(-8,-10);
 function terrainHeight(x,z){
   const original=lerp(gardenHeight,islandHeight(x,z),smoothstep(8.2,16.5,Math.hypot(x+8,z+10)));
-  const shoreDistance=Math.hypot((x-50)/4.4,(z-17)/5.4);
+  const shoreDistance=Math.hypot((x-SHORE.x)/4.4,(z-SHORE.z)/5.4);
   return lerp(1.55,original,smoothstep(.95,1.8,shoreDistance));
 }
 
@@ -323,7 +359,7 @@ function meadowMask(x, z) {
   let lamps=1;
   for(const [lx,lz] of lanternSites)lamps*=smoothstep(.25,.50,Math.hypot(x-lx,z-lz));
   const hearth=smoothstep(3.1,4.5,Math.hypot(x-22,z+20));
-  return garden * bench * path * lamps * hearth * smoothstep(.72,1.08,Math.hypot((x-50)/3.8,(z-17)/4.4));
+  return garden * bench * path * lamps * hearth * smoothstep(.72,1.08,Math.hypot((x-SHORE.x)/3.8,(z-SHORE.z)/4.4));
 }
 
 // ~0.75 m cells. The meadow mask is baked into these vertex colors, so a coarser
@@ -482,7 +518,7 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
 ocean.position.y = 0;
 ocean.renderOrder = 2;
 scene.add(ocean);
-const oceanLife=buildOceanLife(scene);
+const oceanLife=buildOceanLife(scene,glowTexture);
 const lovePlane=buildLovePlane(scene);
 buildDistantIsland(scene,skyUniforms.uHorizon);
 
@@ -502,6 +538,8 @@ const paintUniforms = {
   uAmbient: { value: moodLive.ambient },
   uPartyGlow: { value: 0 },
   uCakeLight: {value:new THREE.Vector3(-8,gardenHeight+2.4,-10)},
+  uStumpBase: {value:new THREE.Vector3()},
+  uStumpRoots: {value:[.2,1.25,2.35,3.5,4.65,5.55]},
   uGiftLights:{value:CONFIG.gifts.map(g=>new THREE.Vector4(g.pos[0],terrainHeight(...g.pos)+.8,g.pos[1],1))},
   uFireflyPools:{value:Array.from({length:8},()=>new THREE.Vector4(0,0,0,0))},
   uGiftColors:{value:CONFIG.gifts.map(g=>new THREE.Color(g.color).lerp(new THREE.Color(0xffe6b8),.35))},
@@ -530,7 +568,8 @@ const paintGLSL = `
   uniform vec3 uSunDir, uLightColor, uFogColor;
   uniform sampler2D uFlowerTint;
   uniform float uAmbient, uTime, uShadowReady, uPartyGlow;
-  uniform vec3 uCakeLight;
+  uniform vec3 uCakeLight,uStumpBase;
+  uniform float uStumpRoots[6];
   uniform vec4 uFireflyPools[8];
   uniform vec4 uGiftLights[10];uniform vec3 uGiftColors[10];
   uniform vec4 uLanterns[${lanternSites.length}];
@@ -638,6 +677,22 @@ const paintGLSL = `
       pool*=pool*(1.0-smoothstep(.15,1.0,abs(d.y)));
       c+=(c*.55+vec3(.024,.022,.008))*pool*uFireflyPools[i].w;
     }
+    vec2 stumpDelta=p.xz-uStumpBase.xz;
+    float stumpAngle=atan(stumpDelta.x,stumpDelta.y),rootFlare=0.0;
+    for(int i=0;i<6;i++){
+      float delta=atan(sin(stumpAngle-uStumpRoots[i]),cos(stumpAngle-uStumpRoots[i]));
+      rootFlare+=(.34+.06*sin(float(i)*2.7))*exp(-delta*delta/.025);
+    }
+    float ripple=1.0+.035*sin(stumpAngle*5.0)+.025*sin(stumpAngle*9.0+.4);
+    float edgeDistance=length(stumpDelta)-(.60*ripple+rootFlare*.53);
+    vec2 towardFire=normalize(vec2(22.0,-20.0)-uStumpBase.xz);
+    vec2 outward=stumpDelta/max(length(stumpDelta),.001);
+    float fireFacing=smoothstep(-.45,.65,dot(outward,towardFire));
+    float nearSoil=1.0-smoothstep(.3,.65,abs(p.y-uStumpBase.y));
+    float contact=(1.0-smoothstep(-.02,mix(.19,.09,fireFacing),edgeDistance))*nearSoil;
+    c*=1.0-mix(.43,.12,fireFacing)*contact;
+    float crevice=(1.0-smoothstep(-.005,.045,edgeDistance))*nearSoil;
+    c*=1.0-mix(.34,.18,fireFacing)*crevice;
     float dist = distance(cameraPosition,p);
     return mix(c,uFogColor,1.0-exp(-pow(max(0.0,dist-18.0),2.0)*.000026));
   }
@@ -876,7 +931,7 @@ for(let variant=0;variant<4;variant++){
   const batch=new THREE.InstancedMesh(geometry,referenceTreeMaterial,placements.length);
   const sway=new Float32Array(placements.length*4),phase=new Float32Array(placements.length);
   placements.forEach(([x,z,size],i)=>{
-    const scale=6.6*size/height, ground=terrainHeight(x,z);
+    const scale=6.6*size/height, ground=renderedGroundHeight(x,z);
     dummy.position.set(x,ground,z);dummy.rotation.set(0,treeRandom()*Math.PI*2,0);
     dummy.scale.setScalar(scale);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);
     sway.set([x,ground,z,6.6*size],i*4);phase[i]=treeRandom()*Math.PI*2;
@@ -1120,6 +1175,7 @@ function buildGrassLayer(perAxis, scaleBase, scaleVary, material, near){
       const x=cx+(ix+grassRand())*8/perAxis,z=cz+(iz+grassRand())*8/perAxis;
       const y=terrainHeight(x,z),r=Math.hypot(x/67,z/54);
       if(y<.4||r>.83||grassRand()>meadowMask(x,z))continue;
+      if(STARGAZING_SPOTS.some(spot=>Math.abs(x-spot.x)<1.94&&Math.abs(z-spot.z)<1.94))continue;
       // Tussocks: height clusters at metre and decametre scales, so the sward
       // has taller and balder patches instead of one uniform pile.
       const tussock=.68+.42*(Math.sin(x*.21+Math.cos(z*.17))*.5+.5)
@@ -1174,7 +1230,7 @@ flowerTintTexture.needsUpdate=true;
 /* -------------------------------------------------------------------------- */
 
 const interactive = [];
-const stoneSkipping=buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion:()=>companion});
+const stoneSkipping=buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion:()=>companion,canAutoplay:()=>!multiplayerRequested||!!network?.autopilot,onThrow:event=>{if(network&&!applyingNetwork)network.event(event);}});
 const dandelions=buildDandelions({scene,terrainHeight,meadowMask,random:mulberry32(41551),interactive,
   onRelease:()=>toast('A LITTLE WISH, ON ITS WAY')});
 let partyLightMaterial = null;
@@ -1219,9 +1275,6 @@ function buildBench() {
     const slat = box(3.04, h, .07, plank); slat.position.set(0, y, 0); back.add(slat);
   }
   g.add(back);
-
-  // A blanket folded over one end, waiting for whoever sits down second.
-  const blanket = box(.92, .13, .96, mats.cloth); blanket.position.set(-.92, .68, -.02); blanket.rotation.y = .07; g.add(blanket);
 
   // A jar of flowers set on the grass beside the bench.
   const jarPartsStart=g.children.length;
@@ -1276,7 +1329,7 @@ function buildParty() {
     for (let j=0;j<=10;j++) {
       const t=j/10, x=lerp(a[0],b[0],t), z=lerp(a[1],b[1],t), y=4.02-Math.sin(t*Math.PI)*.52;
       pts.push(new THREE.Vector3(x,y,z));
-      if(j>0 && j<10 && j%2===0){ const bulb=new THREE.Mesh(new THREE.SphereGeometry(.085,7,5),lightMat);bulb.position.set(x,y-.11,z);bulb.userData.partyLight=true;party.add(bulb);const halo=new THREE.Sprite(partyHaloMaterial);halo.position.copy(bulb.position);halo.scale.set(.65,.65,1);party.add(halo); }
+      if(j>0 && j<10 && j%2===0){ const bulb=new THREE.Mesh(new THREE.SphereGeometry(.085,7,5),lightMat);bulb.position.set(x,y-.11,z);bulb.userData.partyLight=true;bulb.layers.set(1);party.add(bulb);const halo=new THREE.Sprite(partyHaloMaterial);halo.position.copy(bulb.position);halo.scale.set(.65,.65,1);halo.layers.set(1);party.add(halo); }
     }
     party.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
   }
@@ -1289,22 +1342,44 @@ function buildParty() {
   const {hats}=addBirthdayCentrepiece(furniture,party);
   const hatInteractions=hats.map(hat=>({type:'hat',object:hat,reach:2.5,
     prompt:'put on our party hats',found:false,action:()=>{
+      if(network&&!applyingNetwork){network.event({type:"hats"});return;}
       if(hatInteractions[0].found)return;
       hatInteractions.forEach(item=>item.found=true);
-      companion.wearHat(hats[1]);avatar.wearHat(hats[0]);
+      companion.wearHat(hats[isIshiee?0:1]);avatar.wearHat(hats[isIshiee?1:0]);
       toast('PARTY HATS ON · BOTH OF US');
     }}));
   interactive.push(...hatInteractions);
-  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
-  // A narrow teardrop rather than a sphere; at this scale a round flame reads
-  // as a lollipop on a stick.
-  const flameGeo = new THREE.ConeGeometry(.022, .105, 7);
+  // Rounded belly, tapered curved tip, and a warm luminous core.
+  const flameProfile=[];
+  for(let i=0;i<=28;i++){
+    const t=i/28;
+    const radius=.038*Math.pow(Math.sin(Math.PI*t),.72)*Math.pow(1-t,.85);
+    flameProfile.push(new THREE.Vector2(radius,t*.105-.05));
+  }
+  const flameGeo=new THREE.LatheGeometry(flameProfile,24);
+  const makeFlameMaterial=phase=>new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,
+    uniforms:{time:{value:0},phase:{value:phase}},
+    vertexShader:`uniform float time;uniform float phase;varying float height;varying vec3 facing;
+      void main(){vec3 p=position;float h=clamp((p.y+.05)/.105,0.,1.);height=h;
+        float sway=sin(time*3.6+phase)*.006+sin(time*6.1+phase*2.)*.0025;
+        p.x+=(.006+sway)*h*h;p.z+=sin(time*4.3+phase)*.004*h*h;
+        p.y=-.05+(p.y+.05)*(1.+.065*sin(time*5.2+phase)+.025*sin(time*8.7+phase));
+        facing=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+    fragmentShader:`varying float height;varying vec3 facing;
+      void main(){float core=pow(abs(normalize(facing).z),2.);
+        vec3 amber=vec3(1.,.43,.075),cream=vec3(1.,.94,.66);
+        vec3 color=mix(amber,cream,core*(1.-smoothstep(.55,1.,height)));
+        float alpha=mix(.42,1.,smoothstep(0.,.5,abs(normalize(facing).z)));
+        gl_FragColor=vec4(color,alpha);}`
+  });
   for(let i=0;i<5;i++){
     const a=i/5*Math.PI*2;
     const candle=cylinder(.022,.026,.24,7,i%2?mats.pink:mats.gold);candle.position.set(Math.cos(a)*.25,1.49,Math.sin(a)*.25);furniture.add(candle);
-    const flame=new THREE.Mesh(flameGeo,flameMat);flame.position.set(Math.cos(a)*.25,1.66,Math.sin(a)*.25);furniture.add(flame);
+    const phase=rand()*6;
+    const flame=new THREE.Mesh(flameGeo,makeFlameMaterial(phase));flame.position.set(Math.cos(a)*.25,1.66,Math.sin(a)*.25);furniture.add(flame);
     const light=new THREE.PointLight(0xffaa54,.32,3);light.position.copy(flame.position);furniture.add(light);
-    candleFlames.push({flame,light,phase:rand()*6});
+    candleFlames.push({flame,light,phase});
   }
   candleSmoke=buildCandleSmoke(furniture,candleFlames.map(c=>c.flame.position));
   putOnGround(party, -8, -10);
@@ -1315,7 +1390,18 @@ function buildParty() {
   });
 }
 buildParty();
-const fireside=buildFireside({scene,terrainHeight,x:22,z:-20,musicUrl:CONFIG.radioMusicUrl});
+// Props touching the soil must use the rendered triangles, not the continuous height function.
+function renderedGroundHeight(x,z){
+  const {width,height,widthSegments:cols,heightSegments:rows}=terrainGeo.parameters;
+  const gx=THREE.MathUtils.clamp((x+width/2)/width*cols,0,cols-.000001);
+  const gz=THREE.MathUtils.clamp((z+height/2)/height*rows,0,rows-.000001);
+  const ix=Math.floor(gx),iz=Math.floor(gz),u=gx-ix,v=gz-iz,stride=cols+1;
+  const a=terrainPos.getY(iz*stride+ix),b=terrainPos.getY((iz+1)*stride+ix);
+  const c=terrainPos.getY((iz+1)*stride+ix+1),d=terrainPos.getY(iz*stride+ix+1);
+  return u+v<=1?a*(1-u-v)+b*v+d*u:b*(1-u)+c*(u+v-1)+d*(1-v);
+}
+const fireside=buildFireside({scene,terrainHeight:renderedGroundHeight,x:22,z:-20,musicUrl:CONFIG.radioMusicUrl});
+paintUniforms.uStumpBase.value.copy(fireside.stumpBase);
 interactive.push({type:'radio',object:fireside.radio,reach:2.5,prompt:'listen to the radio',action:()=>{
   if(!fireside.audio){toast('A LITTLE MUSIC WILL LIVE HERE SOON');return;}
   if(fireside.audio.paused)fireside.audio.play().catch(()=>toast('THE RADIO TRACK COULD NOT BE LOADED'));else fireside.audio.pause();
@@ -1329,6 +1415,7 @@ function updatePartyLight() {
 }
 
 function blowCandles() {
+  if(network&&!applyingNetwork){network.event({type:"candles"});return;}
   if (!candlesLit) { toast('YOUR WISH IS ALREADY ON ITS WAY'); return; }
   candlesLit = false;
   candleBlownAt=elapsed;
@@ -1339,7 +1426,7 @@ function blowCandles() {
   candleFlames.forEach(({flame}) => { flame.visible=false; });
   audio.softBlow();
   toast('WISH MADE  ·  MAY IT FIND US SOON');
-  setTimeout(() => launchFireworks(7), 650);
+  if(!applyingNetwork)setTimeout(() => launchFireworks(7), 650);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1349,57 +1436,78 @@ function blowCandles() {
 const gifts = [];
 const giftFinish = buildGiftFinish(renderer);
 let foundCount = 0, collectedAmount=0;
+const cashRewards=buildCashRewards(CONFIG.gifts.length);
+let rewardBusy=false;
 function makeGift(data, index) {
   const g = new THREE.Group();
   const baseMat = giftFinish(data.color);
-  // Flat crossed wrapping bands continue over the lid and down all four sides.
-  // Paint them in the existing material: no bow geometry or extra draw calls.
+  // Subtle foil motifs on the wrapping paper; ribbons are separate solid geometry.
   baseMat.onBeforeCompile = shader => {
+    shader.uniforms.uGiftLightDirection=paintUniforms.uSunDir;
+    shader.uniforms.uGiftLightColor=paintUniforms.uLightColor;
     shader.vertexShader = 'varying vec3 vGiftPosition; varying vec3 vGiftNormal;\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\nvGiftPosition = position; vGiftNormal = normal;');
-    shader.fragmentShader = 'varying vec3 vGiftPosition; varying vec3 vGiftNormal;\n' + shader.fragmentShader;
+    shader.fragmentShader = 'uniform vec3 uGiftLightDirection,uGiftLightColor; varying vec3 vGiftPosition; varying vec3 vGiftNormal;\n' + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
       #include <color_fragment>
       vec3 face = abs(vGiftNormal);
-      float ribbonDistance = face.y > .5 ? min(abs(vGiftPosition.x), abs(vGiftPosition.z))
-        : (face.z > .5 ? abs(vGiftPosition.x) : abs(vGiftPosition.z));
-      float feather = max(fwidth(ribbonDistance), .001);
-      float ribbon = 1.0 - smoothstep(.085 - feather, .085 + feather, ribbonDistance);
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.94, .79, .49), ribbon);
+      vec2 paperUv=face.y>.5?vGiftPosition.xz:(face.z>.5?vGiftPosition.xy:vGiftPosition.zy);
+      vec2 motif=abs(fract(paperUv*7.0+.5)-.5);
+      float foil=1.0-smoothstep(.055,.085,motif.x+motif.y);
+      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.72+vec3(.32,.25,.13),foil*.48);
+    `);
+    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+      // Art-directed reflected light, tied to the same direction as the island lighting.
+      vec3 giftLight=normalize((viewMatrix*vec4(uGiftLightDirection,0.0)).xyz);
+      vec3 giftView=normalize(vViewPosition);
+      vec3 giftHalf=normalize(giftLight+giftView);
+      float giftFacing=smoothstep(.05,.8,max(0.0,dot(normal,giftLight)));
+      float giftSheen=pow(max(0.0,dot(normal,giftHalf)),24.0)*giftFacing;
+      vec3 giftHighlight=mix(diffuseColor.rgb,vec3(1.0,.94,.80),.62);
+      outgoingLight+=(diffuseColor.rgb*.32*giftFacing+giftHighlight*giftSheen*.85)*mix(vec3(1.0),uGiftLightColor,.35);
+      #include <opaque_fragment>
     `);
   };
-  baseMat.customProgramCacheKey = () => 'gift-wrapping-bands-v1';
-  const base = giftBox(1.15, .88, 1.02, baseMat); base.position.y=.48; g.add(base);
-  const lid = giftBox(1.27,.18,1.13,baseMat);lid.position.y=.97;g.add(lid);
+  baseMat.customProgramCacheKey = () => 'gift-directional-shine-v4';
+  const base = giftBox(1.15, .98, 1.02, baseMat); base.position.y=.53; g.add(base);
+  const lid = giftBox(1.27,.25,1.13,baseMat,.075);lid.position.y=1.075;g.add(lid);
   const glow=new THREE.PointLight(data.color,1,7,2);glow.position.y=2.6;g.add(glow);
   const haloMat=new THREE.SpriteMaterial({map:glowTexture,color:data.color,transparent:true,opacity:.12,depthWrite:false,blending:THREE.AdditiveBlending});
   const halo=new THREE.Sprite(haloMat);halo.position.y=.7;halo.scale.set(3.5,3.5,1);g.add(halo);
   const auraMat=addGiftAura(g,data.color);
-  decorateMoneyGift(g,data);
+  addGiftDetails(g,index,data.tier);
   const [x,z] = data.pos;
   // Present-sized rather than crate-sized, but still standing clear of the tallest
   // grass so finding them never turns into a search.
   g.scale.setScalar(data.scale);
   putOnGround(g,x,z,.05);
   g.rotation.y=rand()*Math.PI;
+  // Keep the scene's light count stable when a collected gift is hidden.
+  g.updateWorldMatrix(true,true);scene.attach(glow);
   const gift = { type:'gift', object:g,glow,haloMat,auraMat,baseMat, data, index, found:false, baseY:g.position.y, phase:rand()*6, reach:CONFIG.giftReach,
     prompt:`unwrap ${rupees(data.amount)} · ${data.title}`, action:()=>collectGift(gift) };
   gifts.push(gift); interactive.push(gift);
 }
 CONFIG.gifts.forEach(makeGift);
 
-function collectGift(gift) {
+function collectGift(gift,{animate=!applyingNetwork,showNote=!applyingNetwork}={}) {
+  if(network&&!applyingNetwork){network.event({type:"gift",index:gift.index});return;}
   if (gift.found) return;
   gift.found = true;
   foundCount++;
   collectedAmount+=gift.data.amount;
-  $('#gift-value').textContent=rupees(collectedAmount);
+  const origin=gift.object.getWorldPosition(new THREE.Vector3());origin.y+=.8*gift.data.scale;origin.project(camera);
   gift.object.visible = false;
+  gift.glow.intensity=0;
   paintUniforms.uGiftLights.value[gift.index].w=0;
-  $('#gift-count').textContent = `${foundCount} / ${gifts.length}`;
+  if(!animate){cashRewards.restore(collectedAmount,foundCount);return;}
   audio.gift(foundCount);
-  openGiftNote(gift);
+  rewardBusy=true;Object.keys(keys).forEach(k=>keys[k]=false);
+  const visible=origin.z>=-1&&origin.z<=1;
+  cashRewards.collect({amount:gift.data.amount,total:collectedAmount,packages:foundCount,
+    x:visible?(origin.x*.5+.5)*innerWidth:innerWidth*.5,y:visible?(-origin.y*.5+.5)*innerHeight:innerHeight*.55
+  }).then(()=>{rewardBusy=false;if(showNote)openGiftNote(gift);});
 }
 
 function openGiftNote(gift) {
@@ -1556,6 +1664,7 @@ const fireflies=new THREE.Points(fireflyGeo,fireflyMat);scene.add(fireflies);
 
 const fireworks=buildFireworks(scene,glowTexture,origin=>{audio.pop();companion.watchFirework(origin);});
 function launchFireworks(amount=6){
+  if(network&&!applyingNetwork){network.event({type:"fireworks",amount});return;}
   if(currentMood!=='night')setMood('night');
   toast('LOOK UP  ·  THE SKY IS YOURS');
   fireworks.launch(playerRig.position,playerRig.rotation.y,amount);
@@ -1602,16 +1711,23 @@ const cameraPivot=new THREE.Group();
 playerRig.add(cameraPivot);cameraPivot.add(camera);scene.add(playerRig);
 cameraPivot.position.y=CONFIG.thirdPerson?1.25:CONFIG.eyeHeight;
 camera.position.set(0,0,CONFIG.thirdPerson?4.6:0);
-const avatar=buildCharacter(playerRig);
+const avatar=buildCharacter(playerRig,isIshiee?DATE_OUTFIT:{});
+if(multiplayerRequested)avatar.root.scale.setScalar(1.06);
 avatar.root.visible=CONFIG.thirdPerson;
-const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_HEIGHT,stageRadius:STAGE_RADIUS});
-const firstPersonHand=buildHandPose(playerRig,{floating:true});
+const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_HEIGHT,stageRadius:STAGE_RADIUS,female:isIshiee});
+const pointingHand=isPassenger?buildHandPose(playerRig,{color:SUIT_COLOR,shoulder:[.36,1.36,-.06],sleeveLength:.48}):null;
+const pointTarget=new THREE.Vector3();
+const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:0xeb94ad});
 const joinedHands=new THREE.Vector3(),partnerHand=new THREE.Vector3();
 const claspRotation=new THREE.Quaternion(),partnerLinkRotation=new THREE.Quaternion(),playerLinkRotation=new THREE.Quaternion();
 const partnerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2),playerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
 const claspAxis=new THREE.Vector3(),claspShoulder=new THREE.Vector3(),ringNormal=new THREE.Vector3(0,0,1);
 let handAmount=0;
 const handInteraction={type:'companion',object:companion.anchor,reach:3.7,prompt:'hold hands',action:()=>{
+  if(multiplayerRequested&&(isIshiee||!network?.autopilot)){
+    if(!network?.remoteLive){toast('WAIT FOR YOUR PARTNER TO JOIN');return;}
+    network.event({type:'hand'});return;
+  }
   const held=companion.toggleHolding();toast(held?'HOLDING HANDS · H TO LET GO':'HANDS FREE');
 }};
 interactive.push(handInteraction);
@@ -1642,15 +1758,29 @@ playerRig.position.set(spawnX,terrainHeight(spawnX,spawnZ),spawnZ);
 playerRig.rotation.y=Math.atan2(spawnX-celebrationPathX(spawnZ-7),7);
 cameraPivot.rotation.x=-.12;
 const keys={};
+const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:points=>network?.event({type:"ink",points})});
 let playing=false;
 let nearest=null;
+const sceneContext=buildSceneContext({camera,clouds,snapshot:()=>({
+  player:playerRig.position.toArray(),heading:playerRig.rotation.y,pitch:cameraPivot.rotation.x,
+  cameraPosition:camera.getWorldPosition(new THREE.Vector3()).toArray(),
+  cameraQuaternion:camera.getWorldQuaternion(new THREE.Quaternion()).toArray(),
+  mood:currentMood,elapsed,stargazing:stargazing.active
+})});
 
 function onIsland(x,z){return Math.sqrt((x/67)**2+(z/54)**2)<.89;}
+const walkingReducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+let walkingBobPhase=0,walkingBobAmount=0;
 function movePlayer(dt){
+  if(isPassenger)return;
+  if(multiplayerRequested&&!networkReady)return;
+  if(sceneContext.active)return;
+  if(stargazing.active)return;
   const active=document.pointerLockElement===renderer.domElement;
   let sx=(keys.KeyD?1:0)-(keys.KeyA?1:0),sz=(keys.KeyS?1:0)-(keys.KeyW?1:0);
   if(!active){sx=0;sz=0;}
   const running=!!(keys.ShiftLeft||keys.ShiftRight);
+  let moved=0;
   if(CONFIG.thirdPerson)avatar.update(dt,!!(sx||sz),running);
   if(sx||sz){
     const len=Math.hypot(sx,sz);sx/=len;sz/=len;
@@ -1658,7 +1788,16 @@ function movePlayer(dt){
     const speed=CONFIG.walkSpeed*(keys.ShiftLeft||keys.ShiftRight?1.7:1);
     tmp.set(sx,0,sz).applyAxisAngle(new THREE.Vector3(0,1,0),playerRig.rotation.y).multiplyScalar(speed*dt);
     const next=moveAroundRocks(playerRig.position.x,playerRig.position.z,tmp.x,tmp.z,rockColliders,onIsland);
+    moved=Math.hypot(next.x-playerRig.position.x,next.z-playerRig.position.z);
     playerRig.position.x=next.x;playerRig.position.z=next.z;
+  }
+  // Follow actual footsteps, so holding a movement key against an obstacle stays still.
+  if(!CONFIG.thirdPerson){
+    const bobbing=moved>.0001&&!walkingReducedMotion.matches;
+    if(bobbing)walkingBobPhase=(walkingBobPhase+moved*Math.PI*2/(running?2.8:2.2))%(Math.PI*2);
+    const targetAmount=bobbing?(running?.045:.028):0;
+    walkingBobAmount+=(targetAmount-walkingBobAmount)*(1-Math.exp(-dt*9));
+    cameraPivot.position.y=CONFIG.eyeHeight+Math.sin(walkingBobPhase)*walkingBobAmount;
   }
   // Ease onto the ground rather than snapping, so crests and troughs feel like
   // gliding over the land instead of stepping up and down it.
@@ -1683,6 +1822,7 @@ function movePlayer(dt){
 }
 
 function updateInteraction(){
+  if(isPassenger){nearest=null;$('#interaction').classList.remove('show');return;}
   nearest=null;let best=Infinity;
   for(const item of interactive){
     if(item.found||item===handInteraction||(item.available&&!item.available()))continue;
@@ -1693,12 +1833,13 @@ function updateInteraction(){
   const canHold=companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach;
   if(!nearest&&canHold)nearest=handInteraction;
   const el=$('#interaction');
-  if(stoneSkipping.active){el.classList.remove('show');return;}
+  if(stoneSkipping.active||stargazing.active){el.classList.remove('show');return;}
   if(nearest){el.innerHTML=`<b>E</b> ${nearest.prompt}${nearest!==handInteraction&&canHold?` · <b>H</b> ${companion.holding?'let go':'hold hands'}`:''}`;el.classList.add('show');}
   else el.classList.remove('show');
 }
 
 function setMood(name){
+  if(network&&!applyingNetwork){network.event({type:"mood",value:name});return;}
   if(!MOODS[name])return;
   currentMood=name;moodTarget={...MOODS[name]};
   document.querySelectorAll('#moods button').forEach(b=>b.classList.toggle('active',b.dataset.mood===name));
@@ -1707,23 +1848,27 @@ function setMood(name){
 document.querySelectorAll('#moods button').forEach(b=>b.addEventListener('click',()=>setMood(b.dataset.mood)));
 
 function openCommand(){
+  if(isPassenger)return;
   if(document.pointerLockElement)document.exitPointerLock();
   $('#command').classList.add('open');
   setTimeout(()=>$('#command-input').focus(),50);
 }
 function closeCommand(lock=true){
   $('#command').classList.remove('open');$('#command-input').value='';
-  if(lock&&playing)setTimeout(()=>requestPointerLock(),100);
+  if(lock&&playing&&!stargazing.active)setTimeout(()=>requestPointerLock(),100);
 }
 function runCommand(raw){
+  if(isPassenger){closeCommand();return;}
   const cmd=raw.trim().toLowerCase().replace(/^\//,'');
+  if(cmd==='context'){closeCommand(false);sceneContext.open();return;}
   if(cmd==='fireworks'||cmd==='firework'||cmd==='celebrate')launchFireworks(9);
+  else if(cmd==='stargaze'){if(!stoneSkipping.active)stargazing.enter();}
   else if(MOODS[cmd])setMood(cmd);
   else if(cmd==='gifts'||cmd==='gift')toast(`${foundCount} FOUND  ·  ${gifts.length-foundCount} STILL HIDING`);
   else if(cmd==='blow'||cmd==='candles'){
     const cake=interactive.find(i=>i.type==='cake');cake.object.getWorldPosition(tmp);
     if(tmp.distanceTo(playerRig.position)<cake.reach)blowCandles();else toast('FIND THE CAKE IN THE PARTY GARDEN FIRST');
-  } else if(cmd==='help'||cmd==='commands')toast('TRY: FIREWORKS · DAY · SUNSET · NIGHT · GIFTS');
+  } else if(cmd==='help'||cmd==='commands')toast('TRY: FIREWORKS · DAY · SUNSET · NIGHT · GIFTS · STARGAZE');
   else if(cmd)toast(`THE ISLAND DOESN’T KNOW “${cmd.toUpperCase()}” YET`);
   closeCommand();
 }
@@ -1732,8 +1877,19 @@ $('#command-button').addEventListener('click',openCommand);
 $('#sound-button').addEventListener('click',()=>audio.toggle());
 
 window.addEventListener('keydown',e=>{
+  if(sceneContext.active){if(e.code==='Escape'){e.preventDefault();sceneContext.close();}return;}
   if($('#command').classList.contains('open')){if(e.code==='Escape')closeCommand();return;}
-  if($('.note-modal.open'))return;
+  if($('.note-modal.open')||rewardBusy)return;
+  if(multiplayerRequested&&!networkReady)return;
+  if(e.code==='KeyP'&&!e.repeat&&playing){e.preventDefault();Object.keys(keys).forEach(k=>keys[k]=false);sceneContext.open();return;}
+  if(isPassenger){
+    if(!playing)return;
+    if(e.code==='KeyR'){e.preventDefault();passengerPointing=true;}
+    if(e.code==='Space'&&!e.repeat){e.preventDefault();if(network?.remoteLive)network.event({type:'cheer'});else toast('WAITING FOR MOSHIEE TO JOIN');}
+    if(e.code==='KeyM'&&!e.repeat)audio.toggle();
+    return;
+  }
+  if(stargazing.keyDown(e))return;
   if(stoneSkipping.keyDown(e))return;
   keys[e.code]=true;
   if(e.code==='Slash'){e.preventDefault();openCommand();}
@@ -1745,15 +1901,17 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Digit2')setMood('sunset');
   if(e.code==='Digit3')setMood('night');
 });
-window.addEventListener('keyup',e=>{stoneSkipping.keyUp(e);keys[e.code]=false;});
-window.addEventListener('blur',()=>{stoneSkipping.cancelCharge();Object.keys(keys).forEach(k=>keys[k]=false);});
+window.addEventListener('keyup',e=>{if(e.code==='KeyR')passengerPointing=false;stoneSkipping.keyUp(e);keys[e.code]=false;});
+document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==renderer.domElement)passengerPointing=false;});
+window.addEventListener('blur',()=>{passengerPointing=false;stoneSkipping.cancelCharge();Object.keys(keys).forEach(k=>keys[k]=false);});
 function requestPointerLock(){
+  if(stargazing.active)return;
   const result=renderer.domElement.requestPointerLock?.();
   result?.catch(()=>{ /* A browser can decline; clicking the world retries. */ });
 }
-renderer.domElement.addEventListener('click',()=>{if(playing&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();});
+renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();});
 window.addEventListener('mousemove',e=>{
-  if(document.pointerLockElement!==renderer.domElement)return;
+  if(stargazing.active||document.pointerLockElement!==renderer.domElement)return;
   playerRig.rotation.y-=e.movementX*.0022;
   cameraPivot.rotation.x=clamp(cameraPivot.rotation.x-e.movementY*.0018,CONFIG.thirdPerson?-1.15:-Math.PI/2+.02,CONFIG.thirdPerson?.35:Math.PI/2-.02);
 });
@@ -1782,40 +1940,63 @@ const postCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 // through the low-resolution bloom into a large rectangular patch.
 const safeColorGLSL=`vec3 safeColor(vec3 c){return vec3(
   c.r>=0.0?min(c.r,16.0):0.0,c.g>=0.0?min(c.g,16.0):0.0,c.b>=0.0?min(c.b,16.0):0.0);}`;
-const bloomTargets=Array.from({length:2},()=>new THREE.WebGLRenderTarget(Math.ceil(innerWidth/4),Math.ceil(innerHeight/4),{
+const bloomTargets=Array.from({length:3},()=>new THREE.WebGLRenderTarget(Math.ceil(innerWidth/4),Math.ceil(innerHeight/4),{
   type:THREE.HalfFloatType,depthBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter
 }));
 const bloomMaterial=new THREE.ShaderMaterial({
   depthTest:false,depthWrite:false,
-  uniforms:{uSrc:{value:sceneTarget.texture},uStep:{value:new THREE.Vector2()},uExtract:{value:1}},
+  uniforms:{uSrc:{value:sceneTarget.texture},uStep:{value:new THREE.Vector2()},uExtract:{value:1},uStable:{value:0},uSourceTexel:{value:new THREE.Vector2()}},
   vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
   fragmentShader:`${safeColorGLSL}
-    uniform sampler2D uSrc;uniform vec2 uStep;uniform float uExtract;varying vec2 vUv;
+    uniform sampler2D uSrc;uniform vec2 uStep;uniform float uExtract,uStable;uniform vec2 uSourceTexel;varying vec2 vUv;
     vec3 readLight(vec2 uv){vec3 c=safeColor(texture2D(uSrc,uv).rgb);float l=dot(c,vec3(.2126,.7152,.0722));return c*mix(1.0,smoothstep(.65,1.5,l),uExtract);}
-    void main(){vec3 c=readLight(vUv)*.227;
-      c+=(readLight(vUv+uStep*1.3846)+readLight(vUv-uStep*1.3846))*.316;
-      c+=(readLight(vUv+uStep*3.2308)+readLight(vUv-uStep*3.2308))*.070;
-      gl_FragColor=vec4(c,1.0);}`
+    void main(){
+      if(uExtract>.5){
+        vec3 light=readLight(vUv);
+        if(uStable>.5){
+          // Integrate the full downsample footprint instead of skipping small stars.
+          light=vec3(0.0);
+          for(int y=0;y<4;y++)for(int x=0;x<4;x++)
+            light+=readLight(vUv+(vec2(float(x),float(y))-1.5)*uSourceTexel);
+          light/=16.0;
+        }
+        gl_FragColor=vec4(light,1.0);return;
+      }
+      vec3 c=vec3(0.0);float total=0.0;
+      // Closely spaced taps keep each ray continuous around tiny star cores.
+      for(int i=-10;i<=10;i++){
+        float t=float(i);float w=exp(-t*t/24.0);
+        c+=readLight(vUv+uStep*t/3.0)*w;total+=w;
+      }
+      gl_FragColor=vec4(c/total,1.0);}`
 });
 const bloomScene=new THREE.Scene();bloomScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),bloomMaterial));
 function renderBloom(){
+  bloomMaterial.uniforms.uStable.value=1;
+  bloomMaterial.uniforms.uSourceTexel.value.set(1/sceneTarget.width,1/sceneTarget.height);
   bloomMaterial.uniforms.uSrc.value=sceneTarget.texture;
   bloomMaterial.uniforms.uExtract.value=1;
-  bloomMaterial.uniforms.uStep.value.set(2/sceneTarget.width,0);
-  renderer.setRenderTarget(bloomTargets[0]);renderer.render(bloomScene,postCamera);
-  bloomMaterial.uniforms.uSrc.value=bloomTargets[0].texture;
+  // Extract once before blurring, so both axes spread the same light samples.
+  bloomMaterial.uniforms.uStep.value.set(0,0);
+  renderer.setRenderTarget(bloomTargets[2]);renderer.render(bloomScene,postCamera);
+  bloomMaterial.uniforms.uSrc.value=bloomTargets[2].texture;
   bloomMaterial.uniforms.uExtract.value=0;
-  bloomMaterial.uniforms.uStep.value.set(0,1/bloomTargets[0].height);
+  bloomMaterial.uniforms.uStep.value.set(1.5/bloomTargets[0].width,0);
+  renderer.setRenderTarget(bloomTargets[0]);renderer.render(bloomScene,postCamera);
+  // Blur each axis independently; combining sequential blurs produces a round halo.
+  bloomMaterial.uniforms.uSrc.value=bloomTargets[2].texture;
+  bloomMaterial.uniforms.uExtract.value=0;
+  bloomMaterial.uniforms.uStep.value.set(0,1.5/bloomTargets[0].height);
   renderer.setRenderTarget(bloomTargets[1]);renderer.render(bloomScene,postCamera);
 }
 const postMaterial=new THREE.ShaderMaterial({
   depthTest:false,depthWrite:false,toneMapped:false,
-  uniforms:{uScene:{value:sceneTarget.texture},uBloom:{value:bloomTargets[1].texture},uTime:{value:0},uExposure:{value:moodLive.exposure},uNight:{value:moodLive.stars},uRes:{value:new THREE.Vector2(innerWidth,innerHeight)}},
+  uniforms:{uScene:{value:sceneTarget.texture},uBloom:{value:bloomTargets[1].texture},uBloomHorizontal:{value:bloomTargets[0].texture},uTime:{value:0},uExposure:{value:moodLive.exposure},uNight:{value:moodLive.stars},uRes:{value:new THREE.Vector2(innerWidth,innerHeight)}},
   vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
   fragmentShader:`
     precision highp float;
     ${safeColorGLSL}
-    uniform sampler2D uScene,uBloom; uniform float uTime,uExposure,uNight; uniform vec2 uRes;
+    uniform sampler2D uScene,uBloom,uBloomHorizontal; uniform float uTime,uExposure,uNight; uniform vec2 uRes;
     varying vec2 vUv;
     float hash12(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
     float luma(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
@@ -1840,7 +2021,7 @@ const postMaterial=new THREE.ShaderMaterial({
     void main(){
       vec2 d=vUv-.5;float r2=dot(d,d);
       vec3 c=softMeadowSample(vUv)*uExposure;
-      c+=safeColor(texture2D(uBloom,vUv).rgb)*.18;
+      c+=(safeColor(texture2D(uBloom,vUv).rgb)+safeColor(texture2D(uBloomHorizontal,vUv).rgb))*.14;
       // Preserve pigment hue: per-channel compression alone bleaches green
       // leaves and blue sky toward gray. Blend a luminance-preserving print.
       float sceneL=max(luma(c),.0001);
@@ -1927,7 +2108,7 @@ function updateQuality(rawDt){
 // Read-only inspection views make the visual acceptance pass reproducible.
 const inspectParams=new URLSearchParams(location.search);
 if(inspect){
-  const views={skippingshore:[45,20,-1.03,-.34],skipping:[48,17,-Math.PI/2,-.32],plane:[-8,4,0,.28],hats:[-6.4,-8.4,.55,-.35],moonisland:[-35,-38,.615,.08],companion:[-5.9,-6.7,0,-.22],dandelions:[-1.8,15.5,0,-.65],boat:[-46,23,2.25,.025],money:[1.5,10.5,0,-.25],shadows:[-8,-4,0,-.48],aurora:[14,26,3.757,.36],character:[22,-14,Math.PI,-.18],fireside:[22,-14,0,-.25],flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],
+  const views={skippingshore:[42,29,-1.03,-.34],skipping:[45,26,-Math.PI/2,-.32],plane:[-8,4,0,.28],hats:[-6.4,-8.4,.55,-.35],moonisland:[-35,-38,.615,.08],companion:[-5.9,-6.7,0,-.22],dandelions:[-1.8,15.5,0,-.65],boat:[-46,23,2.25,.025],money:[1.5,10.5,0,-.25],shadows:[-8,-4,0,-.48],aurora:[14,26,3.757,.36],character:[22,-14,Math.PI,-.18],fireside:[22,-14,0,-.25],stump:[24.6,-17.3,.20,-.58],flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],treebase:[17,20.5,0,-.48],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],giftclose:[25,22.8,0,-.65],rug:[-12,15.5,0,-.60],
     bench:[-38.5,-3,1.57,-.06],cake:[-8,-6.4,0,-.16],hills:[14,26,2.5,-.03],
     // Facing away from the sun with the camera up: the anti-sun meridian is
     // where sky shader math degenerates, and nothing else in the scene looks there.
@@ -1937,6 +2118,8 @@ if(inspect){
   if(inspectParams.has('fireworkStill')){fireworks.launch(playerRig.position,playerRig.rotation.y,7);for(let i=0;i<240;i++)fireworks.update(1/60);}
   if(inspectParams.has('skipPartner')){companion.celebrate();companion.update(2.2,playerRig.position);companion.anchor.position.set(49,terrainHeight(49,20),20);}
 }
+// Keep the canopy bulbs lit normally in their separate, bloom-free pass.
+scene.traverse(o=>{if(o.isLight)o.layers.enable(1);});
 renderer.info.autoReset=false;
 function approachColor(color,key,dt){color.lerp(new THREE.Color(moodTarget[key]),1-Math.exp(-dt*1.2));}
 function updateMood(dt){
@@ -1955,8 +2138,8 @@ function updateMood(dt){
   sunLight.intensity=moodLive.sunPower;hemi.intensity=moodLive.hemi;
   skyUniforms.uAuroraTime.value=elapsed;
   skyUniforms.uAuroraNight.value=smoothstep(.25,1,moodLive.stars);
-  shootingStars.update(elapsed,moodLive.stars,camera);
-  stars.update(elapsed,moodLive.stars,renderer.getPixelRatio()*resolutionScale);fireflyMat.opacity=clamp((moodLive.stars-.2)*.78,0,.7);
+  shootingStars.update(elapsed,moodLive.stars,camera,stargazing.active);
+  stars.update(elapsed,moodLive.stars,renderer.getPixelRatio()*resolutionScale,stargazing.active);fireflyMat.opacity=clamp((moodLive.stars-.2)*.78,0,.7);
   oceanUniforms.uNight.value=moodLive.stars;
   updatePartyLight();
   celebration.update(elapsed,paintUniforms.uPartyGlow.value);
@@ -1985,14 +2168,24 @@ function animate(now,force){
   camera.getWorldPosition(tmp2);
   for(const material of bladeMaterials)material.uniforms.uCam.value.copy(tmp2);
   stoneSkipping.update(dt,playerRig.position,elapsed);
-  movePlayer(dt);companion.update(dt,playerRig.position,gifts,playerRig.rotation.y);updateHoldingHands(dt);dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);
+  movePlayer(dt);
+  if(multiplayerRequested){updateMultiplayer(dt,now);}
+  else if(!stargazing.active){
+    companion.update(dt,playerRig.position,gifts,playerRig.rotation.y);updateHoldingHands(dt);
+  }else{
+    handAmount=0;
+    firstPersonHand.update(joinedHands,0,playerLinkRotation,claspAxis);
+    avatar.poseHand(joinedHands,0,playerLinkRotation);companion.poseHand(partnerHand,0,partnerLinkRotation);
+  }
+  stargazing.update(elapsed);dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);
   gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.auraMat.opacity=(.30+paintUniforms.uPartyGlow.value*.32)*(1+Math.sin(elapsed*1.3+g.phase)*.07);g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
   if(candleBlownAt>=0){
     const age=elapsed-candleBlownAt;
     candleSmoke.update(inspect&&inspectParams.has('smokePreview')?1.25:age);
     for(const c of candleFlames)c.light.intensity=.32*Math.max(0,1-age/.16);
   }
-  candleFlames.forEach(c=>{if(c.flame.visible){const s=1+Math.sin(elapsed*11+c.phase)*.16;c.flame.scale.set(2-s,s,2-s);}});
+  candleFlames.forEach(c=>{if(c.flame.visible){c.flame.material.uniforms.time.value=elapsed;
+    c.light.intensity=.32*(1+.07*Math.sin(elapsed*5.2+c.phase)+.035*Math.sin(elapsed*8.7+c.phase));}});
   camera.getWorldPosition(insectViewer);
   butterflies.forEach(b=>{
     const t=elapsed*b.speed+b.phase;
@@ -2016,6 +2209,7 @@ function animate(now,force){
     b.left.rotation.z=.16+flap;b.right.rotation.z=-.16-flap;
   });
   updateClouds();
+  sceneContext.update();
   // Each firefly wanders around its own anchor. Spinning the whole cloud about
   // the origin, as this used to, would drag them away from their flowers.
   if(fireflyMat.opacity>.01){
@@ -2060,11 +2254,18 @@ function animate(now,force){
   paintUniforms.uShadowMap.value=sunLight.shadow.map?.texture;
   paintUniforms.uShadowReady.value=sunLight.shadow.map?1:0;
   renderBloom();
+  // Add only the celebration bulbs and their round halos after extracting bloom.
+  // Preserve scene depth so trees, poles and other foreground objects still occlude them.
+  const savedLayers=camera.layers.mask,savedAutoClear=renderer.autoClear;
+  camera.layers.set(1);renderer.autoClear=false;
+  renderer.setRenderTarget(sceneTarget);renderer.render(scene,camera);
+  camera.layers.mask=savedLayers;renderer.autoClear=savedAutoClear;
   renderer.setRenderTarget(null);
   postMaterial.uniforms.uTime.value=elapsed;
   postMaterial.uniforms.uExposure.value=moodLive.exposure;
   postMaterial.uniforms.uNight.value=moodLive.stars;
   renderer.render(postScene,postCamera);
+  cashRewards.update();
   if(gpuQuery){gl.endQuery(gpuTimer.TIME_ELAPSED_EXT);gpuQueries.push(gpuQuery);}
   cpuMs=lerp(cpuMs,performance.now()-renderStart,.1);
 }
@@ -2088,15 +2289,142 @@ const loadingTimer=setInterval(()=>{
   stage++;
   $('#load-bar').style.width=`${Math.min(stage/loadingStages.length*100,100)}%`;
   $('#load-copy').textContent=loadingStages[Math.min(stage,loadingStages.length-1)];
-  if(stage>=loadingStages.length){clearInterval(loadingTimer);$('#enter').disabled=false;$('#enter').classList.add('ready');}
+  if(stage>=loadingStages.length){clearInterval(loadingTimer);$('#enter').disabled=!networkReady;$('#enter').classList.add('ready');$('.welcome-card').classList.add('loaded');}
 },260);
 
 $('#enter').addEventListener('click',()=>{
+  if(!networkReady)return;
   playing=true;document.body.classList.add('playing');$('#welcome').classList.add('gone');audio.init();audio.resume();
   setTimeout(()=>requestPointerLock(),300);
-  setTimeout(()=>toast('TEN LITTLE GIFTS ARE WAITING FOR YOU'),1300);
+  setTimeout(()=>toast(isPassenger?'LOOK AROUND · HOLD R TO POINT · SPACE TO CHEER':'TEN LITTLE GIFTS ARE WAITING FOR YOU'),1300);
 });
 
-if(CONFIG.herName) $('.welcome-card .eyebrow').textContent=`A LITTLE WORLD FOR ${CONFIG.herName.toUpperCase()}`;
 if(CONFIG.fromName) $('.brand small').textContent=CONFIG.fromName;
 setMood(CONFIG.startingMood);
+
+
+function poseOf(object,moving=false){return {time:performance.now(),position:object.position.toArray(),yaw:object.rotation.y,pitch:cameraPivot.rotation.x,moving,running:!!(keys.ShiftLeft||keys.ShiftRight),lying:Math.abs(object.rotation.x)>1};}
+function updateMultiplayer(dt,now){
+  if(isPassenger){updatePassenger(dt,now);return;}
+  const auto=!!network?.autopilot;
+  if(auto!==wasAutopilot){companion.resumeAutopilot();remoteMotion.reset(poseOf(companion.anchor));}
+  wasAutopilot=auto;
+  if(auto){
+    companion.anchor.visible=true;
+    if(!stargazing.active){companion.update(dt,playerRig.position,gifts,playerRig.rotation.y,companionMode&&network?.remoteLive?lookMotion.sample(now):null);updateHoldingHands(dt);}
+    else if(companionMode)companion.updateRestingLook(dt,network?.remoteLive?lookMotion.sample(now):null);
+  }else{
+    companion.anchor.visible=!!remotePose&&(!isIshiee||!!network?.remoteLive);
+    const displayedPose=remoteMotion.sample(now);
+    if(displayedPose)companion.setNetworkPose(displayedPose,dt,true);
+    const linked=network?.snapshot.world.holding&&network.remoteLive;
+    handAmount+=(Number(!!linked)-handAmount)*(1-Math.exp(-dt*6));
+    if(linked){
+      joinedHands.copy(playerRig.position).lerp(companion.anchor.position,.5);joinedHands.y+=1.0;
+      partnerHand.copy(joinedHands);claspAxis.subVectors(companion.anchor.position,playerRig.position).normalize();
+      claspRotation.setFromUnitVectors(ringNormal,claspAxis);partnerLinkRotation.copy(claspRotation).multiply(partnerLinkTurn);playerLinkRotation.copy(claspRotation).multiply(playerLinkTurn);
+    }
+    firstPersonHand.update(joinedHands,CONFIG.thirdPerson?0:handAmount,playerLinkRotation,claspAxis);
+    avatar.poseHand(joinedHands,CONFIG.thirdPerson?handAmount:0,playerLinkRotation);companion.poseHand(partnerHand,handAmount,partnerLinkRotation);
+    handInteraction.prompt=linked?'let go':network?.snapshot.world.handRequest&&network.snapshot.world.handRequest!==islandUser?'accept hand holding':'offer your hand';
+  }
+  if(networkReady&&now-lastNetworkFrame>=66){
+    lastNetworkFrame=now;
+    const moving=!!(document.pointerLockElement===renderer.domElement&&(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD));
+    network.sendPose(poseOf(playerRig,moving),auto?{...poseOf(companion.anchor,false),...companion.motion}:undefined);
+  }
+}
+if(multiplayerRequested){
+  const note=document.createElement('p');note.className='connection-note';$('.welcome-card').append(note);
+  network=connectIsland({
+    onStatus(ready,text){networkReady=ready;note.textContent=text;$('#enter').disabled=!ready||stage<loadingStages.length;if(!ready){Object.keys(keys).forEach(k=>keys[k]=false);}},
+    onPose(user,pose){
+      if(isPassenger&&user===islandUser){ownPose=pose;ownMotion.push(pose,performance.now());}
+      else if(user!==islandUser){remotePose=pose;remoteMotion.push(pose,performance.now());}
+    },
+    onLook(look){lookMotion.push({...look,position:[0,0,0],lying:false},performance.now());},
+    onEvent(message){
+      applyingNetwork=true;
+      const e=message.event;
+      if(e.type==='cheer'&&companionMode&&!isIshiee)companion.triggerCheer();
+      if(e.type==='fireworks'&&e.pose){setMood('night');fireworks.launch(new THREE.Vector3(...e.pose.position),e.pose.yaw,e.amount);}
+      if(e.type==='stone')stoneSkipping.receiveThrow(e);
+      if(e.type==='ink')stargazing.receiveInk(e.points);
+      applyingNetwork=false;
+    },
+    onSnapshot(s){
+      applyingNetwork=true;
+      if(!s.online.ISHIEE)lookMotion.reset();
+      if(s.welcome&&s.look)lookMotion.reset({...s.look,position:[0,0,0],lying:false});
+      if(isPassenger&&(s.welcome||!!s.online.MOSHIEE!==remoteWasOnline)){ownPose=s.poses.ISHIEE||ownPose;ownMotion.reset(ownPose);}
+      if(s.welcome){
+        if(stargazing.active)stargazing.leave();
+        if(s.startedAt)elapsed=Math.max(0,(s.serverTime-s.startedAt)/1000);
+        const pose=s.poses[islandUser];
+        if(pose){playerRig.position.fromArray(pose.position);playerRig.rotation.set(0,pose.yaw,0);cameraPivot.rotation.x=pose.pitch;}
+        else if(isIshiee){playerRig.position.set(-5.9,terrainHeight(-5.9,-10.1)+STAGE_HEIGHT,-10.1);playerRig.rotation.y=Math.PI;}
+      }
+      const other=isIshiee?'MOSHIEE':'ISHIEE';
+      // Room snapshots also arrive for gifts, heartbeats, and sky changes.
+      // Only presence transitions seed motion; normal packets own the timeline.
+      if(s.welcome||!!s.online[other]!==remoteWasOnline){
+        remotePose=s.poses[other]||remotePose;
+        remoteMotion.reset(remotePose);
+        if(s.welcome&&remotePose)companion.setNetworkPose(remotePose,0,true);
+      }
+      remoteWasOnline=!!s.online[other];
+      if(s.world.mood!==currentMood)setMood(s.world.mood);
+      for(const i of s.world.gifts)if(gifts[i]){
+        const fresh=!s.welcome&&s.event?.type==='gift'&&s.event.index===i&&playing;
+        collectGift(gifts[i],{animate:fresh,showNote:fresh&&s.actor===islandUser});
+      }
+      if(s.world.candles&&candlesLit)blowCandles();
+      if(s.world.hats)interactive.find(i=>i.type==='hat')?.action();
+      if(s.event?.type==='hand')toast(s.world.holding?'HOLDING HANDS · H TO LET GO':s.world.handRequest===islandUser?'HAND OFFERED · WAITING FOR YOUR PARTNER':'YOUR PARTNER OFFERS A HAND · PRESS H NEARBY');
+      if(s.event?.type==='candles'&&s.actor===islandUser)setTimeout(()=>network.event({type:'fireworks',amount:7}),650);
+      applyingNetwork=false;
+    }
+  });
+}
+
+if(inspect)Object.defineProperty(window,'__multiplayerState',{get:()=>({
+  user:islandUser,ready:networkReady,autopilot:network?.autopilot,online:network?.snapshot.online,
+  player:poseOf(playerRig),remote:poseOf(companion.anchor),remoteVisible:companion.anchor.visible,
+  remoteMeshes:(()=>{let n=0;companion.anchor.traverse(o=>{if(o.isMesh)n++;});return n;})(),
+  passenger:isPassenger,ownPose,gesture:companion.gesture,holding:companion.holding,stargazing:stargazing.active,candlesLit,foundCount
+})});
+
+
+// Companion-view mode: camera translation follows MOSHIEE's locally simulated
+// male companion. Only camera orientation and expressive input originate here.
+function updatePassenger(dt,now){
+  const pose=ownMotion.sample(now);
+  if(pose){
+    playerRig.position.fromArray(pose.position);
+    cameraPivot.position.y=pose.lying?.35:CONFIG.eyeHeight;
+    if(pose.lying)playerRig.position.z+=1.70;
+    if(pose.lying&&!passengerLying)cameraPivot.rotation.x=1.22;
+    if(!pose.lying&&passengerLying)cameraPivot.rotation.x=-.12;
+    passengerLying=pose.lying;
+  }
+  const peer=remoteMotion.sample(now);
+  companion.anchor.visible=!!peer&&!!network?.remoteLive;
+  if(peer)companion.setNetworkPose(peer,dt,true);
+  avatar.root.visible=false;
+  const linked=!!(pose?.holding&&pose?.holdReady&&!pose?.lying&&network?.remoteLive);
+  handAmount+=(Number(linked)-handAmount)*(1-Math.exp(-dt*6));
+  joinedHands.copy(playerRig.position).lerp(companion.anchor.position,.5);joinedHands.y+=1;
+  firstPersonHand.update(joinedHands,handAmount);
+  pointBlend+=(Number(passengerPointing&&!passengerLying)-pointBlend)*(1-Math.exp(-dt*10));
+  camera.getWorldDirection(pointTarget);pointTarget.multiplyScalar(1.4).add(playerRig.position);pointTarget.y+=1.36;
+  pointingHand.update(pointTarget,pointBlend);
+  if(networkReady&&now-lastNetworkFrame>=66){
+    lastNetworkFrame=now;
+    network.sendLook({time:performance.now(),yaw:playerRig.rotation.y,pitch:cameraPivot.rotation.x,pointing:passengerPointing});
+  }
+}
+if(isPassenger){
+  document.body.classList.add('companion-view');
+  $('#controls').innerHTML='<div><b>Mouse</b> look around <i>·</i> <b>Hold R</b> point <i>·</i> <b>Space</b> cheer / jump</div><div>Following MOSHIEE <i>·</i> <b>M</b> sound <i>·</i> <b>Esc</b> release mouse</div>';
+  $('.welcome-card .dedication').textContent='Walk beside her, wherever she goes. Look around freely, point something out, or jump for joy.';
+}

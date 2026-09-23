@@ -79,7 +79,8 @@ function addTube(M, pts, radii, seg, hueV){
   }
   for(let i=0;i<rings.length-1;i++) for(let j=0;j<seg;j++){
     const a=rings[i][j], b=rings[i][(j+1)%seg], c=rings[i+1][j], d=rings[i+1][(j+1)%seg];
-    M.idx.push(a,c,b, b,c,d);
+    // Outward winding: the near side of the trunk must remain visible.
+    M.idx.push(a,b,c, b,d,c);
   }
 }
 
@@ -200,4 +201,10 @@ function makeTree(kind, detail, seed){
 
 
 
-export function referenceTreeGeometry(kind, seed) { return finishMesh(makeTree(kind, 2, seed)); }
+export function referenceTreeGeometry(kind, seed) {
+  const geometry=finishMesh(makeTree(kind, 2, seed));
+  const p=geometry.attributes.position,centres=geometry.attributes.clm;
+  // Bury only the first trunk ring; preserve the canopy and visible silhouette.
+  for(let i=0;i<p.count;i++)if(centres.getY(i)===0)p.setY(i,p.getY(i)-1);
+  return geometry;
+}

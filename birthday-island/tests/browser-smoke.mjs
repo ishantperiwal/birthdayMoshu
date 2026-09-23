@@ -1,0 +1,50 @@
+import {createRequire} from 'node:module';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require=createRequire('/Users/ishant.p/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/package.json');
+const {chromium}=require('playwright');
+const vars=Object.fromEntries((await readFile(new URL('../server/.dev.vars',import.meta.url),'utf8')).trim().split('\n').map(l=>l.split('=')));
+const browser=await chromium.launch({headless:true,channel:'chrome',args:['--enable-webgl','--ignore-gpu-blocklist']});
+const errors=[];
+try{
+ const m=await browser.newPage({viewport:{width:1100,height:760}});
+ const i=await browser.newPage({viewport:{width:1100,height:760}});
+ for(const page of [m,i]){
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{window.netMessages=[];window.netSent=[];const Original=window.WebSocket;window.WebSocket=class extends Original{constructor(...args){super(...args);this.addEventListener('message',e=>{try{window.netMessages.push(JSON.parse(e.data));}catch{}});}send(data){try{window.netSent.push(JSON.parse(data));}catch{}return super.send(data);}};});
+ }
+ await m.goto('http://127.0.0.1:8787/?inspect&view=companion&user=MOSHIEE#invite='+vars.MOSHIEE_TOKEN);
+ await m.waitForFunction(()=>document.querySelector('#enter')?.disabled===false,{timeout:45000});
+ await m.click('#enter');
+ await m.waitForFunction(()=>window.netSent.some(m=>m.type==='pose'));
+ await i.goto('http://127.0.0.1:8787/?inspect&user=ISHIEE#invite='+vars.ISHIEE_TOKEN);
+ await i.waitForFunction(()=>document.querySelector('#enter')?.disabled===false,{timeout:45000});
+ await i.click('#enter');
+ await m.waitForFunction(()=>document.querySelector('#island-connection')?.textContent.includes('together'));
+ await i.keyboard.press('Digit1');
+ await m.waitForFunction(()=>window.netMessages.some(x=>x.world?.mood==='day'));
+ await i.locator('#world canvas').click();await i.keyboard.down('KeyW');await new Promise(r=>setTimeout(r,650));await i.keyboard.up('KeyW');
+ await m.waitForFunction(()=>window.netMessages.some(x=>x.type==='pose'&&x.user==='ISHIEE'&&x.pose.moving));
+ const mState=await m.evaluate(()=>window.__multiplayerState),iState=await i.evaluate(()=>window.__multiplayerState);
+ assert.equal(mState.remoteVisible,true);assert.equal(iState.remoteVisible,true);
+ assert.ok(mState.remoteMeshes>10);assert.ok(iState.remoteMeshes>10);
+ assert.equal(mState.autopilot,false);
+ console.log(JSON.stringify({moshiee:mState,ishiee:iState}));
+ await m.screenshot({path:'/tmp/island-multiplayer-moshiee.png'});
+ await i.screenshot({path:'/tmp/island-multiplayer-ishiee.png'});
+ await m.keyboard.press('Slash');await m.locator('#command-input').fill('stargaze');await m.locator('#command-input').press('Enter');
+ await m.waitForFunction(()=>window.__multiplayerState.stargazing);
+ await i.waitForFunction(()=>window.__multiplayerState.remote.lying);
+ assert.equal(await i.evaluate(()=>window.__multiplayerState.stargazing),false);
+ await i.keyboard.press('Slash');await i.locator('#command-input').fill('stargaze');await i.locator('#command-input').press('Enter');
+ await i.waitForFunction(()=>window.__multiplayerState.stargazing);
+ const lying=await Promise.all([m,i].map(p=>p.evaluate(()=>window.__multiplayerState.player.position)));
+ assert.ok(Math.abs(lying[0][0]-lying[1][0])>1,'Each player has their own carpet side');
+ await m.screenshot({path:'/tmp/island-multiplayer-stargazing.png'});
+ await m.keyboard.press('KeyQ');await i.keyboard.press('KeyQ');
+ await m.waitForFunction(()=>!window.__multiplayerState.stargazing);
+ console.log('PASS: independent stargazing, separate carpet sides, partner pose and return to walking.');
+ assert.deepEqual(errors,[]);
+ console.log('PASS: both WebGL scenes load, roles authenticate, shared sky and walking arrive in the other browser; no page errors.');
+ console.log(await m.locator('#island-connection').textContent());
+}finally{await browser.close();}

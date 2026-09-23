@@ -1,3 +1,4 @@
+import {dressDateSuit} from './date-suit.js?v=5';
 import { shortHairGeometry } from './short-hair.js';
 import { roundedSleeve } from './rounded-sleeve.js';
 import { roundedToyBox } from './rounded-toy-box.js';
@@ -17,15 +18,18 @@ export function buildCharacter(parent,options={}){
     add(roundedToyBox(.25,legHeight,.26,.018),cream,0,-legHeight/2,0,leg);
     add(roundedToyBox(.26,shoeHeight,.36,.018),shoe,0,-.65+shoeHeight/2,-.045,leg);
   }
-  add(roundedToyBox(.57,.12,.32,.018),pink,0,.68,0);
+  add(roundedToyBox(.57,.12,.32,.018),options.waistMatchesTrousers?cream:pink,0,.68,0);
   add(roundedToyBox(.57,.49,.32,.035,.48),pink,0,.96,0);
-  // A small cream collar and heart printed on the jumper.
-  for(const x of [-.09,.09]){const collar=box(.16,.07,.025,cream,x,1.16,-.19);collar.rotation.z=x<0?-.25:.25;}
+  if(options.suit){pink.roughness=.62;cream.roughness=.66;shoe.roughness=.24;shoe.emissiveIntensity=.025;}
+  // Preserve the original jumper collar for the other outfit.
+  if(!options.suit)for(const x of [-.09,.09]){const collar=box(.16,.07,.025,cream,x,1.16,-.19);collar.rotation.z=x<0?-.25:.25;}
   const arms=[];for(const side of [-1,1]){
     const arm=new THREE.Group();arm.position.set(side*.36,1.14,0);arm.rotation.z=side*.12;root.add(arm);arms.push(arm);
-    add(roundedSleeve(.105,.095,.35),pink,0,-.15,0,arm);
-    const hand=add(new THREE.TorusGeometry(.087,.037,6,14,Math.PI*1.6),skin,0,-.39,0,arm);hand.rotation.z=-Math.PI*.3;
+    // Extend the suit arm from the shoulder, preserving the cuff-to-hand fit.
+    add(roundedSleeve(.105,.095,options.suit?.40:.35),pink,0,options.suit?-.175:-.15,0,arm);
+    const hand=add(new THREE.TorusGeometry(.087,.037,6,14,Math.PI*1.6),skin,0,options.suit?-.49:-.39,0,arm);hand.rotation.z=-Math.PI*.3;
   }
+  if(options.suit)dressDateSuit(root,arms);
   add(new THREE.CylinderGeometry(.11,.11,.1,16),skin,0,1.25,0);
   const headStart=root.children.length;
   const profile=[new THREE.Vector2(0,-.195)];
@@ -62,8 +66,8 @@ export function buildCharacter(parent,options={}){
   let stride=0,blend=0,pointBlend=0,waveBlend=0,previousHandAmount=0,releasingHand=false;
   const heldArm=options.shortHair?0:1;
   const handPose=buildHandPose(root,{color:options.top??0xeb94ad,shoulder:[heldArm? .36:-.36,1.14,0],side:heldArm?1:-1,sleeveLength:options.shortHair?.38:null});
-  const throwStone=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat(0xd1dbe5));throwStone.scale.set(.075,.035,.055);throwStone.position.set(.025,-.39,-.02);throwStone.visible=false;arms[1].add(throwStone);
-  return {root,
+  const throwStone=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat(0xd1dbe5));throwStone.scale.set(.075,.035,.055);throwStone.position.set(.025,options.suit?-.49:-.39,-.02);throwStone.visible=false;arms[1].add(throwStone);
+  return {root,get pointingAmount(){return pointBlend;},setFirstPerson(value){head.visible=!value;},
     poseThrow(age){
       throwStone.visible=age>=0&&age<.42;
       if(age<0)return;
@@ -92,7 +96,7 @@ export function buildCharacter(parent,options={}){
     head.rotation.y+=((attention?.yaw??0)-head.rotation.y)*ease;
     head.rotation.x+=((attention?.pitch??0)-head.rotation.x)*ease;
     head.rotation.z+=((attention?.tilt??0)-head.rotation.z)*ease;
-    pointBlend+=((attention?.point&&cheer<.1&&!moving?1:0)-pointBlend)*(1-Math.exp(-dt*6));
+    pointBlend+=((attention?.point&&cheer<.1&&(!moving||attention?.manualPoint)?1:0)-pointBlend)*(1-Math.exp(-dt*6));
     if(attention?.direction&&pointBlend>.001){pointDirection.copy(attention.direction).normalize();pointRotation.setFromUnitVectors(down,pointDirection);arms[1].quaternion.slerp(pointRotation,pointBlend*.94);}
     if(!moving&&!cheer){arms.forEach((arm,i)=>arm.rotation.z+=(i?1:-1)*Math.sin(stride*.18)*.015*(1-pointBlend));}
 }};

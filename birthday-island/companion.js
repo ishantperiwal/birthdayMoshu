@@ -1,11 +1,12 @@
+import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=throw-1';
+import { buildCharacter } from './character.js?v=date-suit-1';
 
-export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius}){
+export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
-  const character=buildCharacter(anchor,{shortHair:true,top:0x347f89,trousers:0x293d60,shoes:0x1c2b43});
+  const character=buildCharacter(anchor,female?{}:DATE_OUTFIT);
   character.root.scale.setScalar(1.06);
-  let stoneThrow=null;
+  let stoneThrow=null,expressiveAge=Infinity,networkMoving=false;
   let holding=false,holdReady=false,hasCelebrated=false,waveUntil=0,waveArmed=true;
   const previousPlayer=new THREE.Vector3();
   let hasPreviousPlayer=false;
@@ -13,8 +14,37 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
   const fireworkTarget=new THREE.Vector3(),look=new THREE.Vector3(),giftPosition=new THREE.Vector3();
   const attention={yaw:0,pitch:0,tilt:0,point:false,wave:false,direction:new THREE.Vector3()};
   function ground(x,z){return terrainHeight(x,z)+stageHeight*(1-THREE.MathUtils.smoothstep(Math.hypot(x+8,z+10),stageRadius-.06,stageRadius+.12));}
+  const inverseBody=new THREE.Quaternion();
+  function applyManualLook(dt,view,moving,turnBody=true){
+    attention.manualPoint=!!view?.pointing;
+    if(!view)return;
+    if(turnBody&&!moving&&!holding&&!stoneThrow){
+      const delta=Math.atan2(Math.sin(view.yaw-anchor.rotation.y),Math.cos(view.yaw-anchor.rotation.y));
+      anchor.rotation.y+=delta*(1-Math.exp(-dt*5));
+    }
+    attention.direction.set(-Math.sin(view.yaw)*Math.cos(view.pitch),Math.sin(view.pitch),-Math.cos(view.yaw)*Math.cos(view.pitch));
+    inverseBody.copy(anchor.quaternion).invert();attention.direction.applyQuaternion(inverseBody);
+    attention.yaw=THREE.MathUtils.clamp(Math.atan2(-attention.direction.x,-attention.direction.z),-1.15,1.15);
+    attention.pitch=THREE.MathUtils.clamp(Math.atan2(attention.direction.y,Math.hypot(attention.direction.x,attention.direction.z)),-.7,.9);
+    attention.tilt=0;attention.wave=false;attention.point=!!view.pointing;
+  }
   anchor.position.y=ground(anchor.position.x,anchor.position.z);anchor.rotation.y=Math.PI;
   return {anchor,
+    get motion(){return {moving:networkMoving,running:speed>5.2,pitch:attention.pitch,holding,holdReady};},
+    get gesture(){return {pointBlend:character.pointingAmount,pointing:!!attention.manualPoint,jumping:expressiveAge<1.8,headYaw:attention.yaw,headPitch:attention.pitch};},
+    triggerCheer(){if(stoneThrow||expressiveAge<1.8||Math.abs(anchor.rotation.x)>1)return false;expressiveAge=0;return true;},
+    updateRestingLook(dt,view){if(!view){attention.point=false;attention.wave=false;attention.yaw=0;attention.pitch=0;}applyManualLook(dt,view,false,false);character.update(dt,false,false,0,attention);},
+    setNetworkPose(p,dt=0,snap=false){
+      if(!p)return;
+      // Buffered network samples already interpolate on the render timeline.
+      const alpha=snap?1:1-Math.exp(-dt*14);
+      anchor.position.lerp(new THREE.Vector3(...p.position),alpha);
+      anchor.rotation.x=p.lying?Math.PI/2:0;
+      anchor.rotation.y+=Math.atan2(Math.sin(p.yaw-anchor.rotation.y),Math.cos(p.yaw-anchor.rotation.y))*alpha;
+      character.update(dt,p.moving&&!p.lying,p.running,0,{yaw:0,pitch:p.pitch,tilt:0,point:false,wave:false,direction:new THREE.Vector3(0,0,-1)});
+    },
+    resumeAutopilot(){if(hasCelebrated)state="following";anchor.rotation.x=0;holding=false;holdReady=false;stoneThrow=null;speed=0;hasPreviousPlayer=false;},
+    get bodyScale(){return character.root.scale.x;},setFirstPerson:value=>character.setFirstPerson(value),
     get throwing(){return !!stoneThrow;},
     startThrow(direction,onRelease){
       if(stoneThrow||holding||state!=='following')return false;
@@ -22,8 +52,8 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     },
     get holding(){return holding;},get holdReady(){return holdReady;},
     toggleHolding(){if(state==='celebrating')return false;holding=!holding;holdReady=false;speed=0;if(!holding)state='following';return holding;},
-    poseHand:(target,amount,rotation)=>character.poseHand(target,amount,rotation),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0){
-    time+=dt;
+    poseHand:(target,amount,rotation)=>character.poseHand(target,amount,rotation),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0,manualLook=null){
+    time+=dt;expressiveAge+=dt;attention.manualPoint=false;
     let dx=player.x-anchor.position.x,dz=player.z-anchor.position.z,distance=Math.hypot(dx,dz),moving=false,hop=0,cheer=0;
     if(state==='celebrating'){
       cheerAge+=dt;
@@ -74,7 +104,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     }
     const lx=look.x-anchor.position.x,lz=look.z-anchor.position.z;
     const lookHeading=Math.atan2(-lx,-lz);
-    if(distance<14||state!=='waiting'||holding){
+    if((distance<14||state!=='waiting'||holding)&&!(manualLook&&!moving&&!holding)){
       const target=moving?Math.atan2(-dx,-dz):lookHeading;
       const delta=Math.atan2(Math.sin(target-anchor.rotation.y),Math.cos(target-anchor.rotation.y));
       anchor.rotation.y+=delta*(1-Math.exp(-dt*(moving?5:1.5)));
@@ -89,6 +119,9 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       const heading=Math.atan2(-stoneThrow.direction.x,-stoneThrow.direction.z);
       const delta=Math.atan2(Math.sin(heading-anchor.rotation.y),Math.cos(heading-anchor.rotation.y));anchor.rotation.y+=delta*(1-Math.exp(-dt*14));
     }
+    if(manualLook&&!stoneThrow)applyManualLook(dt,manualLook,moving);
+    if(expressiveAge<1.8){hop+=Math.abs(Math.sin(expressiveAge/1.8*Math.PI*2))*.35;cheer=Math.max(cheer,Math.sin(expressiveAge/1.8*Math.PI)*.95);}
+    networkMoving=moving;
     character.update(dt,moving,speed>5.2,cheer,attention);
     if(stoneThrow){
       stoneThrow.age+=dt;character.poseThrow(stoneThrow.age);

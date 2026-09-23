@@ -2,7 +2,7 @@ import { buildShipSteam } from './ship-steam.js?v=2';
 import { CRUISE_START, cruisePose, cruiseResetAllowed } from './cruise-route.js?v=sideways-2';
 import * as THREE from 'three';
 
-export function buildOceanLife(scene){
+export function buildOceanLife(scene,glowTexture){
   const root=new THREE.Group();scene.add(root);
   const mat=(color,roughness=.72)=>new THREE.MeshStandardMaterial({color,roughness});
   const navy=mat(0x465e69),cream=mat(0xe5d5b7),wood=mat(0x92745a),red=mat(0xae6f60),dark=mat(0x3d4242);
@@ -16,8 +16,11 @@ export function buildOceanLife(scene){
     const g=new THREE.Group();g.position.set(x,0,z);root.add(g);
     cyl(g,.65,.52,.38,color,0,.10,0);cyl(g,.17,.40,.9,color,0,.7,0);
     cyl(g,.18,.18,.15,cream,0,.65,0);cyl(g,.045,.045,.8,dark,0,1.5,0);
-    const cap=add(g,new THREE.OctahedronGeometry(.16),brass,0,1.95,0);cap.scale.y=1.3;
-    buoys.push(g);
+    const beaconMat=new THREE.MeshStandardMaterial({color:0xffd59a,emissive:0xffbb63,emissiveIntensity:0,roughness:.35});
+    const cap=add(g,new THREE.OctahedronGeometry(.16),beaconMat,0,1.95,0);cap.scale.y=1.3;
+    const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture,color:0xffc078,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,fog:false}));
+    halo.position.copy(cap.position);halo.scale.setScalar(1.8);g.add(halo);
+    buoys.push({body:g,beaconMat,halo});
   }
   const boatScale=1.18;
   const boat=new THREE.Group();boat.scale.setScalar(boatScale);root.add(boat);
@@ -80,7 +83,15 @@ export function buildOceanLife(scene){
   let voyageStart=0,lastTime=0,hiddenSeconds=0;
   const swell=(x,z,t)=>Math.sin((x*.860+z*.510)*.082+t*.58)*.34+Math.sin((x*-.319+z*.948)*.129-t*.46)*.21+Math.sin((x*.621+z*-.784)*.055+t*.33)*.44;
   return {update(t,night,camera){
-    for(let i=0;i<buoys.length;i++){const b=buoys[i];b.position.y=swell(b.position.x,b.position.z,t);b.rotation.z=Math.sin(t*.7+i)*.07;b.rotation.x=Math.cos(t*.55+i)*.05;}
+    for(let i=0;i<buoys.length;i++){
+      const {body:b,beaconMat,halo}=buoys[i];
+      b.position.y=swell(b.position.x,b.position.z,t);b.rotation.z=Math.sin(t*.7+i)*.07;b.rotation.x=Math.cos(t*.55+i)*.05;
+      // Offset each beacon's rhythm, with a gentle rise and fade around the flash.
+      const phase=(t+i*1.13)%3.4;
+      const blink=THREE.MathUtils.smoothstep(phase,0,.12)*(1-THREE.MathUtils.smoothstep(phase,.48,.85));
+      beaconMat.emissiveIntensity=blink*(1.5+night*5);
+      halo.material.opacity=blink*(.24+night*.56);halo.visible=blink>.001;
+    }
     const dt=Math.max(0,Math.min(.1,t-lastTime));lastTime=t;
     let age=t-voyageStart;cruisePose(age,p);
     // Test both locations, including the full silhouette. Looking back at the

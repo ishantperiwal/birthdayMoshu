@@ -375,3 +375,14 @@ The user plans to join the same server later. Each participant should have the s
 ### Raised bowl and richer fireworks
 The pebble bowl, rim and pebbles are raised 0.85 m on a three-legged wooden stand. Pickup gaze follows the bowl's new world height; the skipping inspector looks down less.
 Firework sequences are clamped to 6–7 staggered shells (candle celebration now requests 7). Targets lie 100–118 m ahead at 44–63 m altitude. Rocket particles remain dark below 12 m and reveal through 21 m; alternate rockets have intermittent glitter. Burst particles are brighter and live slightly longer, with tip/tail sparkle using existing vertices rather than added particle clouds. One shared shadowless PointLight creates a brief warm colored flash near viewers on each burst. No permanent ambient/exposure changes. Repeated-key firing is suppressed and queued/active sequences are bounded. Inspected overlapping blooms via `fireworkStill` and checked browser console without rendering errors.
+
+
+ISHIEE's occasion outfit is now defined by `birthday-island/date-suit.js`: a navy
+suit, cream shirt/cuffs, burgundy tie, notched lapels, pocket square, and dark
+dress shoes. `DATE_OUTFIT` is shared by the companion and local male avatar;
+first-person held/pointing sleeves use the same `SUIT_COLOR`. The female outfit,
+existing character rig, proportions, hair, and animations are preserved.
+
+
+### Smooth 3D cash collection (local, September 24)
+`birthday-island/cash-rewards.js` renders pooled, instanced 3D banknote bundles in a transparent overlay. Six bundles rise from the projected gift position and fly to a rotating HUD bundle; totals count up before the gift note opens. Reduced motion updates immediately. The overlay is hidden during stargazing. Gift point lights are attached directly to the scene and set to zero intensity when collected, preserving the light count and avoiding shader recompilation. Artificial gift sheen and clearcoat are reduced. `tests/cash-rewards-browser.mjs` checks collection totals, duplicate pickup protection, delayed note, reduced motion, browser errors, and stable program/light counts (32 programs, 27 point lights before and after pickup). No deployment performed.

@@ -1,0 +1,11 @@
+server/
+scripts/
+tests/
+node_modules/
+modeling/
+*.md
+package*.json
+.assetsignore
+assets/*.blend*
+assets/*.glb
+assets/*.py

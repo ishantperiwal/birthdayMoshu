@@ -43,7 +43,8 @@ export function buildFireworks(scene,glowTexture,onBurst){
       for(let i=0;i<amount;i++){
         const lateral=(i/(amount-1)-.5)*58+(Math.random()-.5)*12;
         const target=player.clone().addScaledVector(forward,100+Math.random()*18).addScaledVector(right,lateral);
-        target.y=44+Math.random()*19;queue.push({at:time+delay,target,variant:serial++%5});delay+=i===amount-2?.38:.64+Math.random()*.24;
+        // Leave room below the burst for the longest falling embers to fade above the sea.
+        target.y=72+Math.random()*19;queue.push({at:time+delay,target,variant:serial++%5});delay+=i===amount-2?.38:.64+Math.random()*.24;
       }
     },
     update(dt){

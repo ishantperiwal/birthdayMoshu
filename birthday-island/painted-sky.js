@@ -14,21 +14,35 @@ export function buildStars(scene){
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geo.setAttribute('detail',new THREE.Float32BufferAttribute(details,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
-    uniforms:{uTime:{value:0},uClear:{value:1},uFlip:{value:random()<.5?1:-1},
+    uniforms:{uTime:{value:0},uGazing:{value:0},uClear:{value:1},uFlip:{value:random()<.5?1:-1},
         uOpacity:{value:0},uPixelRatio:{value:1}},
-    vertexShader:`attribute vec3 detail,color;uniform float uTime,uPixelRatio;varying vec3 vColor;varying float vGlow,vBright;
-      void main(){vColor=color;vGlow=.78+.22*sin(uTime*detail.z+detail.y);vBright=step(4.0,detail.x);
-      vec4 p=viewMatrix*vec4(position+cameraPosition,1.0);gl_Position=projectionMatrix*p;gl_PointSize=mix(detail.x*1.5,8.0,vBright)*uPixelRatio;}`,
+    vertexShader:`attribute vec3 detail,color;uniform float uTime,uPixelRatio,uGazing;varying vec3 vColor;varying float vGlow,vBright;
+      void main(){
+      // Let existing stars bloom in their own time, rather than depending on
+      // a bright pixel crossing the downsample grid as the camera moves.
+      float pulse=smoothstep(.25,.95,sin(uTime*(.9+detail.z*.25)+detail.y*3.7));
+      // Fewer simultaneous glows while walking; keep the fuller stargazing sky.
+      float shimmer=pulse*mix(step(2.76,detail.x),step(2.7,detail.x),uGazing);
+      vColor=color*(1.0+shimmer*1.65);
+      vGlow=mix(.78,.74,uGazing)+mix(.22,.12,uGazing)*sin(uTime*detail.z+detail.y)+shimmer*.18;
+      vBright=step(4.0,detail.x);
+      vec4 p=viewMatrix*vec4(position+cameraPosition,1.0);gl_Position=projectionMatrix*p;gl_PointSize=mix(detail.x*1.5,6.2,vBright)*uPixelRatio;}`,
     fragmentShader:`uniform float uOpacity;varying vec3 vColor;varying float vGlow,vBright;
       void main(){vec2 p=gl_PointCoord*2.0-1.0;float r=length(p);
-      float core=exp(-r*r*24.0),halo=exp(-r*r*5.0)*.14;
+      float core=exp(-r*r*24.0),halo=exp(-r*r*5.0)*mix(.14,.12,vBright);
       // Round dots for small stars; wide, symmetric rays avoid subpixel slivers.
       vec2 q=abs(p);
       float rays=(exp(-q.x*q.x*100.0-q.y*q.y*7.0)+exp(-q.y*q.y*100.0-q.x*q.x*7.0))*.12*vBright;
       float a=(core+halo+rays)*(1.0-smoothstep(.65,1.0,r))*vGlow*uOpacity;
       gl_FragColor=vec4(vColor*1.8,a);}`});
   const points=new THREE.Points(geo,mat);points.frustumCulled=false;points.renderOrder=-20;scene.add(points);
-  return {update(time,opacity,pixelRatio){mat.uniforms.uTime.value=time;mat.uniforms.uOpacity.value=opacity;mat.uniforms.uPixelRatio.value=pixelRatio;}};
+  let previousTime=null,phase=0;
+  return {update(time,opacity,pixelRatio,gazing=false){
+    const dt=previousTime===null?0:Math.max(0,time-previousTime);previousTime=time;
+    const u=mat.uniforms;u.uGazing.value+=((gazing?1:0)-u.uGazing.value)*(1-Math.exp(-dt*3));
+    phase+=dt*THREE.MathUtils.lerp(1,.60,u.uGazing.value);
+    u.uTime.value=phase;u.uOpacity.value=opacity;u.uPixelRatio.value=pixelRatio;
+  }};
 }
 
 // Value noise and fbm on the CPU: the cloud paintings are baked into canvases
@@ -176,11 +190,13 @@ export function buildPaintedClouds(scene,uniforms,palette){
     const w=r*((wispy?.20:.15)+random()*.15);
     cloud.scale.set(w,w*(wispy?.26+random()*.10:.46+random()*.18),1);
     cloud.renderOrder=-10;cloud.frustumCulled=false;
-    scene.add(cloud);clouds.push({cloud,angle:a,radius:r,halfAngle:w/r*.55,
-      drift:.0006+random()*.00035});
+    const id=`cloud-${String(i+1).padStart(2,'0')}`,drift=.0006+random()*.00035;
+    // Consume the whole seeded slot before removing it, preserving every other cloud.
+    if(id==='cloud-01'){cloud.geometry.dispose();mat.dispose();continue;}
+    scene.add(cloud);clouds.push({id,cloud,angle:a,radius:r,halfAngle:w/r*.55,drift});
   }
   const v=new THREE.Vector3(),eye=new THREE.Vector3();
-  return {update(time,camera,sunDir){
+  return {contextTargets(){return clouds.map(c=>({id:c.id,position:c.cloud.position,visibility:c.cloud.material.uniforms.uClear.value*c.cloud.material.uniforms.uOpacity.value}));},update(time,camera,sunDir){
     if(camera&&sunDir){
       camera.updateWorldMatrix(true,false);
       sunView.value.copy(sunDir).transformDirection(camera.matrixWorldInverse).normalize();
