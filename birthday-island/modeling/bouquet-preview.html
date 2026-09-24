@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bouquet · tulips for her</title>
+<style>body{margin:0;background:#e9e1d7;color:#52453f;font:14px system-ui}header{position:absolute;top:24px;left:26px;pointer-events:none}h1{font:24px Georgia;margin:0 0 8px}p{margin:0;max-width:330px;line-height:1.5}footer{position:absolute;bottom:24px;left:26px}a{color:inherit}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head><body>
+<header><h1>Tulips, for you</h1><p>Pink &amp; orange tulips · a sunflower · white, violet &amp; peach daisies.<br>Drag to turn. Scroll to get closer.</p></header>
+<footer><a href="/?inspect&view=companion">Try the handoff on the island →</a><p id="stats"></p></footer>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js';
+import {buildBouquet} from '../bouquet.js?v=compact-4';
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;document.body.append(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xe9e1d7);
+scene.add(new THREE.HemisphereLight(0xfff8ec,0x746c72,2.4));
+const light=new THREE.DirectionalLight(0xffeee0,3);light.position.set(-2,4,3);scene.add(light);
+const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,.01,20);camera.position.set(.75,1.2,-1.25);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,.32,0);controls.minDistance=.6;controls.maxDistance=3;controls.update();
+const bouquet=buildBouquet();scene.add(bouquet);
+renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera);});
+let triangles=0;bouquet.traverse(o=>{if(o.isMesh)triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3*(o.isInstancedMesh?o.count:1);});
+document.querySelector('#stats').textContent=`${bouquet.userData.flowerCount} flowers · ${triangles.toLocaleString()} triangles · shared geometry`;
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
+</script></body></html>

@@ -16,7 +16,7 @@ export function addBirthdayCentrepiece(party,boardParent=party){
   const cream=new THREE.MeshStandardMaterial({color:0xffe8c6,roughness:.63});
   const hats=[];
   // Just two hats, with a restrained printed pattern and a soft pom-pom.
-  for(const [x,z,color] of [[-.99,.13,'#B88091'],[.96,-.30,'#809D9B']]){
+  for(const [x,z,color] of [[-.99,.13,'#DC648F'],[.96,-.30,'#39AAA8']]){
     const hat=new THREE.Group();hat.position.set(x,.67,z);party.add(hat);hats.push(hat);
     const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
     const ctx=canvas.getContext('2d');ctx.fillStyle=color;ctx.fillRect(0,0,256,256);
@@ -46,13 +46,19 @@ export function addBirthdayCentrepiece(party,boardParent=party){
   ctx.textAlign='center';ctx.fillStyle='#FFF0D0';
   ctx.font='italic 68px Georgia, serif';ctx.fillText('Happy Birthday,',512,230);
   ctx.font='bold 116px Georgia, serif';ctx.fillText('Moshiee!',512,356);
-  ctx.fillStyle='#E6C38A';
-  for(const [x,y,r] of [[512,106,15],[400,451,8],[624,451,8]]){
-    ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x+r*.6,y);ctx.lineTo(x,y+r);ctx.lineTo(x-r*.6,y);ctx.closePath();ctx.fill();
-  }
-  ctx.font='italic 28px Georgia, serif';ctx.fillStyle='#E8D0AA';ctx.fillText('make a little wish',512,460);
+  // A softly shaded heart, printed into the board's existing texture.
+  const heart=ctx.createLinearGradient(0,69,0,146);
+  heart.addColorStop(0,'#F5B6B3');heart.addColorStop(.55,'#DF8793');heart.addColorStop(1,'#BC6076');
+  ctx.beginPath();ctx.moveTo(512,146);
+  ctx.bezierCurveTo(498,133,464,113,464,91);
+  ctx.bezierCurveTo(464,64,499,60,512,83);
+  ctx.bezierCurveTo(525,60,560,64,560,91);
+  ctx.bezierCurveTo(560,113,526,133,512,146);
+  ctx.closePath();ctx.fillStyle=heart;ctx.fill();
+  ctx.strokeStyle='#F3D4A5';ctx.lineWidth=2.5;ctx.stroke();
+  ctx.font='italic 32px Georgia, serif';ctx.fillStyle='#FFF0D0';ctx.fillText('Every day with you is my favourite.',512,460);
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=4;
   const lettering=new THREE.MeshStandardMaterial({map,roughness:.9,emissive:0xffffff,emissiveMap:map,emissiveIntensity:.12});
   const face=add(new THREE.PlaneGeometry(1.19,.70),lettering,0,1.10,.037,board);face.castShadow=false;
-  return {hats};
+  return {hats,board};
 }

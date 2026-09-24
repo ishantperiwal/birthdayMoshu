@@ -1,8 +1,8 @@
 import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=birthday-dress-8';
+import { buildCharacter } from './character.js?v=longer-legs-4';
 
-export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false}){
+export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false,resolveMove=(x,z,dx,dz)=>({x:x+dx,z:z+dz})}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
   const character=buildCharacter(anchor,female?{}:DATE_OUTFIT);
   character.root.scale.setScalar(1.06);
@@ -30,6 +30,10 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
   }
   anchor.position.y=ground(anchor.position.x,anchor.position.z);anchor.rotation.y=Math.PI;
   return {anchor,
+    setExpression:(value,duration)=>character.setExpression(value,duration),
+    setBouquet:(value,snap=false)=>character.setBouquet(value,snap),
+    updateBouquet:(dt,suppressed=false)=>character.updateBouquet(dt,suppressed),
+    setBouquetView:value=>character.setBouquetView(value),
     get motion(){return {moving:networkMoving,running:speed>5.2,pitch:attention.pitch,holding,holdReady};},
     get gesture(){return {pointBlend:character.pointingAmount,pointing:!!attention.manualPoint,jumping:expressiveAge<1.8,headYaw:attention.yaw,headPitch:attention.pitch};},
     triggerCheer(){if(stoneThrow||expressiveAge<1.8||Math.abs(anchor.rotation.x)>1)return false;expressiveAge=0;return true;},
@@ -46,6 +50,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     resumeAutopilot(){if(hasCelebrated)state="following";anchor.rotation.x=0;holding=false;holdReady=false;stoneThrow=null;speed=0;hasPreviousPlayer=false;},
     get bodyScale(){return character.root.scale.x;},setFirstPerson:value=>character.setFirstPerson(value),
     get throwing(){return !!stoneThrow;},
+    get bouquetActive(){return character.bouquetActive;},
     startThrow(direction,onRelease){
       if(stoneThrow||holding||state!=='following')return false;
       stoneThrow={age:0,direction:direction.clone(),onRelease,released:false};speed=0;return true;
@@ -58,7 +63,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     if(state==='celebrating'){
       cheerAge+=dt;
       hop=Math.abs(Math.sin(Math.min(cheerAge/1.8,1)*Math.PI*2))*.40;
-      cheer=Math.sin(Math.min(cheerAge/2.1,1)*Math.PI)*.95;
+      cheer=THREE.MathUtils.smoothstep(cheerAge,0,.22)*(1-THREE.MathUtils.smoothstep(cheerAge,1.8,2.1));
       if(cheerAge>=2.1)state='following';
     }
     if((state==='following'||holding)&&!stoneThrow){
@@ -67,10 +72,12 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       const radialPace=holding&&hasPreviousPlayer&&distance>.001
         ?Math.max(0,((player.x-previousPlayer.x)*dx+(player.z-previousPlayer.z)*dz)/(distance*Math.max(dt,.001))):0;
       const desired=holding?Math.min(10,Math.max(0,radialPace+(distance-spacing)*4))
-        :(distance>3.35?Math.min(8.8,(distance-spacing)*2.2):0);
-      speed=holding?desired:speed+(desired-speed)*(1-Math.exp(-dt*5));
+        :(distance>3.3501?Math.min(8.8,(distance-spacing)*2.2):0);
+      // Once inside the arrival radius, residual easing must not keep tiny
+      // steps (and a full walking cycle) alive after he has reached her.
+      speed=holding||desired===0?desired:speed+(desired-speed)*(1-Math.exp(-dt*5));
       if(distance>spacing&&speed>.03){
-        const step=Math.min(speed*dt,distance-spacing);
+        const step=Math.min(speed*dt,Math.max(0,distance-(holding?spacing:3.35)));
         let nx=anchor.position.x+dx/distance*step,nz=anchor.position.z+dz/distance*step;
         const tx=nx+8,tz=nz+10,r=Math.hypot(tx,tz);
         if(r<1.6){
@@ -80,7 +87,13 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
           angle+=Math.sign(turn||1)*step/1.6;
           nx=-8+Math.cos(angle)*1.6;nz=-10+Math.sin(angle)*1.6;
         }
-        if(onIsland(nx,nz)){anchor.position.x=nx;anchor.position.z=nz;moving=true;}
+        if(step>0){
+          const next=resolveMove(anchor.position.x,anchor.position.z,nx-anchor.position.x,nz-anchor.position.z,player);
+          if(onIsland(next.x,next.z)){
+            moving=Math.hypot(next.x-anchor.position.x,next.z-anchor.position.z)>.0001;
+            anchor.position.x=next.x;anchor.position.z=next.z;
+          }
+        }
       }
       holdReady=holding&&Math.hypot(player.x-anchor.position.x,player.z-anchor.position.z)<2.05;
     }
@@ -120,7 +133,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       const delta=Math.atan2(Math.sin(heading-anchor.rotation.y),Math.cos(heading-anchor.rotation.y));anchor.rotation.y+=delta*(1-Math.exp(-dt*14));
     }
     if(manualLook&&!stoneThrow)applyManualLook(dt,manualLook,moving);
-    if(expressiveAge<1.8){hop+=Math.abs(Math.sin(expressiveAge/1.8*Math.PI*2))*.35;cheer=Math.max(cheer,Math.sin(expressiveAge/1.8*Math.PI)*.95);}
+    if(expressiveAge<1.8){hop+=Math.abs(Math.sin(expressiveAge/1.8*Math.PI*2))*.35;cheer=Math.max(cheer,THREE.MathUtils.smoothstep(expressiveAge,0,.20)*(1-THREE.MathUtils.smoothstep(expressiveAge,1.5,1.8)));}
     networkMoving=moving;
     character.update(dt,moving,speed>5.2,cheer,attention);
     if(stoneThrow){

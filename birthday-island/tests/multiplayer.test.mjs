@@ -24,3 +24,10 @@ test('candles release hands and cannot be blown twice',()=>{
   assert.equal(world.holding,false);assert.equal(world.candles,true);
   assert.equal(reduceWorld(world,{type:'candles'},'MOSHIEE'),null);
 });
+test('radio advances once per song, from the current song only',()=>{
+  const world=reduceWorld(initialWorld(),{type:'radio',from:0,to:1},'MOSHIEE');
+  assert.equal(world.radio,1);
+  assert.equal(reduceWorld(world,{type:'radio',from:0,to:1},'ISHIEE'),null);
+  assert.equal(reduceWorld(world,{type:'radio',from:1,to:99},'ISHIEE'),null);
+  assert.equal(reduceWorld({...world,radio:undefined},{type:'radio',from:0,to:2},'ISHIEE').radio,2);
+});

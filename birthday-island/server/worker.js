@@ -79,6 +79,46 @@ export class IslandRoom extends DurableObject {
       if(now-(a.eventWindow||0)>1000){a.eventWindow=now;a.eventCount=0;}
       if((a.eventCount=(a.eventCount||0)+1)>30)return;
       const e=m.event;
+      // Each authenticated player controls only their own face, including his
+      // companion-mode session. Snapshot deadlines prevent stale expressions on reconnect.
+      if(e.type==='expression'){
+        if(now-(a.lastExpression||0)>=180){
+          const next=reduceWorld(this.data.world,e,a.user,now);
+          if(next){a.lastExpression=now;this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:{type:'expression',value:next.expressions[a.user]},actor:a.user});}
+        }
+        ws.serializeAttachment(a);return;
+      }
+      // His flowers are an expressive action, available in companion mode.
+      if(e.type==='bouquet'){
+        if(a.user==='ISHIEE'&&now-(a.lastBouquet||0)>=2000){
+          const next=reduceWorld(this.data.world,e,a.user);
+          if(next){a.lastBouquet=now;if(next.bouquet===true)next.bouquetOfferedAt=now;this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:{type:'bouquet',shown:next.bouquet},actor:a.user});}
+        }
+        ws.serializeAttachment(a);return;
+      }
+      if(e.type==='receive-bouquet'||e.type==='put-away-bouquet'){
+        if(a.user!=='MOSHIEE')return;
+        if(e.type==='receive-bouquet'){
+          const p=this.data.poses.MOSHIEE,q=this.data.poses.ISHIEE;
+          if(!this.live('ISHIEE')||!p||!q||p.lying||q.lying||
+            Math.hypot(...p.position.map((v,i)=>v-q.position[i]))>3.7||
+            now-(this.data.world.bouquetOfferedAt||0)<850)return;
+        }else if(now-(this.data.world.bouquetReceivedAt||0)<1050)return;
+        const next=reduceWorld(this.data.world,e,a.user);
+        if(next){
+          if(e.type==='receive-bouquet')next.bouquetReceivedAt=now;
+          this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:e,actor:a.user});
+        }
+        ws.serializeAttachment(a);return;
+      }
+      // Either player's radio, including his companion view, may advance the song.
+      if(e.type==='radio'){
+        if(now-(a.lastRadio||0)>=1500){
+          const next=reduceWorld(this.data.world,e,a.user);
+          if(next){a.lastRadio=now;this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:{type:'radio',index:next.radio},actor:a.user});}
+        }
+        ws.serializeAttachment(a);return;
+      }
       if(e.type==='chat'){
         const text=cleanChat(e.text);
         if(text&&now-(a.lastChat||0)>=1200){a.lastChat=now;this.broadcast({type:'event',actor:a.user,event:{type:'chat',text}});}

@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Butterfly wing markings</title>
+<style>body{margin:0;background:#e5dfd3;color:#514b42;font:14px system-ui}header{position:absolute;top:22px;left:24px}footer{position:absolute;bottom:30px;inset-inline:0;display:grid;grid-template-columns:repeat(4,1fr);text-align:center}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head><body>
+<header>Wing details · enlarged comparison</header><footer><span>Original</span><span>Fine veins</span><span>Soft speckles</span><span>Small eyespots</span></footer>
+<script type="module">
+import * as THREE from 'three';import {makeWingGeometry,makeWingTexture} from '../butterfly-wings.js?v=1';
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xe5dfd3);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));document.body.append(renderer.domElement);
+const camera=new THREE.OrthographicCamera(-4.6,4.6,2.6,-2.6,.1,20);camera.position.set(0,8,0);camera.up.set(0,0,-1);camera.lookAt(0,0,0);
+const geometry=makeWingGeometry();
+for(let i=0;i<4;i++){
+  const g=new THREE.Group();g.position.x=(i-1.5)*2.25;scene.add(g);
+  const mat=new THREE.MeshBasicMaterial({color:0xb9a3d2,map:i?makeWingTexture(i-1):null,vertexColors:true,side:THREE.DoubleSide});
+  const left=new THREE.Mesh(geometry,mat),right=new THREE.Mesh(geometry,mat);right.scale.x=-1;g.add(left,right);
+  const body=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),new THREE.MeshBasicMaterial({color:0x4b3c34}));body.scale.set(.035,.035,.24);g.add(body);
+}
+function render(){renderer.setSize(innerWidth,innerHeight);camera.top=4.6*innerHeight/innerWidth;camera.bottom=-camera.top;camera.updateProjectionMatrix();renderer.render(scene,camera);}render();addEventListener('resize',render);
+</script></body></html>

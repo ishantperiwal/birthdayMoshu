@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "wrangler dev --port 8787",
     "deploy": "wrangler deploy",
-    "test": "node --test ../tests/multiplayer.test.mjs ../tests/remote-motion.test.mjs ../tests/companion-mode.test.mjs",
+    "test": "node --test ../tests/multiplayer.test.mjs ../tests/remote-motion.test.mjs ../tests/companion-mode.test.mjs ../tests/companion-arrival.test.mjs ../tests/prop-collision.test.mjs ../tests/player-jump.test.mjs ../tests/blink-timing.test.mjs ../tests/expression-controls.test.mjs ../tests/expressions-server.test.mjs ../tests/hand-controls.test.mjs ../tests/pebble-input.test.mjs ../tests/pebble-targets.test.mjs ../tests/fish-route.test.mjs ../tests/bouquet.test.mjs ../tests/bouquet-server.test.mjs ../tests/bouquet-controls.test.mjs ../tests/stargazing-drawing.test.mjs",
     "test:integration": "node ../tests/companion-integration.mjs",
     "test:browser": "node ../tests/companion-browser.mjs"
   },

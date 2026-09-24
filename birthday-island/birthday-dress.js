@@ -7,7 +7,7 @@ export const BIRTHDAY_ROSE=0xd991ac;
 // Occasion details use the existing body rig, including the first-person pose.
 export function dressBirthday(root,arms,legs,cloth){
   const make=(color,roughness=.65)=>new THREE.MeshStandardMaterial({color,roughness,emissive:color,emissiveIntensity:.045});
-  const ivory=make(0xffecd6),ribbon=make(0xeeb3c6,.42),gold=make(0xcba56c,.46);
+  const ivory=make(0xffecd6),ribbon=make(0xd58da6,.42),trim=make(0xeeb3c6,.42),gold=make(0xcba56c,.46);
   cloth.roughness=.68;cloth.emissiveIntensity=.065;
   function add(geometry,material,x,y,z,parent=root,name='birthday dress detail'){
     const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);
@@ -64,7 +64,7 @@ export function dressBirthday(root,arms,legs,cloth){
   overlayGeometry.setIndex(overlayIndices);overlayGeometry.computeVertexNormals();
   const overlayMaterial=make(0xe3a1b8,.72);overlayMaterial.side=THREE.DoubleSide;
   add(overlayGeometry,overlayMaterial,0,0,0,root,'continuous upper skirt tier');
-  add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(overlayHem,true),128,.0018,6,true),ribbon,0,0,0,root,'continuous upper tier hem');
+  add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(overlayHem,true),128,.0018,6,true),trim,0,0,0,root,'continuous upper tier hem');
   // A plain, softly edged satin ribbon follows the oval waist.
   const beltPositions=[],beltIndices=[],around=96,cross=12;
   for(let i=0;i<=around;i++)for(let j=0;j<=cross;j++){
@@ -125,7 +125,24 @@ export function dressBirthday(root,arms,legs,cloth){
     const collarMaterial=ivory.clone();collarMaterial.side=THREE.DoubleSide;
     add(geometry,collarMaterial,0,0,0,root,'curved ivory collar');
   }
-  for(const y of [1.088,1.026,.964])oval(ivory,0,y,bodiceFront(0,y)-.004,.009,.009,.006);
+  // Flat, rimmed four-hole buttons with tiny rose stitches.
+  const buttonOutline=new THREE.Shape();buttonOutline.absarc(0,0,.0125,0,Math.PI*2,false);
+  for(const x of [-.004,.004])for(const y of [-.004,.004]){
+    const hole=new THREE.Path();hole.absarc(x,y,.0025,0,Math.PI*2,true);buttonOutline.holes.push(hole);
+  }
+  const buttonGeometry=new THREE.ExtrudeGeometry(buttonOutline,{depth:.003,bevelEnabled:true,bevelSize:.0006,bevelThickness:.0006,bevelSegments:2,steps:1,curveSegments:16});
+  const buttonRim=new THREE.TorusGeometry(.0109,.00085,6,32);
+  const stitchMaterial=make(0xaf607e,.85);
+  for(const y of [1.088,1.026,.964]){
+    const button=new THREE.Group();button.position.set(0,y,bodiceFront(0,y)-.008);root.add(button);
+    button.name='sewn ivory four-hole button';
+    add(buttonGeometry,ivory,0,0,0,button,'flat button face');
+    add(buttonRim,ivory,0,0,-.001,button,'raised button rim');
+    for(const row of [-.004,.004]){
+      const stitch=new THREE.CatmullRomCurve3([new THREE.Vector3(-.004,row,.001),new THREE.Vector3(0,row,-.0018),new THREE.Vector3(.004,row,.001)]);
+      add(new THREE.TubeGeometry(stitch,8,.0007,5,false),stitchMaterial,0,0,0,button,'rose button stitch');
+    }
+  }
 
   // Five tiny embroidered daisies follow the skirt surface above the hem.
   for(const a of [-.85,-.43,0,.43,.85]){
@@ -139,10 +156,10 @@ export function dressBirthday(root,arms,legs,cloth){
     oval(gold,0,0,-.004,.006,.006,.004,group);
   }
   for(const arm of arms){
-    add(new THREE.CylinderGeometry(.102,.102,.025,24),ivory,0,-.307,0,arm,'ivory sleeve cuff');
+    add(new THREE.CylinderGeometry(.099,.099,.02,24),ivory,0,-.154,0,arm,'ivory half-sleeve cuff');
   }
   for(const leg of legs){
-    add(roundedToyBox(.23,.016,.042,.008),ribbon,0,-.54,-.075,leg,'ballet shoe strap');
+    add(roundedToyBox(.23,.016,.042,.008),trim,0,-.54,-.075,leg,'ballet shoe strap');
     oval(gold,0,-.532,-.081,.011,.006,.012,leg);
   }
 }

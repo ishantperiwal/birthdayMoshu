@@ -2,12 +2,12 @@ import { roundedSleeve } from './rounded-sleeve.js';
 import * as THREE from 'three';
 
 // Straight sleeve, short wrist and circular toy hand; no per-frame geometry.
-export function buildHandPose(parent,{color=0xeb94ad,shoulder=[.28,1.36,-.06],side=1,floating=false,sleeveLength=null}={}){
+export function buildHandPose(parent,{color=0xeb94ad,shoulder=[.28,1.36,-.06],side=1,floating=false,sleeveLength=null,shortSleeves=false}={}){
   const root=new THREE.Group();parent.add(root);root.visible=false;
   const cloth=new THREE.MeshStandardMaterial({color,roughness:.30,emissive:color,emissiveIntensity:.11});
   const skin=new THREE.MeshStandardMaterial({color:0xf6cc77,roughness:.30,emissive:0xf6cc77,emissiveIntensity:.11});
   const upper=new THREE.Mesh(roundedSleeve(.095,.105,1,.012,.035),cloth);
-  const lower=new THREE.Mesh(new THREE.CylinderGeometry(.065,.075,1,12),skin);
+  const lower=new THREE.Mesh(new THREE.CylinderGeometry(shortSleeves?.079:.065,shortSleeves?.079:.075,1,16),skin);
   const elbow=new THREE.Mesh(new THREE.SphereGeometry(.078,12,8),cloth);
   const hand=new THREE.Mesh(new THREE.TorusGeometry(.087,.037,8,20),skin);
   root.add(upper,lower,elbow,hand);
@@ -41,6 +41,7 @@ export function buildHandPose(parent,{color=0xeb94ad,shoulder=[.28,1.36,-.06],si
     direction.subVectors(start,end).normalize();
     wrist.copy(end).addScaledVector(direction,.112);
     bend.copy(wrist).addScaledVector(direction,.025);
+    if(shortSleeves)bend.copy(start).lerp(wrist,.52);
     segment(upper,start,bend);segment(lower,bend,wrist);elbow.visible=false;
     aim.subVectors(end,start).normalize();
     hand.position.copy(end);

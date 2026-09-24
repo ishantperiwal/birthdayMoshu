@@ -28,15 +28,15 @@ export function advanceThrow(f,dt,time,terrainHeight){
       const from=Math.max(0,old.y-oldSurface),to=surface-p.y,alpha=from/(from+to||1);
       p.x=old.x+(p.x-old.x)*alpha;p.z=old.z+(p.z-old.z)*alpha;
       const water=waterHeight(p.x,p.z,t),ground=terrainHeight(p.x,p.z);p.y=Math.max(water,ground)+.08;
-      if(ground>=water){f.done=true;f.landed=true;break;}
+      if(ground>=water){f.done=true;f.landed=true;f.finish='land';break;}
       events.push({x:p.x,z:p.z,index:f.contacts++});
       const horizontal=Math.hypot(v.x,v.z),shallow=-v.y/Math.max(horizontal,.001)<.68;
       if(shallow&&horizontal>2.8&&f.skips<12){
         f.skips++;const retention=.72+f.quality*.20;v.x*=retention;v.z*=retention;
         v.y=Math.min(1.45,Math.max(.85,-v.y*.20))*(.90+f.quality*.10);p.y+=.015;
-      }else f.done=true;
+      }else {f.done=true;f.finish='water';}
     }
-    if(f.age>12)f.done=true;
+    if(f.age>12&&!f.done){f.done=true;f.finish='timeout';}
   }
   return events;
 }

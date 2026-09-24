@@ -1,4 +1,6 @@
-import {buildChatBubbles} from './chat-bubbles.js?v=1';
+import {buildChatBubbles} from './chat-bubbles.js?v=resize-fix-3';
+import {buildExpressionControls} from './expression-controls.js?v=minimal-chat-5';
+import {EXPRESSIONS,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=timed-3';
 import { buildCashRewards } from './cash-rewards.js?v=3d-pool-3';
 import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
 import {BIRTHDAY_ROSE} from './birthday-dress.js?v=5';
@@ -10,25 +12,30 @@ let ownPose=null,passengerLying=false,passengerPointing=false,pointBlend=0;
 let remoteWasOnline=false;
 import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested} from './multiplayer.js?v=companion-1';
 let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
-import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=subtle-hem-2';
-import { buildStoneSkipping } from './stone-skipping.js?v=more-skips-7';
+import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=fade-entry-1';
+import { buildStoneSkipping } from './stone-skipping.js?v=three-rounds-2';
 import { SHORE } from './skipping-physics.js?v=more-skips-7';
-import { moveAroundRocks } from './rock-collision.js';
+import { moveAroundRocks } from './rock-collision.js?v=props-players-1';
+import { createPlayerJump } from './player-jump.js';
 import { buildLovePlane } from './love-plane.js?v=2';
 import { insectVisibility, insectRank } from './insect-density.js';
+import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=9';
+import {buildBouquetControls} from './bouquet-controls.js?v=controlled-pov-5';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion } from './companion.js?v=birthday-dress-8';
+import { buildCompanion } from './companion.js?v=timed-expressions-3';
 import { addGiftAura } from './gift-aura.js';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
+import {buildJumpingFish} from './jumping-fish.js?v=water-ripples-2';
 import { MONEY_TIERS, LEGENDARY_RESERVE, rupees } from './money-gifts.js?v=no-plaques-5';
 import { STAGE_HEIGHT, STAGE_RADIUS } from './celebration-stage.js';
-import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=hats-2';
+import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=heart-message-1';
+import {buildStageConfetti} from './stage-confetti.js?v=round-wider-4';
 import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter } from './character.js?v=birthday-dress-8';
+import { buildCharacter } from './character.js?v=longer-legs-4';
 import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';
@@ -37,7 +44,9 @@ import { buildCelebration } from './celebration.js?v=stage-2';
 import { cakeTableMaterials } from './cake-details.js?v=ambient-1';
 import { buildStars, buildPaintedClouds } from './painted-sky.js?v=github-minus-01-16';
 import { buildSceneContext } from './scene-context.js?v=2';
-import { buildFireworks } from './fireworks.js?v=festival-3';
+import { buildFireworks } from './fireworks.js?v=festival-4';
+import { createSoundscape } from './soundscape.js?v=4';
+import { createRadio } from './radio-player.js?v=1';
 import { buildMeadowLife } from './meadow-life.js?v=colorful-caps-1';
 import { buildCandleSmoke } from './candle-smoke.js';
 
@@ -59,6 +68,7 @@ const CONFIG = {
   walkSpeed: 5.0,
   giftReach: 3.2,
   radioMusicUrl: '', // Add a local audio file URL when the music is ready.
+  musicVolume: 1, // Background songs: Happy Birthday until the wish, then a calm drift. 0 turns them off.
   startingMood: 'night', // Night preview while refining the celebration lighting.
   gifts: [
     { pos: [1.5, 8], title: 'A pocket of sunshine', icon: '☀', color: 0xf2bd6b,
@@ -194,13 +204,13 @@ const MOODS = {
   day: {
     top: P.skyZenith, upper:P.skyUpper, mid:P.skyMid, horizon:P.skyHorizon,
     horizonSun:P.skyHorizonSun, anti:P.skyAnti, glow:P.sunGlow, disc:P.sunDisc, fog:P.haze,
-    oceanA: 0x155b83, oceanB: 0x398fa7, sun: 0xfff1d5, sunPower: 2.8,
+    oceanA: 0x155a91, oceanB: 0x3984b7, sun: 0xfff1d5, sunPower: 2.8,
     hemi: 1.42, exposure: 0.97, stars: 0, ambient: 0.96, elevation: 0.48
   },
   sunset: {
     top: 0x415f8c, upper:0x718eae, mid:0xb5b4bd, horizon:0xe9c4ad,
     horizonSun:0xffd59f, anti:0xaebfc9, glow:0xffd09a, disc:0xffffe8, fog:0xb4a7a0,
-    oceanA: 0x294f66, oceanB: 0x8ab0aa, sun: 0xffc886, sunPower: 2.4,
+    oceanA: 0x294f7c, oceanB: 0x6998b6, sun: 0xffc886, sunPower: 2.4,
     hemi: 1.04, exposure: 0.97, stars: 0.03, ambient: 0.70, elevation: 0.105
   },
   night: {
@@ -412,6 +422,7 @@ const oceanUniforms = {
   // the same uniform objects, so mood transitions reach both at once.
   ...skyUniforms,
   uTime: { value: 0 },
+  uFishRipples: {value:Array.from({length:8},()=>new THREE.Vector4(0,0,-100,0))},
   uColorA: { value: new THREE.Color(moodLive.oceanA) },
   uColorB: { value: new THREE.Color(moodLive.oceanB) },
   uSunColor: { value: new THREE.Color(moodLive.glow) },
@@ -467,6 +478,7 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
     }
   `,
   fragmentShader: `${skyGLSL}${oceanGLSL}
+    uniform vec4 uFishRipples[8];
     uniform vec3 uColorA, uColorB, uSunColor;
     uniform float uTime, uNight;
     varying vec3 vWorld;
@@ -479,6 +491,23 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.ShaderMaterial({
       // resolve, it sparkles.
       float footprint=max(length(dFdx(vWorld.xz)),length(dFdy(vWorld.xz)));
       g += oceanRipple(vWorld.xz, uTime, footprint) * .68 * (1.0 - smoothstep(25.0, 170.0, dist));
+      // Fish disturb the water's reflective surface, rather than painting
+      // pale rings over it. A damped wave packet spreads and catches sky light.
+      for(int i=0;i<8;i++){
+        vec4 impact=uFishRipples[i];float age=uTime-impact.z;
+        if(age>0.0&&age<3.8){
+          vec2 offset=vWorld.xz-impact.xy;float d2=dot(offset,offset);
+          if(d2<49.0){
+            float r=sqrt(d2),size=max(.4,impact.w),front=r-age*1.45;
+            float envelope=exp(-pow(front/(.40+.12*size),2.0))*exp(-age*.65);
+            float fade=smoothstep(0.0,.10,age)*(1.0-smoothstep(2.3,3.8,age));
+            float bend=sin(offset.x*2.1+uTime*.8)*sin(offset.y*1.7-uTime*.6)*.10;
+            float slope=.16*size*envelope*fade*cos((front+bend)*10.0);
+            slope*=1.0-smoothstep(.18,.6,footprint);
+            g+=offset/max(r,.05)*slope;
+          }
+        }
+      }
       vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
 
       float shore = 1.0 - smoothstep(.86, 1.2, length(vWorld.xz/vec2(67.0,54.0)));
@@ -521,6 +550,10 @@ ocean.position.y = 0;
 ocean.renderOrder = 2;
 scene.add(ocean);
 const oceanLife=buildOceanLife(scene,glowTexture);
+let fishRippleCursor=0;
+const jumpingFish=buildJumpingFish(scene,{terrainHeight,onSplash:(x,z,time,size)=>{
+  oceanUniforms.uFishRipples.value[fishRippleCursor++%8].set(x,z,time,size);
+}});
 const lovePlane=buildLovePlane(scene);
 buildDistantIsland(scene,skyUniforms.uHorizon);
 
@@ -951,6 +984,8 @@ for(let i=0;i<treeSpots.length*50;i++)rand();
 
 // Soft-edged rocks around the beach and paths.
 const rockColliders=[];
+// Static prop footprints share the existing substepped sliding solver.
+for(const [x,z] of lanternSites)rockColliders.push({x,z,radius:.27});
 for (let i = 0; i < 34; i++) {
   const a = rand() * Math.PI * 2;
   const ring = i < 22 ? lerp(.78, .94, rand()) : lerp(.25, .68, rand());
@@ -1232,7 +1267,7 @@ flowerTintTexture.needsUpdate=true;
 /* -------------------------------------------------------------------------- */
 
 const interactive = [];
-const stoneSkipping=buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion:()=>companion,canAutoplay:()=>!multiplayerRequested||!!network?.autopilot,onThrow:event=>{if(network&&!applyingNetwork)network.event(event);}});
+const stoneSkipping=buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion:()=>companion,canAutoplay:()=>!multiplayerRequested||!!network?.autopilot,onThrow:event=>{if(network&&!applyingNetwork)network.event(event);},onWin:complete=>audio.chime(complete?[523.25,659.25,783.99,1046.5]:[659.25,783.99])});
 const dandelions=buildDandelions({scene,terrainHeight,meadowMask,random:mulberry32(41551),interactive,
   onRelease:()=>toast('A LITTLE WISH, ON ITS WAY')});
 let partyLightMaterial = null;
@@ -1341,7 +1376,7 @@ function buildParty() {
   // it the way you would lean over a real one.
   const table = cylinder(1.30, 1.30, .1, 64, cakeTableMaterials(mats.cream)); table.position.y=.62; furniture.add(table);
   const pedestal = cylinder(.25,.42,.56,24,mats.wood); pedestal.position.y=.28; furniture.add(pedestal);
-  const {hats}=addBirthdayCentrepiece(furniture,party);
+  const {hats,board}=addBirthdayCentrepiece(furniture,party);
   const hatInteractions=hats.map(hat=>({type:'hat',object:hat,reach:2.5,
     prompt:'put on our party hats',found:false,action:()=>{
       if(network&&!applyingNetwork){network.event({type:"hats"});return;}
@@ -1385,6 +1420,17 @@ function buildParty() {
   }
   candleSmoke=buildCandleSmoke(furniture,candleFlames.map(c=>c.flame.position));
   putOnGround(party, -8, -10);
+  party.updateMatrixWorld(true);
+  for(const [x,z] of poles){
+    const p=party.localToWorld(new THREE.Vector3(x,0,z));
+    rockColliders.push({x:p.x,z:p.z,radius:.09});
+  }
+  for(const part of board.children){
+    const shape=part.geometry?.parameters;
+    if(!shape?.depth)continue; // The printed face shares the wooden board's box.
+    const p=part.getWorldPosition(new THREE.Vector3());
+    rockColliders.push({x:p.x,z:p.z,halfWidth:shape.width/2,halfDepth:shape.depth/2,angle:board.rotation.y});
+  }
   interactive.push({
     type:'cake', object:party, reach:4.8,
     get prompt(){ return candlesLit ? 'make a wish and blow out the candles' : 'the wish is on its way'; },
@@ -1404,11 +1450,31 @@ function renderedGroundHeight(x,z){
 }
 const fireside=buildFireside({scene,terrainHeight:renderedGroundHeight,x:22,z:-20,musicUrl:CONFIG.radioMusicUrl});
 paintUniforms.uStumpBase.value.copy(fireside.stumpBase);
-interactive.push({type:'radio',object:fireside.radio,reach:2.5,prompt:'listen to the radio',action:()=>{
-  if(!fireside.audio){toast('A LITTLE MUSIC WILL LIVE HERE SOON');return;}
-  if(fireside.audio.paused)fireside.audio.play().catch(()=>toast('THE RADIO TRACK COULD NOT BE LOADED'));else fireside.audio.pause();
+// The campfire radio plays a shared YouTube playlist. Online, the server keeps
+// only the song number: whoever's song ends first asks for the next one, and
+// both players crossfade to it wherever they are in their own copy.
+const radioSpot=new THREE.Vector3(),radioEar=new THREE.Vector3();
+fireside.root.updateMatrixWorld(true);fireside.radio.getWorldPosition(radioSpot);
+let radioWarned=false;
+function requestSong(from,to){if(network?.connected)network.event({type:'radio',from,to});else radio.play(to);}
+const radio=createRadio({
+  requestNext:requestSong,
+  onProblem:problem=>{if(radioWarned)return;radioWarned=true;toast(problem==='local-origin'?'OPEN LOCALHOST:4173 TO HEAR THE RADIO':'THE RADIO CANNOT REACH YOUTUBE RIGHT NOW');}
+});
+radio.play(0);
+function updateRadio(dt){
+  camera.getWorldPosition(radioEar);
+  // Full volume beside the fire, fading to silence about 17 m away.
+  const near=audio.muted?0:1-smoothstep(5,17,radioEar.distanceTo(radioSpot));
+  radio.update(dt,near);audio.scape?.duck(near);
+}
+interactive.push({type:'radio',object:fireside.radio,reach:2.5,prompt:'play the next song',action:()=>{
+  if(fireside.audio){if(fireside.audio.paused)fireside.audio.play().catch(()=>toast('THE RADIO TRACK COULD NOT BE LOADED'));else fireside.audio.pause();return;}
+  const from=radio.index??0;requestSong(from,(from+1)%radio.count);
+  toast('NEXT SONG ON THE RADIO');
 }});
 const celebration=buildCelebration({scene,terrainHeight,lampSites:lanternSites,glowTexture});
+const stageConfetti=buildStageConfetti(scene,terrainHeight(-8,-10)+STAGE_HEIGHT,STAGE_RADIUS);
 
 function updatePartyLight() {
   const intensity = lerp(.25, 2.2, 1 - moodLive.ambient);
@@ -1416,17 +1482,19 @@ function updatePartyLight() {
   partyHaloMaterial.opacity=.035+paintUniforms.uPartyGlow.value*.19;
 }
 
-function blowCandles() {
+function blowCandles({confetti=true}={}) {
   if(network&&!applyingNetwork){network.event({type:"candles"});return;}
   if (!candlesLit) { toast('YOUR WISH IS ALREADY ON ITS WAY'); return; }
   candlesLit = false;
   candleBlownAt=elapsed;
+  if(confetti)stageConfetti.burst(elapsed);
   companion.celebrate();
   if(inspect)candleFrameCheck={start:performance.now(),maxFrame:0,programs:renderer.info.programs.length};
   // Keep all five lights in Three's light list. Removing them changes the
   // shader light-count defines and recompiles standard materials on interaction.
   candleFlames.forEach(({flame}) => { flame.visible=false; });
   audio.softBlow();
+  audio.setMusic('calm');
   toast('WISH MADE  ·  MAY IT FIND US SOON');
   if(!applyingNetwork)setTimeout(() => launchFireworks(7), 650);
 }
@@ -1546,50 +1614,20 @@ $('#finale-fireworks').addEventListener('click',()=>{ $('#finale').classList.rem
 const butterflies=[];
 const insectViewer=new THREE.Vector3();
 
-// One shared wing, swept as a polar grid around the hinge: a pointed forewing
-// lobe, a rounder hindwing lobe and a notch between them. Building the interior
-// rings ourselves (rather than triangulating an outline) is what makes the
-// shading possible — a dark root, a luminous middle and a dark outer margin all
-// need vertices inside the silhouette to interpolate between.
-function wingRadius(a){
-  const fore=.92*Math.exp(-(((a-.45)/.78)**2));
-  const hind=.78*Math.exp(-(((a+.80)/.62)**2));
-  const notch=.13*Math.exp(-(((a+.05)/.20)**2));
-  return Math.max(fore+hind-notch,0);
-}
-function makeWingGeometry(){
-  const rings=[.07,.3,.55,.75,.88,.96,1],steps=34;
-  const positions=[],colors=[],indices=[];
-  for(let r=0;r<rings.length;r++) for(let s=0;s<=steps;s++){
-    const a=1.55-(s/steps)*3.40,u=rings[r],radius=wingRadius(a)*u;
-    positions.push(Math.cos(a)*radius,Math.sin(a)*radius,.07*u*u); // cupped, not a flat cutout
-    // Root shadow, bright wing field, then a dark margin with a pale band just
-    // inside it — the reading that separates a butterfly from a paper cutout.
-    const edge=smoothstep(.78,1,u);
-    let wash=(.26+1.00*smoothstep(0,.70,u))*(1-.62*edge)+.34*Math.exp(-(((u-.87)/.05)**2));
-    wash+=.34*Math.exp(-(((u-.64)/.09)**2))*Math.exp(-(((a-.46)/.24)**2)); // forewing eyespot
-    colors.push(wash,wash*(.98-u*.07),wash*(.92-u*.17));
-  }
-  for(let r=0;r<rings.length-1;r++) for(let s=0;s<steps;s++){
-    const i0=r*(steps+1)+s,i1=i0+1,i2=i0+steps+1,i3=i2+1;
-    indices.push(i0,i2,i1,i1,i2,i3);
-  }
-  const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-  geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
-  geo.setIndex(indices);
-  geo.rotateX(-Math.PI/2); // lay the wing flat; the sweep's +y becomes -z, the heading
-  geo.computeVertexNormals();
-  return geo;
-}
+// Shared cupped wings retain their original shape and pastel shading.
 const wingGeo=makeWingGeometry();
+const wingTextures=[0,1,2].map(makeWingTexture);
+// A separate seed preserves existing flight paths and all other island details.
+const wingPatternRandom=mulberry32(712031);
 const bodyMat=new THREE.MeshBasicMaterial({color:0x4b3c34});
 const BUTTERFLY_TINTS=[0xefa48e,0xe9c473,0x9dc3b4,0xb9a3d2,0x8fb4cc,0xe7cdb0];
 
 for(let i=0;i<22;i++){
   const group=new THREE.Group();
+  const textured=wingPatternRandom()<.45;
+  const wingTexture=textured?wingTextures[Math.floor(wingPatternRandom()*wingTextures.length)]:null;
   const mat=new THREE.MeshBasicMaterial({
-    color:BUTTERFLY_TINTS[i%BUTTERFLY_TINTS.length],vertexColors:true,side:THREE.DoubleSide,transparent:true,depthWrite:false
+    color:BUTTERFLY_TINTS[i%BUTTERFLY_TINTS.length],map:wingTexture,vertexColors:true,side:THREE.DoubleSide,transparent:true,depthWrite:false
   });
   const left=new THREE.Mesh(wingGeo,mat),right=new THREE.Mesh(wingGeo,mat);
   right.scale.x=-1;                    // mirrored, so both hinge at the thorax
@@ -1664,7 +1702,7 @@ const fireflies=new THREE.Points(fireflyGeo,fireflyMat);scene.add(fireflies);
 /* Fireworks                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const fireworks=buildFireworks(scene,glowTexture,origin=>{audio.pop();companion.watchFirework(origin);});
+const fireworks=buildFireworks(scene,glowTexture,(origin,variant)=>{audio.fireworkBurst(origin,variant);companion.watchFirework(origin);},(target,variant,life)=>audio.fireworkLaunch(target,variant,life));
 function launchFireworks(amount=6){
   if(network&&!applyingNetwork){network.event({type:"fireworks",amount});return;}
   if(currentMood!=='night')setMood('night');
@@ -1677,12 +1715,18 @@ function updateFireworks(dt){if(inspect&&inspectParams.has('fireworkStill'))retu
 /* Small synthesised soundscape                                               */
 /* -------------------------------------------------------------------------- */
 
+const soundEar=new THREE.Vector3(),soundLook=new THREE.Vector3(),soundSpot=new THREE.Vector3();
 const audio={
-  ctx:null,master:null,muted:false,
+  ctx:null,master:null,scape:null,muted:false,musicMode:'birthday',
   init(){
     if(this.ctx)return;
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
-    this.ctx=new AC();this.master=this.ctx.createGain();this.master.gain.value=.5;this.master.connect(this.ctx.destination);
+    this.ctx=new AC();this.master=this.ctx.createGain();this.master.gain.value=.5;
+    // A gentle limiter keeps overlapping firework booms from clipping.
+    const limiter=this.ctx.createDynamicsCompressor();limiter.threshold.value=-14;limiter.knee.value=12;limiter.ratio.value=3.5;limiter.attack.value=.004;limiter.release.value=.3;
+    this.master.connect(limiter).connect(this.ctx.destination);
+    this.scape=createSoundscape(this.ctx,this.master,{musicLevel:CONFIG.musicVolume});
+    if(CONFIG.musicVolume>0)this.scape.setMusic(this.musicMode,{delay:1.6,fade:4});
     const buffer=this.ctx.createBuffer(1,this.ctx.sampleRate*3,this.ctx.sampleRate),data=buffer.getChannelData(0);
     let last=0;for(let i=0;i<data.length;i++){last=last*.985+(Math.random()*2-1)*.015;data[i]=last;}
     const noise=this.ctx.createBufferSource();noise.buffer=buffer;noise.loop=true;
@@ -1699,7 +1743,24 @@ const audio={
   },
   chime(notes){notes.forEach((n,i)=>this.tone(n,i*.12,1.4,.045,'sine'));},
   gift(n){this.chime([392+n*6,523.25+n*4,659.25+n*3]);},
-  pop(){this.tone(90,.05,.45,.055,'triangle');this.tone(620+rand()*240,0,.7,.018,'sine');},
+  // Happy Birthday plays until the candles are blown, then the calm song
+  // fades in once the celebration fireworks have settled.
+  setMusic(mode){if(this.musicMode===mode)return;this.musicMode=mode;if(CONFIG.musicVolume>0)this.scape?.setMusic(mode,{delay:7,fade:5});},
+  place(position){
+    camera.getWorldPosition(soundEar);camera.getWorldDirection(soundLook);
+    const dx=position.x-soundEar.x,dz=position.z-soundEar.z,distance=Math.hypot(dx,position.y-soundEar.y,dz);
+    const pan=(dx*-soundLook.z+dz*soundLook.x)/((Math.hypot(dx,dz)||1)*(Math.hypot(soundLook.x,soundLook.z)||1));
+    return {distance,pan:clamp(pan*.75,-.75,.75),delay:distance/343};
+  },
+  fireworkLaunch(target,variant,life){
+    if(!this.scape||this.muted)return;
+    soundSpot.set(target.x,0,target.z);const {distance,pan,delay}=this.place(soundSpot);
+    this.scape.launch({delay,pan,distance,life,whistle:variant%5===3});
+  },
+  fireworkBurst(origin,variant){
+    if(!this.scape||this.muted)return;
+    const {distance,pan,delay}=this.place(origin);this.scape.burst({delay,pan,distance,variant});
+  },
   softBlow(){this.chime([659.25,587.33,523.25,392]);},
   toggle(){this.muted=!this.muted;if(this.master)this.master.gain.setTargetAtTime(this.muted?0:.5,this.ctx.currentTime,.08);$('#sound-button').textContent=this.muted?'×':'♪';toast(this.muted?'SOUND RESTING':'SOUND ON');}
 };
@@ -1716,23 +1777,31 @@ camera.position.set(0,0,CONFIG.thirdPerson?4.6:0);
 const avatar=buildCharacter(playerRig,isIshiee?DATE_OUTFIT:{});
 if(multiplayerRequested)avatar.root.scale.setScalar(1.06);
 avatar.root.visible=CONFIG.thirdPerson;
-const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_HEIGHT,stageRadius:STAGE_RADIUS,female:isIshiee});
+const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_HEIGHT,stageRadius:STAGE_RADIUS,female:isIshiee,
+  resolveMove:(x,z,dx,dz,player)=>moveAroundRocks(x,z,dx,dz,[...rockColliders,{x:player.x,z:player.z,radius:.30}],onIsland,.32)});
 const pointingHand=isPassenger?buildHandPose(playerRig,{color:SUIT_COLOR,shoulder:[.36,1.36,-.06],sleeveLength:.48}):null;
 const pointTarget=new THREE.Vector3();
-const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE});
+const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE,shortSleeves:!isIshiee});
 const joinedHands=new THREE.Vector3(),partnerHand=new THREE.Vector3();
 const claspRotation=new THREE.Quaternion(),partnerLinkRotation=new THREE.Quaternion(),playerLinkRotation=new THREE.Quaternion();
 const partnerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2),playerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
 const claspAxis=new THREE.Vector3(),claspShoulder=new THREE.Vector3(),ringNormal=new THREE.Vector3(0,0,1);
 let handAmount=0;
 const handInteraction={type:'companion',object:companion.anchor,reach:3.7,prompt:'hold hands',action:()=>{
+  if(!handsLinked()&&!canHoldHands())return;
   if(multiplayerRequested&&(isIshiee||!network?.autopilot)){
     if(!network?.remoteLive){toast('WAIT FOR YOUR PARTNER TO JOIN');return;}
     network.event({type:'hand'});return;
   }
   const held=companion.toggleHolding();toast(held?'HOLDING HANDS · H TO LET GO':'HANDS FREE');
 }};
-interactive.push(handInteraction);
+function handsLinked(){return !!(companion.holding||network?.snapshot?.world.holding);}
+function canHoldHands(){
+  return companion.anchor.visible&&!isPassenger&&!bouquetControls.previewing&&!stargazing.active&&
+    !stoneSkipping.active&&!companion.throwing&&!avatar.bouquetActive&&!companion.bouquetActive&&
+    !bouquetControls.shown&&!bouquetControls.received&&
+    (handsLinked()||companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach);
+}
 function updateHoldingHands(dt){
   handAmount+=((companion.holding&&companion.holdReady?1:0)-handAmount)*(1-Math.exp(-dt*6));
   // The clasp belongs to his lowered hand, not to the player's view direction.
@@ -1760,8 +1829,13 @@ playerRig.position.set(spawnX,terrainHeight(spawnX,spawnZ),spawnZ);
 playerRig.rotation.y=Math.atan2(spawnX-celebrationPathX(spawnZ-7),7);
 cameraPivot.rotation.x=-.12;
 const keys={};
-const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:points=>network?.event({type:"ink",points})});
+const playerJump=createPlayerJump();
+const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:points=>network?.event({type:"ink",points}),onLeave:()=>requestPointerLock()});
 let playing=false;
+const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,
+  isOnline:multiplayerRequested,isMale:isIshiee,getNetwork:()=>network,isPlaying:()=>playing,
+  isBusy:()=>stargazing.active||passengerLying||companion.throwing||rewardBusy||sceneContext.active||$('#command').classList.contains('open')||!!$('.note-modal.open'),
+  clearKeys:()=>{Object.keys(keys).forEach(k=>keys[k]=false);playerJump.reset();},toast});
 let nearest=null;
 const sceneContext=buildSceneContext({camera,clouds,snapshot:()=>({
   player:playerRig.position.toArray(),heading:playerRig.rotation.y,pitch:cameraPivot.rotation.x,
@@ -1774,10 +1848,22 @@ function onIsland(x,z){return Math.sqrt((x/67)**2+(z/54)**2)<.89;}
 const walkingReducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
 let walkingBobPhase=0,walkingBobAmount=0;
 function movePlayer(dt){
+  if(bouquetControls.hisView){
+    const rig=companion.anchor,active=document.pointerLockElement===renderer.domElement;
+    const sx=active?Number(!!keys.KeyD)-Number(!!keys.KeyA):0,sz=active?Number(!!keys.KeyS)-Number(!!keys.KeyW):0;
+    const running=!!(keys.ShiftLeft||keys.ShiftRight);
+    tmp.set(sx,0,sz).normalize().applyAxisAngle(new THREE.Vector3(0,1,0),rig.rotation.y).multiplyScalar(CONFIG.walkSpeed*(running?1.7:1)*dt);
+    const next=moveAroundRocks(rig.position.x,rig.position.z,tmp.x,tmp.z,[...rockColliders,{x:playerRig.position.x,z:playerRig.position.z,radius:.30}],onIsland,.32);
+    const moving=Math.hypot(next.x-rig.position.x,next.z-rig.position.z)>.0001;
+    const ground=terrainHeight(next.x,next.z)+STAGE_HEIGHT*(1-smoothstep(STAGE_RADIUS-.06,STAGE_RADIUS+.12,Math.hypot(next.x+8,next.z+10)));
+    companion.setNetworkPose({position:[next.x,playerJump.update(rig.position.y,ground,dt),next.z],yaw:rig.rotation.y,pitch:0,moving,running,lying:false},dt,true);
+    return;
+  }
+  if(bouquetControls.previewing){playerJump.reset();return;}
   if(isPassenger)return;
   if(multiplayerRequested&&!networkReady)return;
   if(sceneContext.active)return;
-  if(stargazing.active)return;
+  if(stargazing.active){playerJump.reset();return;}
   const active=document.pointerLockElement===renderer.domElement;
   let sx=(keys.KeyD?1:0)-(keys.KeyA?1:0),sz=(keys.KeyS?1:0)-(keys.KeyW?1:0);
   if(!active){sx=0;sz=0;}
@@ -1789,15 +1875,18 @@ function movePlayer(dt){
     avatarHeading=playerRig.rotation.y+Math.atan2(-sx,-sz);
     const speed=CONFIG.walkSpeed*(keys.ShiftLeft||keys.ShiftRight?1.7:1);
     tmp.set(sx,0,sz).applyAxisAngle(new THREE.Vector3(0,1,0),playerRig.rotation.y).multiplyScalar(speed*dt);
-    const next=moveAroundRocks(playerRig.position.x,playerRig.position.z,tmp.x,tmp.z,rockColliders,onIsland);
+    const obstacles=companion.anchor.visible&&Math.abs(companion.anchor.rotation.x)<.7&&Math.abs(companion.anchor.position.y-playerRig.position.y)<1.6
+      ?[...rockColliders,{x:companion.anchor.position.x,z:companion.anchor.position.z,radius:.32}]:rockColliders;
+    const next=moveAroundRocks(playerRig.position.x,playerRig.position.z,tmp.x,tmp.z,obstacles,onIsland,.30);
     moved=Math.hypot(next.x-playerRig.position.x,next.z-playerRig.position.z);
     playerRig.position.x=next.x;playerRig.position.z=next.z;
   }
   // Follow actual footsteps, so holding a movement key against an obstacle stays still.
   if(!CONFIG.thirdPerson){
-    const bobbing=moved>.0001&&!walkingReducedMotion.matches;
+    const bobbing=moved>.0001&&!playerJump.active&&!walkingReducedMotion.matches;
     if(bobbing)walkingBobPhase=(walkingBobPhase+moved*Math.PI*2/(running?2.8:2.2))%(Math.PI*2);
-    const targetAmount=bobbing?(running?.045:.028):0;
+    // The held flowers make camera bob especially noticeable in first person.
+    const targetAmount=bobbing?(running?.045:.028)*(avatar.bouquetActive?.5:1):0;
     walkingBobAmount+=(targetAmount-walkingBobAmount)*(1-Math.exp(-dt*9));
     cameraPivot.position.y=CONFIG.eyeHeight+Math.sin(walkingBobPhase)*walkingBobAmount;
   }
@@ -1805,7 +1894,7 @@ function movePlayer(dt){
   // gliding over the land instead of stepping up and down it.
   const stageDistance=Math.hypot(playerRig.position.x+8,playerRig.position.z+10);
   const ground=terrainHeight(playerRig.position.x,playerRig.position.z)+STAGE_HEIGHT*(1-smoothstep(STAGE_RADIUS-.06,STAGE_RADIUS+.12,stageDistance));
-  playerRig.position.y+=(ground-playerRig.position.y)*Math.min(1,dt*14);
+  playerRig.position.y=playerJump.update(playerRig.position.y,ground,dt);
   if(!CONFIG.thirdPerson)return;
   const targetHeading=avatarHeading-playerRig.rotation.y;
   const delta=Math.atan2(Math.sin(targetHeading-avatar.root.rotation.y),Math.cos(targetHeading-avatar.root.rotation.y));
@@ -1824,7 +1913,7 @@ function movePlayer(dt){
 }
 
 function updateInteraction(){
-  if(isPassenger){nearest=null;$('#interaction').classList.remove('show');return;}
+  if(isPassenger||bouquetControls.previewing){nearest=null;$('#interaction').classList.remove('show');return;}
   nearest=null;let best=Infinity;
   for(const item of interactive){
     if(item.found||item===handInteraction||(item.available&&!item.available()))continue;
@@ -1832,11 +1921,14 @@ function updateInteraction(){
     const d=tmp.distanceTo(playerRig.position);
     if(d<item.reach&&d<best){best=d;nearest=item;}
   }
-  const canHold=companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach;
-  if(!nearest&&canHold)nearest=handInteraction;
+  const canHold=canHoldHands();
   const el=$('#interaction');
   if(stoneSkipping.active||stargazing.active){el.classList.remove('show');return;}
-  if(nearest){el.innerHTML=`<b>E</b> ${nearest.prompt}${nearest!==handInteraction&&canHold?` · <b>H</b> ${companion.holding?'let go':'hold hands'}`:''}`;el.classList.add('show');}
+  if(nearest||canHold){
+    const pickupKey='<b aria-label="Left mouse button" title="Left mouse button"><svg width="14" height="18" viewBox="0 0 24 28" aria-hidden="true"><path d="M11 4a6 6 0 0 0-6 6v2h6Z" fill="currentColor"/><rect x="4" y="2" width="16" height="24" rx="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v10M5 13h14" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></b><span class="key-alternative">/</span><b>E</b>';
+    const interaction=nearest?`${nearest.type==='skipping'?pickupKey:'<b>E</b>'} ${nearest.prompt}`:'';
+    el.innerHTML=interaction+(canHold?`${interaction?' · ':''}<b>H</b> ${handsLinked()?'let go':handInteraction.prompt}`:'');el.classList.add('show');
+  }
   else el.classList.remove('show');
 }
 
@@ -1850,16 +1942,46 @@ function setMood(name){
 document.querySelectorAll('#moods button').forEach(b=>b.addEventListener('click',()=>setMood(b.dataset.mood)));
 
 const chatBubbles=buildChatBubbles({scene,camera,
-  getAnchor:user=>user===(islandUser||'MOSHIEE')?playerRig:(network?.remoteLive?companion.anchor:null),
+  getAnchor:user=>user===(islandUser||'MOSHIEE')?playerRig:(!multiplayerRequested||network?.remoteLive?companion.anchor:null),
   onSound:()=>{audio.tone(740,0,.13,.022);audio.tone(988,.08,.19,.017);}
 });
 let commandMode=false,lastChatSent=0;
+const expressionValues={ISHIEE:'normal',MOSHIEE:'normal'};
+const expressionDeadlines={ISHIEE:0,MOSHIEE:0};
+function applyExpression(user,value,duration=EXPRESSION_MS){
+  expressionValues[user]=value;
+  expressionDeadlines[user]=value==='normal'?0:Date.now()+duration;
+  const character=multiplayerRequested?(user===islandUser?avatar:companion):(user==='ISHIEE'?companion:avatar);
+  character.setExpression(value,duration);
+}
+function showExpressionBubble(user,value,duration=EXPRESSION_MS){
+  const expression=EXPRESSIONS.find(e=>e.id===value);
+  if(expression&&value!=='normal'&&duration>0)chatBubbles.show(user,expression.emoji,{emoji:true,duration});
+}
+let lastExpressionSent=-Infinity;
+const expressionControls=buildExpressionControls({container:$('#command'),isOnline:multiplayerRequested,user:islandUser||'ISHIEE',onPreviewMessage:user=>{
+  if(multiplayerRequested||!playing||commandMode)return;
+  const text=Array.from($('#command-input').value.trim()||'I’m so happy to be here with you ♡').slice(0,140).join('');
+  chatBubbles.show(user,text);
+},onSelect:(user,value)=>{
+  if(!playing)return false;
+  if(multiplayerRequested){
+    if(!network?.connected){toast('RECONNECT TO CHANGE YOUR EXPRESSION');return false;}
+    if(performance.now()-lastExpressionSent<220)return false;
+    lastExpressionSent=performance.now();network.event({type:'expression',value});
+  }
+  applyExpression(user,value);if(!multiplayerRequested)showExpressionBubble(user,value);return true;
+}});
 function openCommand(commands=false){
   commandMode=commands;
+  expressionControls.setMode(commands);expressionControls.setConnected(!multiplayerRequested||!!network?.connected);
   Object.keys(keys).forEach(k=>keys[k]=false);passengerPointing=false;
   $('#command label').textContent=commands?'ISLAND COMMAND':'A LITTLE MESSAGE';
   $('#command-input').placeholder=commands?'try: fireworks, night, sunset, day':'say something sweet…';
   $('#command-input').maxLength=140;
+  expressionControls.setTarget(bouquetControls.hisView?'MOSHIEE':'ISHIEE');
+  $('#command-input').setAttribute('aria-label',commands?'Command':'Message');
+  if(!commands)$('#command-input').placeholder='Message…';
   $('#command > div > span').textContent=commands?'//':'♡';
   $('#command small').textContent=commands?'Enter to run · Esc to close':'Enter to send · nearby friends only · / again for commands';
   if(document.pointerLockElement)document.exitPointerLock();
@@ -1893,7 +2015,7 @@ $('#command').addEventListener('submit',e=>{
   if(performance.now()-lastChatSent<1200){toast('ONE LITTLE MOMENT…');return;}
   if(multiplayerRequested&&!network?.connected){toast('WAITING TO RECONNECT');return;}
   lastChatSent=performance.now();
-  if(network)network.event({type:'chat',text});else chatBubbles.show(islandUser||'MOSHIEE',text);
+  if(network)network.event({type:'chat',text});else chatBubbles.show(bouquetControls.hisView?'ISHIEE':'MOSHIEE',text);
   closeCommand();toast('MESSAGE SENT ♡');
 });
 $('#command-button').addEventListener('click',()=>openCommand());
@@ -1909,6 +2031,13 @@ window.addEventListener('keydown',e=>{
   if($('.note-modal.open')||rewardBusy)return;
   if(multiplayerRequested&&!networkReady)return;
   if(e.code==='KeyP'&&!e.repeat&&playing){e.preventDefault();Object.keys(keys).forEach(k=>keys[k]=false);sceneContext.open();return;}
+  if(playing&&bouquetControls.keyDown(e))return;
+  if(bouquetControls.hisView){
+    if(e.code==='Slash'&&!e.repeat){e.preventDefault();openCommand();return;}
+    if(e.code==='Space'){e.preventDefault();if(!e.repeat&&document.pointerLockElement===renderer.domElement)playerJump.start();return;}
+    if(['KeyW','KeyA','KeyS','KeyD','ShiftLeft','ShiftRight'].includes(e.code)){keys[e.code]=true;return;}
+  }
+  if(bouquetControls.previewing&&!['Digit1','Digit2','Digit3','KeyM'].includes(e.code))return;
   if(e.code==='Slash'&&!e.repeat&&playing){e.preventDefault();openCommand();return;}
   if(isPassenger){
     if(!playing)return;
@@ -1919,9 +2048,13 @@ window.addEventListener('keydown',e=>{
   }
   if(stargazing.keyDown(e))return;
   if(stoneSkipping.keyDown(e))return;
+  if(e.code==='Space'){
+    if(playing&&document.pointerLockElement===renderer.domElement){e.preventDefault();if(!e.repeat)playerJump.start();}
+    return;
+  }
   keys[e.code]=true;
-  if(e.code==='KeyE'&&nearest&&!e.repeat)nearest.action();
-  if(e.code==='KeyH'&&!e.repeat&&(companion.holding||companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach))handInteraction.action();
+  if(e.code==='KeyE'&&nearest&&nearest!==handInteraction&&!e.repeat)nearest.action();
+  if(e.code==='KeyH'&&!e.repeat&&(handsLinked()||canHoldHands()))handInteraction.action();
   if(e.code==='KeyF'&&!e.repeat)launchFireworks(7);
   if(e.code==='KeyM')audio.toggle();
   if(e.code==='Digit1')setMood('day');
@@ -1929,16 +2062,23 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Digit3')setMood('night');
 });
 window.addEventListener('keyup',e=>{if(e.code==='KeyR')passengerPointing=false;stoneSkipping.keyUp(e);keys[e.code]=false;});
-document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==renderer.domElement)passengerPointing=false;});
+document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==renderer.domElement){passengerPointing=false;stoneSkipping.cancelCharge();}});
+renderer.domElement.addEventListener('mousedown',e=>{
+  if(!playing||isPassenger||!networkReady||stargazing.active||bouquetControls.previewing||sceneContext.active||rewardBusy||$('.note-modal.open')||$('#command').classList.contains('open')||document.pointerLockElement!==renderer.domElement)return;
+  stoneSkipping.pointerDown(e,playerRig.position);
+});
+window.addEventListener('mouseup',e=>stoneSkipping.pointerUp(e));
+window.addEventListener('pointercancel',()=>stoneSkipping.cancelCharge());
 window.addEventListener('blur',()=>{passengerPointing=false;stoneSkipping.cancelCharge();Object.keys(keys).forEach(k=>keys[k]=false);});
 function requestPointerLock(){
   if(stargazing.active)return;
   const result=renderer.domElement.requestPointerLock?.();
   result?.catch(()=>{ /* A browser can decline; clicking the world retries. */ });
 }
-renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();});
+renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();radio.resume();});
 window.addEventListener('mousemove',e=>{
   if(stargazing.active||document.pointerLockElement!==renderer.domElement)return;
+  if(bouquetControls.hisView){bouquetControls.look(e.movementX,e.movementY);return;}
   playerRig.rotation.y-=e.movementX*.0022;
   cameraPivot.rotation.x=clamp(cameraPivot.rotation.x-e.movementY*.0018,CONFIG.thirdPerson?-1.15:-Math.PI/2+.02,CONFIG.thirdPerson?.35:Math.PI/2-.02);
 });
@@ -2136,7 +2276,7 @@ function updateQuality(rawDt){
 const inspectParams=new URLSearchParams(location.search);
 if(inspect){
   const views={skippingshore:[42,29,-1.03,-.34],skipping:[45,26,-Math.PI/2,-.32],plane:[-8,4,0,.28],hats:[-6.4,-8.4,.55,-.35],moonisland:[-35,-38,.615,.08],companion:[-5.9,-6.7,0,-.22],dandelions:[-1.8,15.5,0,-.65],boat:[-46,23,2.25,.025],money:[1.5,10.5,0,-.25],shadows:[-8,-4,0,-.48],aurora:[14,26,3.757,.36],character:[22,-14,Math.PI,-.18],fireside:[22,-14,0,-.25],stump:[24.6,-17.3,.20,-.58],flowers:[flowerSpots[0][0],flowerSpots[0][2]+2.2,0,-.48],mushrooms:[-13.4,-1.1,0,-.61],zenith:[-8,-6.4,0,Math.PI/2],fireworks:[-8,4,0,.58],path:[.8,17,.12,-.22],pathstart:[celebrationPathX(37),39,0,-.40],celebration:[-2.2,4,.38,-.24],treebase:[17,20.5,0,-.48],trees:[-28,1,1.2,.16],clouds:[14,26,2.5,.40],shore:[-49,-10,.62,-.01],garden:[-8,-6,0,-.10],meadow:[23,8,.9,-.20],gift:[2,8,0,-.12],giftclose:[25,22.8,0,-.65],rug:[-12,15.5,0,-.60],
-    bench:[-38.5,-3,1.57,-.06],cake:[-8,-6.4,0,-.16],hills:[14,26,2.5,-.03],
+    fish:[47,26,-2.05,-.16],benchfish:[-43,-3,1.57,-.16],bench:[-38.5,-3,1.57,-.06],cake:[-8,-6.4,0,-.16],hills:[14,26,2.5,-.03],
     // Facing away from the sun with the camera up: the anti-sun meridian is
     // where sky shader math degenerates, and nothing else in the scene looks there.
     antisun:[-9.7,17.4,3.76,.62]};
@@ -2190,6 +2330,9 @@ function animate(now,force){
   if(renderer.shadowMap.needsUpdate)lastShadowTime=elapsed;
   oceanUniforms.uTime.value=elapsed;
   oceanLife.update(elapsed,moodLive.stars,camera);
+  if(inspect&&inspectParams.has('fishStill')){jumpingFish.update(3);jumpingFish.update(3.55);oceanUniforms.uTime.value=3.55;}
+  else jumpingFish.update(elapsed);
+  stageConfetti.update(elapsed);
   lovePlane.update(inspect&&inspectParams.has('planeStill')?3:elapsed,moodLive.stars);
   paintUniforms.uTime.value=elapsed;
   camera.getWorldPosition(tmp2);
@@ -2197,14 +2340,14 @@ function animate(now,force){
   stoneSkipping.update(dt,playerRig.position,elapsed);
   movePlayer(dt);
   if(multiplayerRequested){updateMultiplayer(dt,now);}
-  else if(!stargazing.active){
+  else if(!stargazing.active&&!bouquetControls.hisView){
     companion.update(dt,playerRig.position,gifts,playerRig.rotation.y);updateHoldingHands(dt);
   }else{
     handAmount=0;
     firstPersonHand.update(joinedHands,0,playerLinkRotation,claspAxis);
     avatar.poseHand(joinedHands,0,playerLinkRotation);companion.poseHand(partnerHand,0,partnerLinkRotation);
   }
-  stargazing.update(elapsed);dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);
+  stargazing.update(elapsed);bouquetControls.update(dt);dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);updateRadio(dt);
   gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.auraMat.opacity=(.30+paintUniforms.uPartyGlow.value*.32)*(1+Math.sin(elapsed*1.3+g.phase)*.07);g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
   if(candleBlownAt>=0){
     const age=elapsed-candleBlownAt;
@@ -2274,6 +2417,7 @@ function animate(now,force){
   if(fireflyMat.opacity<=.01) paintUniforms.uFireflyPools.value.forEach(pool=>pool.w=0);
   sky.position.copy(camera.getWorldPosition(tmp2));
   chatBubbles.update();
+  expressionControls.update();
   const renderStart=performance.now();
   const gpuQuery=beginGpuSample();
   renderer.setRenderTarget(sceneTarget);
@@ -2301,6 +2445,7 @@ renderer.setAnimationLoop(animate);
 // Headless capture environments never run requestAnimationFrame, so inspection
 // needs a way to step the scene by hand.
 if(inspect)window.__step=()=>animate(performance.now(),true);
+if(inspect){window.__radio=radio;window.__radioNext=()=>requestSong(radio.index??0,((radio.index??0)+1)%radio.count);}
 
 window.addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
@@ -2323,6 +2468,7 @@ const loadingTimer=setInterval(()=>{
 $('#enter').addEventListener('click',()=>{
   if(!networkReady)return;
   playing=true;document.body.classList.add('playing');$('#welcome').classList.add('gone');audio.init();audio.resume();
+  if(!inspect||inspectParams.has('radio'))radio.start();
   setTimeout(()=>requestPointerLock(),300);
   setTimeout(()=>toast(isPassenger?'LOOK AROUND · HOLD R TO POINT · SPACE TO CHEER':'TEN LITTLE GIFTS ARE WAITING FOR YOU'),1300);
 });
@@ -2365,7 +2511,7 @@ function updateMultiplayer(dt,now){
 if(multiplayerRequested){
   const note=document.createElement('p');note.className='connection-note';$('.welcome-card').append(note);
   network=connectIsland({
-    onStatus(ready,text){networkReady=ready;note.textContent=text;$('#enter').disabled=!ready||stage<loadingStages.length;if(!ready){Object.keys(keys).forEach(k=>keys[k]=false);}},
+onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;note.textContent=text;$('#enter').disabled=!ready||stage<loadingStages.length;if(!ready){Object.keys(keys).forEach(k=>keys[k]=false);}},
     onPose(user,pose){
       if(isPassenger&&user===islandUser){ownPose=pose;ownMotion.push(pose,performance.now());}
       else if(user!==islandUser){remotePose=pose;remoteMotion.push(pose,performance.now());}
@@ -2383,6 +2529,14 @@ if(multiplayerRequested){
     },
     onSnapshot(s){
       applyingNetwork=true;
+      for(const user of ['ISHIEE','MOSHIEE']){
+        const remaining=expressionRemaining(s.world.expressionUntil?.[user],s.serverTime||Date.now());
+        applyExpression(user,remaining?s.world.expressions?.[user]||'normal':'normal',remaining);
+      }
+      expressionControls.sync(expressionValues,expressionDeadlines);expressionControls.setConnected(true);
+      if(!s.welcome&&s.event?.type==='expression')showExpressionBubble(s.actor,expressionValues[s.actor],expressionRemaining(expressionDeadlines[s.actor]));
+      bouquetControls.sync(s.world.bouquet,s.welcome);
+      radio.play(s.world.radio||0);
       if(!s.online.ISHIEE)lookMotion.reset();
       if(s.welcome&&s.look)lookMotion.reset({...s.look,position:[0,0,0],lying:false});
       if(isPassenger&&(s.welcome||!!s.online.MOSHIEE!==remoteWasOnline)){ownPose=s.poses.ISHIEE||ownPose;ownMotion.reset(ownPose);}
@@ -2407,7 +2561,7 @@ if(multiplayerRequested){
         const fresh=!s.welcome&&s.event?.type==='gift'&&s.event.index===i&&playing;
         collectGift(gifts[i],{animate:fresh,showNote:fresh&&s.actor===islandUser});
       }
-      if(s.world.candles&&candlesLit)blowCandles();
+      if(s.world.candles&&candlesLit)blowCandles({confetti:!s.welcome&&s.event?.type==='candles'});
       if(s.world.hats)interactive.find(i=>i.type==='hat')?.action();
       if(s.event?.type==='hand')toast(s.world.holding?'HOLDING HANDS · H TO LET GO':s.world.handRequest===islandUser?'HAND OFFERED · WAITING FOR YOUR PARTNER':'YOUR PARTNER OFFERS A HAND · PRESS H NEARBY');
       if(s.event?.type==='candles'&&s.actor===islandUser)setTimeout(()=>network.event({type:'fireworks',amount:7}),650);
@@ -2444,12 +2598,12 @@ function updatePassenger(dt,now){
   handAmount+=(Number(linked)-handAmount)*(1-Math.exp(-dt*6));
   joinedHands.copy(playerRig.position).lerp(companion.anchor.position,.5);joinedHands.y+=1;
   firstPersonHand.update(joinedHands,handAmount);
-  pointBlend+=(Number(passengerPointing&&!passengerLying)-pointBlend)*(1-Math.exp(-dt*10));
+  pointBlend+=(Number(passengerPointing&&!passengerLying&&!bouquetControls.shown)-pointBlend)*(1-Math.exp(-dt*10));
   camera.getWorldDirection(pointTarget);pointTarget.multiplyScalar(1.4).add(playerRig.position);pointTarget.y+=1.36;
   pointingHand.update(pointTarget,pointBlend);
   if(networkReady&&now-lastNetworkFrame>=66){
     lastNetworkFrame=now;
-    network.sendLook({time:performance.now(),yaw:playerRig.rotation.y,pitch:cameraPivot.rotation.x,pointing:passengerPointing});
+    network.sendLook({time:performance.now(),yaw:playerRig.rotation.y,pitch:cameraPivot.rotation.x,pointing:passengerPointing&&!bouquetControls.shown});
   }
 }
 if(isPassenger){

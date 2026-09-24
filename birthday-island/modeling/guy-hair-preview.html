@@ -3,15 +3,25 @@
 <style>body{margin:0;background:#ddd5c9;font:14px system-ui;color:#51483e;overflow:hidden}header{position:absolute;top:18px;left:24px}nav{position:absolute;inset:48px 0 0;display:grid;grid-template-columns:1fr 1fr;pointer-events:none;letter-spacing:2px;font-size:11px}nav span{align-self:end;text-align:center;padding-bottom:16px}canvas{display:block}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head><body><header>Guy hairstyle · lego_hair.glb</header><nav><span>FRONT</span><span>THREE-QUARTER</span><span>SIDE</span><span>BACK</span></nav>
 <script type="module">
-import * as THREE from 'three';import {buildCharacter} from '../character.js?v=birthday-dress-1';
+import * as THREE from 'three';import {buildCharacter} from '../character.js?v=timed-expressions-3';
+import {buildExpressionControls} from '../expression-controls.js?v=timed-3';
 const scene=new THREE.Scene();scene.background=new THREE.Color('#ddd5c9');
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
 const camera=new THREE.OrthographicCamera(-.5,.5,.5,-.5,.01,30);camera.position.set(0,1.5,3.55);camera.lookAt(0,1.23,0);
 scene.add(new THREE.HemisphereLight(0xfff4df,0x948d92,2.2));
 for(const [x,y,z,power] of [[-3,5,4,3.2],[3,3,-2,2.4],[2,1,4,.8]]){const light=new THREE.DirectionalLight(0xfff4e6,power);light.position.set(x,y,z);scene.add(light);}
+THREE.DefaultLoadingManager.onLoad=()=>render();
 const avatar=buildCharacter(scene,{shortHair:true,suit:true,top:0x31517a,trousers:0xf4eee3,shoes:0x4d342b});
+const expressionPreview=document.createElement('div');expressionPreview.style.cssText='position:fixed;bottom:12px;left:12px;z-index:10;padding:10px;border-radius:12px;background:#fff8ed';document.body.append(expressionPreview);
+const expressionControls=buildExpressionControls({container:expressionPreview,isOnline:true,user:'ISHIEE',onSelect:(_,value)=>{avatar.setExpression(value);}});
+const expressionStyle=document.createElement('style');expressionStyle.textContent='.expression-buttons{display:flex;gap:6px;margin-top:6px}.expression-buttons button{width:40px;height:40px;border:1px solid transparent;border-radius:8px;background:transparent;font-size:22px;cursor:pointer}.expression-buttons button[aria-pressed=true]{border-color:#94754e;background:#ebdfcb}.expression-status{font-size:11px;margin:6px 0 0}';document.head.append(expressionStyle);
+const blinkButton=document.createElement('button');blinkButton.textContent='Hold eyes closed';
+blinkButton.style.cssText='position:fixed;right:20px;top:16px;z-index:10;padding:8px 12px;border:1px solid #b9ac9d;border-radius:8px;background:#f7f0e6;color:#4a4038;cursor:pointer';
+let holdBlink=false;blinkButton.onclick=()=>{holdBlink=!holdBlink;avatar.setBlinkPreview(holdBlink);blinkButton.textContent=holdBlink?'Resume natural blinking':'Hold eyes closed';};document.body.append(blinkButton);
 function render(){
-  renderer.setSize(innerWidth,innerHeight);renderer.setScissorTest(true);
+  expressionControls.update();
+  if(renderer.domElement.clientWidth!==innerWidth||renderer.domElement.clientHeight!==innerHeight)renderer.setSize(innerWidth,innerHeight);
+  renderer.setScissorTest(true);
   const width=innerWidth/2,height=(innerHeight-48)/2;
   const halfHeight=Math.max(.38,.34/(width/height));
   camera.left=-halfHeight*width/height;camera.right=-camera.left;
@@ -23,5 +33,5 @@ function render(){
   });
   renderer.setScissorTest(false);document.documentElement.dataset.ready='true';
 }
-render();addEventListener('resize',render);
+renderer.setAnimationLoop(render);
 </script></body></html>

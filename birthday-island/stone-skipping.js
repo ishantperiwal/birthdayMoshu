@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import {SHORE,throwPower,throwPlan,createThrow,advanceThrow,ballisticPoint,waterHeight} from './skipping-physics.js?v=more-skips-7';
+import {legoHandGeometry} from './lego-hand.js';
+import {SHORE,throwPower,throwPlan,createThrow,advanceThrow,ballisticPoint,waterHeight} from './skipping-physics.js?v=targets-8';
+import {createTargetGame,predictFinish} from './pebble-targets.js';
 
-export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion,canAutoplay=()=>true,onThrow=()=>{}}){
+export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion,canAutoplay=()=>true,onThrow=()=>{},onWin=()=>{}}){
   const {x,z}=SHORE,root=new THREE.Group();root.position.set(x,terrainHeight(x,z),z);scene.add(root);
   const pebbleGeo=new THREE.SphereGeometry(1,16,10);
   const palette=[0xe5ded0,0xc1ddd8,0xd1dbe5,0xe9c9b0];
@@ -22,7 +24,7 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
     .skip-card[hidden],.skip-distance[hidden]{display:none}.skip-kicker{font:9px sans-serif;letter-spacing:3px;color:#bdd2c8;margin-bottom:9px}.skip-title{font-style:italic;font-size:23px;margin-bottom:13px}.skip-status{min-height:32px;font-size:13px;line-height:1.5;color:#dfdfca}.skip-meter{height:8px;background:#ffffff13;border-radius:8px;position:relative;margin:17px 0 8px}.skip-fill{height:100%;width:0;border-radius:8px;background:linear-gradient(90deg,#83aca7,#edd396)}.skip-needle{position:absolute;top:-4px;height:16px;width:3px;background:#fff2cb;left:0;border-radius:3px;box-shadow:0 0 8px #ffe1a766}.skip-scale{display:flex;justify-content:space-between;font:10px sans-serif;color:#b8c7bb}.skip-records{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid #ffffff20;font-size:12px}.skip-help{margin-top:13px;color:#b9c9c5;font:10px sans-serif;line-height:1.7}.skip-distance{position:fixed;left:0;top:0;pointer-events:none;z-index:21;padding:6px 10px;border:1px solid #f1dfb24d;border-radius:12px;background:#20343ad9;color:#fff0cb;font:12px Georgia;white-space:nowrap}
     @media(max-width:600px){.skip-card{left:12px;bottom:100px;width:240px;padding:14px}.skip-title{font-size:20px}}
     .skip-card{left:50%;bottom:112px;transform:translateX(-50%);width:240px;padding:10px 14px;border:0;border-radius:12px;background:#182b32aa;box-shadow:none;text-align:center}
-    .skip-kicker,.skip-title,.skip-scale,.skip-help{display:none}.skip-status{min-height:0;font:11px Georgia;line-height:1.4}.skip-meter{margin:9px 0;height:5px}.skip-records{font-size:10px;margin-top:7px;padding-top:6px}.skip-sweet{position:absolute;left:40%;width:30%;height:11px;top:-3px;border-radius:3px;background:#c7e4b866;border:1px solid #d7ecc4aa}.skip-needle{height:13px;z-index:1}
+    .skip-kicker,.skip-title,.skip-scale,.skip-help,.skip-sweet{display:none}.skip-status{min-height:0;font:11px Georgia;line-height:1.4}.skip-meter{margin:9px 0;height:5px}.skip-records{font-size:10px;margin-top:7px;padding-top:6px}.skip-needle{height:13px;z-index:1}
   `;document.head.append(style);
   const hud=document.createElement('div');hud.className='skip-card';hud.hidden=true;
   hud.innerHTML='<div class="skip-kicker">THE QUIET SHORE</div><div class="skip-title">A little further, together</div><div class="skip-status"></div><div class="skip-meter"><div class="skip-fill"></div><div class="skip-sweet"></div><div class="skip-needle"></div></div><div class="skip-scale"><span>gentle</span><span class="skip-range"></span><span>far</span></div><div class="skip-records"><span class="skip-you"></span><span class="skip-him"></span></div><div class="skip-help">Hold SPACE · release when it feels right<br>Q to leave · best throws this visit</div>';document.body.append(hud);
@@ -31,7 +33,7 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
   const held=new THREE.Group();camera.add(held);held.position.set(.27,-.28,-.55);held.rotation.z=-.22;held.visible=false;
   const skin=new THREE.MeshStandardMaterial({color:0xf3c94e,roughness:.34,emissive:0xdba835,emissiveIntensity:.12});
   const sleeve=new THREE.Mesh(new THREE.CylinderGeometry(.073,.09,.42,16),new THREE.MeshStandardMaterial({color:0xd778a3,roughness:.4}));sleeve.position.set(0,-.22,.10);sleeve.rotation.x=-.6;held.add(sleeve);sleeve.visible=false;
-  const hand=new THREE.Mesh(new THREE.TorusGeometry(.087,.037,6,14,Math.PI*1.6),skin);hand.rotation.z=-Math.PI*.3;held.add(hand);hand.visible=false;
+  const hand=new THREE.Mesh(legoHandGeometry(),skin);hand.rotation.z=-Math.PI*.3;held.add(hand);hand.visible=false;
   const heldStone=new THREE.Mesh(pebbleGeo,stoneMats[1]);heldStone.scale.set(.061,.029,.052);heldStone.position.set(.027,0,-.025);heldStone.rotation.z=.18;held.add(heldStone);
   const aimDir=new THREE.Vector3(),eye=new THREE.Vector3(),pickupDirection=new THREE.Vector3(),pickupWorld=new THREE.Vector3();
   const label=document.createElement('div');label.className='skip-distance';label.hidden=true;document.body.append(label);
@@ -65,7 +67,28 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
   const remoteStones=Array.from({length:4},()=>{const mesh=new THREE.Mesh(pebbleGeo,stoneMats[0]);mesh.scale.set(.18,.07,.13);mesh.visible=false;scene.add(mesh);return {mesh,flight:null};});
   let remoteCursor=0;
   let opponentPending=false;
-  let active=false,equipped=false,charge=-1,flight=null,turn='you',wait=0,time=0,best=[0,0],result='',lastPower=.5,labelUntil=0,labelPoint=null;
+  const game=createTargetGame();
+  const targetGeometry=new THREE.RingGeometry(.96,1,80);targetGeometry.rotateX(-Math.PI/2);
+  const targetBase=targetGeometry.attributes.position.array.slice();
+  const targetRing=new THREE.Mesh(targetGeometry,new THREE.MeshBasicMaterial({color:0xffd99a,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide}));
+  targetRing.frustumCulled=false;targetRing.visible=false;scene.add(targetRing);
+  const landingDot=new THREE.Mesh(new THREE.RingGeometry(.12,.28,24),new THREE.MeshBasicMaterial({color:0xffefd0,transparent:true,opacity:.85,depthWrite:false,side:THREE.DoubleSide}));
+  landingDot.rotation.x=-Math.PI/2;landingDot.visible=false;scene.add(landingDot);
+  let prediction=null,predictionAt=-Infinity;
+  function updateTarget(){
+    const target=game.target;targetRing.visible=active&&!!target;
+    if(!targetRing.visible)return;
+    const p=targetGeometry.attributes.position;
+    for(let i=0;i<p.count;i++){
+      const px=target.x+targetBase[i*3]*target.radius,pz=target.z+targetBase[i*3+2]*target.radius;
+      p.setXYZ(i,px,waterHeight(px,pz,time)+.10,pz);
+    }
+    p.needsUpdate=true;targetRing.material.color.setHex(game.won?0xc8f5b1:0xffd99a);
+    targetRing.material.opacity=game.won?.86+.10*Math.sin(time*4):.76;
+  }
+  let active=false,equipped=false,charge=-1,chargeSource=null,flight=null,turn='you',wait=0,time=0,best=[0,0],result='',lastPower=.5,labelUntil=0,labelPoint=null;
+  function startCharge(source){if(equipped&&!flight&&wait<=0&&!opponentPending&&charge<0){charge=time;chargeSource=source;}}
+  function releaseCharge(source){if(charge>=0&&chargeSource===source){held.updateWorldMatrix(true,true);launch(throwPower(time-charge),'you');chargeSource=null;}}
   function distanceAt(p){const start=flight?.start||SHORE;return Math.hypot(p.x-start.x,p.z-start.z);}
   function aim(){camera.getWorldDirection(aimDir);camera.getWorldPosition(eye);}
   function launch(power,who,origin=null,aimOverride=null){
@@ -78,7 +101,7 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
     for(const sample of trailSamples)sample.age=1;
     equipped=false;held.visible=false;charge=-1;pebble.visible=true;result='';
   }
-  function leave(){opponentPending=false;active=false;equipped=false;held.visible=false;charge=-1;wait=0;hud.hidden=true;dots.visible=false;label.hidden=true;}
+  function leave(){opponentPending=false;active=false;equipped=false;held.visible=false;charge=-1;chargeSource=null;wait=0;hud.hidden=true;dots.visible=false;label.hidden=true;targetRing.visible=false;landingDot.visible=false;game.reset();}
   function impact(point){const i=point.index,r=ripples[rippleCursor++%ripples.length];r.age=0;r.x=point.x;r.z=point.z;
     if(i<12)for(let j=0;j<6;j++){const d=droplets[dropCursor++%droplets.length],angle=j*Math.PI*2/6+i*.8,speed=.45+(j%3)*.17;Object.assign(d,{age:0,x:point.x,y:waterHeight(point.x,point.z,time)+.13,z:point.z,vx:Math.cos(angle)*speed,vz:Math.sin(angle)*speed,vy:1.25+(j%4)*.2});}
   }
@@ -88,15 +111,29 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
     }
     let visible=false;for(let i=0;i<droplets.length;i++){const d=droplets[i];d.age+=dt;if(d.age<.75){visible=true;const t=d.age;splashPositions.set([d.x+d.vx*t,d.y+d.vy*t-2.9*t*t,d.z+d.vz*t],i*3);}else splashPositions.set([0,-100,0],i*3);}splash.visible=visible;splashGeo.attributes.position.needsUpdate=true;
   }
-  interactive.push({type:'skipping',object:root,reach:4.5,prompt:'pick up a pebble',
+  const pickup={type:'skipping',object:root,reach:4.5,prompt:'pick up a pebble',
     available:()=>{if(equipped||flight||wait>0||opponentPending)return false;camera.getWorldDirection(aimDir);camera.getWorldPosition(eye);bowl.getWorldPosition(pickupWorld);pickupDirection.copy(pickupWorld).sub(eye).normalize();return aimDir.dot(pickupDirection)>.91;},
-    action:()=>{if(equipped||flight||wait>0||opponentPending)return;active=true;equipped=true;held.visible=true;result='Hold SPACE · release in the pale band';hud.hidden=false;toast('PEBBLE READY · AIM OVER THE WATER');}});
+    action:()=>{if(equipped||flight||wait>0||opponentPending)return;
+      held.updateWorldMatrix(true,true);const origin=new THREE.Vector3();heldStone.getWorldPosition(origin);
+      if(!game.prepare(origin,time,terrainHeight)){toast('TRY FROM THE SEAWARD SIDE OF THE BOWL');return;}
+      active=true;equipped=true;held.visible=true;predictionAt=-Infinity;result='';hud.hidden=false;
+      toast(`ROUND ${game.round} OF 3 · FINISH INSIDE THE HOOP`);}};
+  interactive.push(pickup);
   return {
     receiveThrow(e){const stone=remoteStones[remoteCursor++%remoteStones.length];stone.flight=createThrow({x:e.origin[0],y:e.origin[1],z:e.origin[2]},new THREE.Vector3(...e.direction),e.power);stone.mesh.visible=true;},
     get active(){return active&&(equipped||!!flight||wait>0||opponentPending);},
-    keyDown(e){if(!active)return false;if(e.code==='KeyQ'||e.code==='Escape'){leave();return true;}if(e.code!=='Space')return false;e.preventDefault();if(!e.repeat&&equipped&&!flight&&wait<=0)charge=time;return true;},
-    keyUp(e){if(active&&e.code==='Space'){e.preventDefault();if(charge>=0){held.updateWorldMatrix(true,true);launch(throwPower(time-charge),'you');}return true;}return false;},
-    cancelCharge(){charge=-1;},
+    pointerDown(e,player){
+      if(e.button!==0)return false;
+      if(active&&equipped){e.preventDefault();startCharge('mouse');return true;}
+      if(root.position.distanceTo(player)<pickup.reach&&pickup.available()){
+        e.preventDefault();pickup.action();return true; // Pickup release must never launch.
+      }
+      return false;
+    },
+    pointerUp(e){if(e.button===0&&chargeSource==='mouse'){e.preventDefault();releaseCharge('mouse');return true;}return false;},
+    keyDown(e){if(!active)return false;if(e.code==='KeyQ'||e.code==='Escape'){leave();return true;}if(e.code!=='Space')return false;e.preventDefault();if(!e.repeat)startCharge('keyboard');return true;},
+    keyUp(e){if(active&&e.code==='Space'){e.preventDefault();releaseCharge('keyboard');return true;}return false;},
+    cancelCharge(){charge=-1;chargeSource=null;},
     update(dt,player,elapsed){time=elapsed;if(active&&Math.hypot(player.x-x,player.z-z)>7)leave();
       const partner=getCompanion();
       const nearby=()=>canAutoplay()&&partner.anchor.position.distanceTo(player)<6&&Math.hypot(partner.anchor.position.x-x,partner.anchor.position.z-z)<9&&!partner.holding;
@@ -104,7 +141,17 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
       if(flight){const f=flight;for(const event of advanceThrow(f,dt,time,terrainHeight))impact(event);
         const p=f.position;trailPoint=p;pebble.position.set(p.x,p.y,p.z);pebble.rotation.set(f.age*8,f.age*5,f.age*2);
         labelPoint={...p};labelUntil=time+1.5;label.textContent=`${distanceAt(p).toFixed(1)} m`;
-        if(f.done){const index=turn==='you'?0:1,distance=distanceAt(p);best[index]=Math.max(best[index],distance);result=`${turn==='you'?'Your stone':'His stone'} · ${distance.toFixed(1)} m · ${f.landed?'landed ashore':f.skips+' skips'}`;flight=null;pebble.visible=false;if(turn==='you'&&active&&nearby())wait=1.4;}
+        if(f.done){
+          const index=turn==='you'?0:1,distance=distanceAt(p);best[index]=Math.max(best[index],distance);
+          const won=turn==='you'&&active&&game.finish(f);
+          if(won){
+            result=game.complete?`All three hoops! · ${game.attempts} throws`:`Round ${game.round} won!`;
+            label.textContent=game.complete?'Three for three ♡':'Inside the hoop ♡';
+            toast(game.complete?'THREE ROUNDS COMPLETE ♡':'RIGHT IN THE HOOP ♡');onWin(game.complete);
+          }else result=turn==='you'?'Missed this one · try the same hoop again':`His stone · ${distance.toFixed(1)} m`;
+          flight=null;pebble.visible=false;
+          if(turn==='you'&&active&&!game.won&&nearby())wait=1.4;
+        }
       }else if(wait>0){wait-=dt;if(wait<=0&&active&&nearby()){
         const direction=new THREE.Vector3(.98,.08,.20).normalize(),power=.45+Math.random()*.4;
         opponentPending=partner.startThrow(direction,(origin,aim)=>{
@@ -118,19 +165,27 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
       }
       updateTrail(dt,trailPoint);
       updateEffects(dt);
+      updateTarget();
       const ready=active&&equipped&&!flight&&wait<=0&&!opponentPending,power=charge>=0?throwPower(time-charge):0;
-      aim();dots.visible=ready;held.visible=ready;
+      aim();dots.visible=ready;held.visible=ready;landingDot.visible=false;
       if(ready){held.position.set(.27,-.28,-.55);held.rotation.z=-.22;held.position.y=-.28+(charge>=0?Math.sin((time-charge)*2)*.009:0);
         const origin=new THREE.Vector3();heldStone.getWorldPosition(origin);
-        const speed=throwPlan(charge>=0?power:.55).speed;
+        const previewPower=charge>=0?power:.20;
+        const speed=throwPlan(previewPower).speed;
+        if(time-predictionAt>=.10){prediction=predictFinish(origin,aimDir,previewPower,time,terrainHeight);predictionAt=time;}
+        if(prediction?.finish==='water'){
+          const p=prediction.position;landingDot.position.set(p.x,waterHeight(p.x,p.z,time)+.12,p.z);landingDot.visible=true;
+          const inside=game.target&&Math.hypot(p.x-game.target.x,p.z-game.target.z)<=game.target.radius;
+          landingDot.material.color.setHex(inside?0xc8f5b1:0xffefd0);
+        }
         for(let i=0;i<12;i++){
           const t=(i+1)/12,p=ballisticPoint(origin,aimDir,speed,t*.20);
           dummy.position.set(p.x,p.y,p.z);dummy.scale.setScalar(.20+t*.35);dummy.updateMatrix();dots.setMatrixAt(i,dummy.matrix);
         }dots.instanceMatrix.needsUpdate=true;
       }
       if(active){hud.hidden=false;meter.hidden=charge<0;
-        status.textContent=opponentPending?'His turn…':flight?(turn==='you'?'Your throw…':'His turn…'):wait>0?result:equipped?(charge>=0?'Release in the pale band':'Aim freely · hold SPACE to throw'):result+' · E at the bowl for another';
-        fill.style.width=needle.style.left=`${power*100}%`;range.textContent='';you.textContent=`You · ${best[0].toFixed(1)} m`;him.textContent=`Him · ${best[1].toFixed(1)} m`;
+        status.textContent=opponentPending?'His turn…':flight?(turn==='you'?'Watch where your stone finishes…':'His turn…'):wait>0?result:equipped?(charge>=0?'Release when the small dot is inside the hoop':'Aim at the hoop · hold left-click for power'):result+(game.complete?' · Click the bowl to play again':game.won?' · Click the bowl for the next round':' · Click the bowl to retry');
+        fill.style.width=needle.style.left=`${power*100}%`;range.textContent='';you.textContent=game.complete?'3 / 3 complete':`Round ${game.round} / 3`;him.textContent=`${game.attempts} ${game.attempts===1?'throw':'throws'} · Q to leave`;
       }
       label.hidden=true;if(active&&labelPoint&&time<labelUntil){screen.set(labelPoint.x,labelPoint.y+.40,labelPoint.z).project(camera);if(screen.z>-1&&screen.z<1&&Math.abs(screen.x)<.98&&Math.abs(screen.y)<.95){label.hidden=false;label.style.transform=`translate(${(screen.x*.5+.5)*innerWidth}px,${(-screen.y*.5+.5)*innerHeight}px) translate(-50%,-100%)`;}}
     }

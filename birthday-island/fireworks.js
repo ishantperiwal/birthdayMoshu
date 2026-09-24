@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Analytic paths, reused trail vertices and one shadowless flash light.
-export function buildFireworks(scene,glowTexture,onBurst){
+export function buildFireworks(scene,glowTexture,onBurst,onLaunch){
   const active=[],queue=[];
   let time=0,serial=0,flash=0;
   const colors=[0xff91b3,0xffd785,0x91cfff,0xc4a1ff,0x9ce6c0];
@@ -21,13 +21,13 @@ export function buildFireworks(scene,glowTexture,onBurst){
     const mat=new THREE.PointsMaterial({vertexColors:true,size:.58,map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
     const points=new THREE.Points(geo,mat);points.frustumCulled=false;scene.add(points);
     active.push({origin,points,velocities,trail,age:0,variant});
-    flash=1;flashLight.color.copy(tint).lerp(new THREE.Color(0xffe6c8),.55);flashLight.position.copy(flashPosition);onBurst(origin);
+    flash=1;flashLight.color.copy(tint).lerp(new THREE.Color(0xffe6c8),.55);flashLight.position.copy(flashPosition);onBurst(origin,variant);
   }
   function rocket(target,variant){
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(36*3),3));geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(36*3),3));
     const mat=new THREE.PointsMaterial({vertexColors:true,size:.27,map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
     const points=new THREE.Points(geo,mat);points.frustumCulled=false;scene.add(points);
-    active.push({rocket:true,points,target,variant,age:0,life:1.55});
+    active.push({rocket:true,points,target,variant,age:0,life:1.55});onLaunch?.(target,variant,1.55);
   }
   const dispose=b=>{scene.remove(b.points);b.points.geometry.dispose();b.points.material.dispose();};
   return {
