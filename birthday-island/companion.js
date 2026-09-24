@@ -1,6 +1,6 @@
 import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=date-suit-1';
+import { buildCharacter } from './character.js?v=birthday-dress-8';
 
 export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);

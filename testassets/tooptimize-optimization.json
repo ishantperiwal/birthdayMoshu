@@ -1,0 +1,14 @@
+{
+  "source_bytes": 12898608,
+  "meshes": [
+    {
+      "name": "geometry_0",
+      "original_vertices": 220726,
+      "original_triangles": 441448,
+      "clean_triangles": 441448,
+      "vertices": 20002,
+      "triangles": 40000
+    }
+  ],
+  "optimized_bytes": 720940
+}

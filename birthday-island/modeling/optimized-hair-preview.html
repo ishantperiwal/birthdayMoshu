@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Optimized hair model</title>
+<style>body{margin:0;overflow:hidden;background:#e8ddd4;color:#51433f;font:14px system-ui}header{position:absolute;top:22px;left:24px;pointer-events:none}h1{font-size:18px;font-weight:500;margin:0 0 8px}p{margin:4px 0;font-size:12px}footer{position:absolute;bottom:20px;left:24px;font-size:12px;pointer-events:none}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script></head>
+<body><header><h1>Optimized hair model</h1><p>0.72 MB · 20,002 vertices · 40,000 triangles</p></header><footer id="status">Loading model…</footer>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const scene=new THREE.Scene();scene.background=new THREE.Color('#e8ddd4');
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.01,100);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.minDistance=1.4;controls.maxDistance=9;
+scene.add(new THREE.HemisphereLight(0xfff4e6,0x786d80,2));
+for(const [x,y,z,power] of [[-3,4,5,3],[4,2,-3,2]]){const light=new THREE.DirectionalLight(0xffffff,power);light.position.set(x,y,z);scene.add(light);}
+new GLTFLoader().load('../assets/tooptimize-optimized.glb',gltf=>{
+ const model=gltf.scene;const box=new THREE.Box3().setFromObject(model),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
+ model.position.sub(center);model.traverse(o=>{if(o.isMesh)o.material=new THREE.MeshStandardMaterial({color:0x423025,roughness:.48});});scene.add(model);
+ const radius=Math.max(size.x,size.y,size.z);camera.position.set(radius*.85,radius*.25,radius*2);controls.target.set(0,0,0);controls.update();
+ document.getElementById('status').textContent='Drag to rotate · Scroll to zoom · Right-drag to pan';
+},undefined,error=>{document.getElementById('status').textContent='Unable to load model';console.error(error);});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera);});
+</script></body></html>

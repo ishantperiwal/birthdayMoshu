@@ -350,6 +350,49 @@ mesh from `short-hair.js`: swept crown, shallow side part, rounded hairline
 and fitted nape in a near-black brown. The supplied long-hair GLB and extracted
 module remain preserved as unused alternatives. Female hair is unchanged.
 
+The male companion currently uses `testassets/lego_hair.glb`, converted with
+`modeling/import-lego-hair.mjs` into `assets/lego-hair.js`. The conversion bakes
+scene transforms, aligns triangle winding with the authored normals, faces the
+opening forward, and fits the model uniformly to the head. The procedural cap
+and earlier OBJ overlay are no longer rendered. Its material is near-black brown.
+Female hair is unchanged. Inspect all four angles in `modeling/guy-hair-preview.html`.
+
+Hair asset credit (from the GLB metadata): [lego hair](https://sketchfab.com/3d-models/lego-hair-42aa4810ed45460984183273c217654d)
+by [KaffeKamel](https://sketchfab.com/KaffeKamel), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+Changes: static conversion, winding correction, rotation, scale, placement and material color.
+
+Her default outfit is a rose birthday dress from `birthday-dress.js`, with an
+ivory collar, pearl buttons, a waist bow, daisy hem and matching shoes. It uses
+the existing character rig for both player and companion, including the visible
+body during stargazing. The skirt has a flatter back for the lying pose; shorter
+leg swings keep her steps within the skirt. The floating hand sleeve shares the
+dress color. Inspect front, three-quarter, walking and downward stargazing views
+in `modeling/birthday-outfit-preview.html`.
+
+The female bodice uses a rounded elliptical profile with a gentle waist taper
+in `dress-bodice.js`. The collar follows that surface, and a plain satin ribbon
+encircles the oval waist. The compact, filled bow replaces the hollow loops so
+it reads well from above. The earlier Blender bow and lace remain preserved
+in `assets/birthday-bow.blend` and its modeling script as unused alternatives.
+
+The bodice now rises into a short rose neckline, with a lighter overlapping
+front skirt panel. Her head uses the softened cheek/chin profile in `soft-head.js`,
+including a matching face decal surface. Her current hair is `assets/soft-hair.js`:
+dark brown waves, a grooved center part, swept temple sections and shoulder-length curls built by
+`modeling/build-soft-hair.py`. Editable sections are saved in `assets/soft-hair.blend`.
+The outfit preview includes back and hair/face detail views for checking the shape.
+
+Her face uses the transparent generated decal `assets/birthday-face-v1.png`,
+with lashes, curved eyebrows and a rose smile inspired by the supplied toy reference.
+It is fitted to the rounded head with UV scale/offset in `character.js`.
+Generation method and full prompt are recorded in `modeling/birthday-face-prompt.md`.
+
+The active female hairstyle now uses the user's approved `testassets/tooptimize.glb`
+via the 40,000-triangle optimized copy. `modeling/fit-reference-hair.py` reduces it
+further to 12,000 triangles / 6,002 vertices and fits it to the character, exporting
+`assets/reference-hair.js`. It also saves `testassets/tooptimize-game.glb` at the
+original scale. The previous procedural hair files remain as unused alternatives.
+
 Grass has broad, irregular moss and cooler sage-green washes shared between
 blades and underlying terrain, with smooth boundaries and no extra per-blade
 noise. The path and bare celebration/fireplace surfaces keep their own colors.

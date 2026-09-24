@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Her birthday outfit</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#e8ddd4;color:#51433f;font:14px system-ui;overflow:hidden}header{position:absolute;top:18px;left:24px;z-index:1}h1{font-size:17px;font-weight:500;margin:0 0 12px}button{font:inherit;color:inherit;background:#fff8ed;border:1px solid #cbb7ad;border-radius:20px;padding:7px 14px;cursor:pointer}button[aria-pressed=true]{background:#825665;color:white}footer{position:absolute;bottom:18px;left:24px;font-size:12px}canvas{display:block}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head>
+<body><header><h1>Her birthday outfit</h1><button id="front" aria-pressed="true">Front</button> <button id="side" aria-pressed="false">Three-quarter</button> <button id="back" aria-pressed="false">Back</button> <button id="detail" aria-pressed="false">Hair &amp; face</button> <button id="pov" aria-pressed="false">Her stargazing view</button> <button id="walk" aria-pressed="false">Walk</button></header>
+<footer id="caption">Rose dress · ivory collar · waist bow · tiny daisies</footer>
+<script type="module">
+import * as THREE from 'three';
+import {buildCharacter} from '../character.js?v=birthday-dress-8';
+const scene=new THREE.Scene();scene.background=new THREE.Color('#e8ddd4');
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(58,1,.08,100);
+const ambient=new THREE.HemisphereLight(0xfff2e4,0x8a7585,2);scene.add(ambient);
+const key=new THREE.DirectionalLight(0xfff1e4,2.5);key.position.set(-3,5,-4);scene.add(key);
+const rim=new THREE.DirectionalLight(0xffffff,1.5);rim.position.set(3,3,3);scene.add(rim);
+const rig=new THREE.Group();scene.add(rig);const avatar=buildCharacter(rig);avatar.root.scale.setScalar(1.06);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshStandardMaterial({color:0xe8ddd4,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.015;scene.add(ground);
+const rug=new THREE.Mesh(new THREE.BoxGeometry(2.4,.024,2.6),new THREE.MeshStandardMaterial({color:0x66637e,roughness:1}));rug.position.set(0,.02,.1);rug.visible=false;scene.add(rug);
+let mode='front',last=performance.now();
+function select(next){
+  mode=next;for(const id of ['front','side','back','detail','pov','walk'])document.getElementById(id).setAttribute('aria-pressed',String(mode===id));
+  avatar.update(1,false,false);avatar.setFirstPerson(mode==='pov');rig.position.set(0,0,0);rig.rotation.set(0,mode==='side'?-.65:mode==='back'?Math.PI:0,0);
+  rug.visible=mode==='pov';scene.background.set(mode==='pov'?'#222735':'#e8ddd4');ground.material.color.set(mode==='pov'?0x303b3a:0xe8ddd4);
+  ambient.intensity=mode==='pov'?1.1:2;key.intensity=mode==='pov'?1.2:2.5;rim.intensity=mode==='pov'?.5:1.5;
+  if(mode==='pov'){
+    // Match the live stargazing rig and lowest permitted look pitch.
+    rig.position.set(0,.27,-.65);rig.rotation.set(Math.PI/2,0,0);
+    camera.position.set(0,.62,1.05);camera.rotation.set(.12,0,0,'YXZ');
+  }else if(mode==='detail'){camera.position.set(0,1.69,-1.25);camera.lookAt(0,1.62,0);}
+  else{camera.position.set(0,1.4,-3.1);camera.lookAt(0,1.02,0);}
+  document.getElementById('caption').textContent=mode==='pov'?'Her view looking down while lying on the blanket':'Rose dress · ivory collar · waist bow · tiny daisies';
+}
+for(const id of ['front','side','back','detail','pov','walk'])document.getElementById(id).onclick=()=>select(id);
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+select('front');resize();addEventListener('resize',resize);
+renderer.setAnimationLoop(()=>{const now=performance.now(),dt=Math.min((now-last)/1000,.05);last=now;if(mode==='walk')avatar.update(dt,true,false);renderer.render(scene,camera);document.documentElement.dataset.ready='true';});
+</script></body></html>
