@@ -26,12 +26,11 @@ export function buildChatBubbles({scene,camera,getAnchor,onSound}){
   function paint(b,n){
     if(b.emoji){
       b.canvas.width=192;b.canvas.height=208;const c=b.canvas.getContext('2d');
-      c.fillStyle='#fff5df';c.beginPath();c.roundRect(12,8,168,164,34);c.fill();
+      c.fillStyle='#1c2a3a';c.beginPath();c.roundRect(12,8,168,164,34);c.fill();
       c.beginPath();c.moveTo(78,168);c.lineTo(96,198);c.lineTo(114,168);c.fill();
       c.font='100px "Segoe UI Emoji","Apple Color Emoji",system-ui';c.textAlign='center';c.textBaseline='middle';c.fillText(b.text.join(''),96,93);
       b.sprite.scale.set(.48,.52,1);upload(b,n);return;
     }
-    if(b.canvas.width!==640)b.canvas.width=640;
     const c=b.canvas.getContext('2d');
     // Wrap the complete message first so revealing letters never shifts earlier words.
     let lines,fontSize=29;
@@ -47,15 +46,19 @@ export function buildChatBubbles({scene,camera,getAnchor,onSound}){
       }
       if(lines.length<=5)break;
     }
-    const height=85+Math.min(5,lines.length)*40;
+    // Size to the complete message, not the currently revealed letters.
+    // Keep pixels per world unit constant so short messages don't enlarge.
+    const width=Math.min(640,Math.max(120,Math.ceil(Math.max(...lines.slice(0,5).map(line=>c.measureText(line.trimEnd()).width)))+84));
+    const height=64+Math.min(5,lines.length)*40;
+    if(b.canvas.width!==width)b.canvas.width=width;
     if(b.canvas.height!==height)b.canvas.height=height;
-    c.clearRect(0,0,640,height);
-    c.fillStyle='#fff5df';c.beginPath();c.roundRect(12,8,616,height-36,28);c.fill();
-    c.beginPath();c.moveTo(298,height-30);c.lineTo(320,height-4);c.lineTo(342,height-30);c.fill();
-    c.fillStyle='#ac6878';c.font='22px system-ui';c.fillText('♥',34,38);
-    c.font=`500 ${fontSize}px system-ui`;c.fillStyle='#3d3840';
-    b.sprite.scale.set(2,2*height/640,1);
-    let left=n;lines.slice(0,5).forEach((line,i)=>{const chars=Array.from(line);c.fillText(chars.slice(0,Math.max(0,left)).join(''),42,74+i*40);left-=chars.length;});
+    c.clearRect(0,0,width,height);
+    c.fillStyle='#1c2a3a';c.beginPath();c.roundRect(12,8,width-24,height-36,28);c.fill();
+    c.beginPath();c.moveTo(width/2-22,height-30);c.lineTo(width/2,height-4);c.lineTo(width/2+22,height-30);c.fill();
+    c.font=`500 ${fontSize}px system-ui`;c.fillStyle='#fff3df';
+    c.textAlign='left';c.textBaseline='alphabetic';
+    b.sprite.scale.set(width/320,height/320,1);
+    let left=n;lines.slice(0,5).forEach((line,i)=>{const chars=Array.from(line);c.fillText(chars.slice(0,Math.max(0,left)).join(''),42,54+i*40);left-=chars.length;});
     upload(b,n);
   }
   function update(){

@@ -79,6 +79,13 @@ export class IslandRoom extends DurableObject {
       if(now-(a.eventWindow||0)>1000){a.eventWindow=now;a.eventCount=0;}
       if((a.eventCount=(a.eventCount||0)+1)>30)return;
       const e=m.event;
+      // Short gestures are transient events and always belong to the authenticated sender.
+      if(e.type==='gesture'){
+        if(['wave','cheer'].includes(e.value)&&now-(a.lastGesture||0)>=1000){
+          a.lastGesture=now;this.broadcast({type:'event',actor:a.user,event:{type:'gesture',value:e.value}});
+        }
+        ws.serializeAttachment(a);return;
+      }
       // Each authenticated player controls only their own face, including his
       // companion-mode session. Snapshot deadlines prevent stale expressions on reconnect.
       if(e.type==='expression'){

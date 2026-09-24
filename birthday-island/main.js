@@ -1,9 +1,11 @@
-import {buildChatBubbles} from './chat-bubbles.js?v=resize-fix-3';
+import {buildChatBubbles} from './chat-bubbles.js?v=fit-text-5';
+import {createPreviewFollower} from './preview-follower.js';
+import {buildGestureWheel} from './gesture-wheel.js';
 import {buildExpressionControls} from './expression-controls.js?v=minimal-chat-5';
 import {EXPRESSIONS,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=timed-3';
 import { buildCashRewards } from './cash-rewards.js?v=3d-pool-3';
 import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
-import {BIRTHDAY_ROSE} from './birthday-dress.js?v=5';
+import {BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=corsage-bell-10';
 import {companionMode} from './control-mode.js?v=companion-1';
 import {createRemoteMotion} from './remote-motion.js?v=1';
 const remoteMotion=createRemoteMotion();
@@ -12,7 +14,7 @@ let ownPose=null,passengerLying=false,passengerPointing=false,pointBlend=0;
 let remoteWasOnline=false;
 import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested} from './multiplayer.js?v=companion-1';
 let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
-import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=fade-entry-1';
+import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=fade-exit-2';
 import { buildStoneSkipping } from './stone-skipping.js?v=three-rounds-2';
 import { SHORE } from './skipping-physics.js?v=more-skips-7';
 import { moveAroundRocks } from './rock-collision.js?v=props-players-1';
@@ -20,10 +22,10 @@ import { createPlayerJump } from './player-jump.js';
 import { buildLovePlane } from './love-plane.js?v=2';
 import { insectVisibility, insectRank } from './insect-density.js';
 import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
-import { buildHandPose } from './hand-pose.js?v=9';
+import { buildHandPose } from './hand-pose.js?v=puff-10';
 import {buildBouquetControls} from './bouquet-controls.js?v=controlled-pov-5';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion } from './companion.js?v=timed-expressions-3';
+import { buildCompanion } from './companion.js?v=hat-fit-2';
 import { addGiftAura } from './gift-aura.js';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
@@ -35,7 +37,7 @@ import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=heart-messag
 import {buildStageConfetti} from './stage-confetti.js?v=round-wider-4';
 import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter } from './character.js?v=longer-legs-4';
+import { buildCharacter } from './character.js?v=hat-fit-2';
 import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';
@@ -1781,7 +1783,7 @@ const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_H
   resolveMove:(x,z,dx,dz,player)=>moveAroundRocks(x,z,dx,dz,[...rockColliders,{x:player.x,z:player.z,radius:.30}],onIsland,.32)});
 const pointingHand=isPassenger?buildHandPose(playerRig,{color:SUIT_COLOR,shoulder:[.36,1.36,-.06],sleeveLength:.48}):null;
 const pointTarget=new THREE.Vector3();
-const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE,shortSleeves:!isIshiee});
+const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE,skinColor:isIshiee?0xf6cc77:BIRTHDAY_SKIN,shortSleeves:!isIshiee,puffSleeves:!isIshiee,handScale:isIshiee?1:.92});
 const joinedHands=new THREE.Vector3(),partnerHand=new THREE.Vector3();
 const claspRotation=new THREE.Quaternion(),partnerLinkRotation=new THREE.Quaternion(),playerLinkRotation=new THREE.Quaternion();
 const partnerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2),playerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
@@ -1847,8 +1849,24 @@ const sceneContext=buildSceneContext({camera,clouds,snapshot:()=>({
 function onIsland(x,z){return Math.sqrt((x/67)**2+(z/54)**2)<.89;}
 const walkingReducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
 let walkingBobPhase=0,walkingBobAmount=0;
+const previewFollower=createPreviewFollower();
+let wasHisView=false;
+function updatePreviewFollower(dt){
+  const next=previewFollower.step(dt,playerRig.position,companion.anchor.position,rockColliders,onIsland,CONFIG.walkSpeed);
+  playerRig.position.x=next.x;playerRig.position.z=next.z;
+  const ground=terrainHeight(next.x,next.z)+STAGE_HEIGHT*(1-smoothstep(STAGE_RADIUS-.06,STAGE_RADIUS+.12,Math.hypot(next.x+8,next.z+10)));
+  playerRig.position.y=lerp(playerRig.position.y,ground,1-Math.exp(-dt*14));
+  if(next.yaw!==null){
+    const delta=Math.atan2(Math.sin(next.yaw-playerRig.rotation.y),Math.cos(next.yaw-playerRig.rotation.y));
+    playerRig.rotation.y+=delta*(1-Math.exp(-dt*7));
+  }
+  avatar.root.rotation.set(0,0,0);avatarHeading=playerRig.rotation.y;
+  avatar.update(dt,next.moving,next.running);
+}
 function movePlayer(dt){
+  if(gestureWheel.active)return;
   if(bouquetControls.hisView){
+    if(!wasHisView){previewFollower.reset();wasHisView=true;}
     const rig=companion.anchor,active=document.pointerLockElement===renderer.domElement;
     const sx=active?Number(!!keys.KeyD)-Number(!!keys.KeyA):0,sz=active?Number(!!keys.KeyS)-Number(!!keys.KeyW):0;
     const running=!!(keys.ShiftLeft||keys.ShiftRight);
@@ -1857,8 +1875,10 @@ function movePlayer(dt){
     const moving=Math.hypot(next.x-rig.position.x,next.z-rig.position.z)>.0001;
     const ground=terrainHeight(next.x,next.z)+STAGE_HEIGHT*(1-smoothstep(STAGE_RADIUS-.06,STAGE_RADIUS+.12,Math.hypot(next.x+8,next.z+10)));
     companion.setNetworkPose({position:[next.x,playerJump.update(rig.position.y,ground,dt),next.z],yaw:rig.rotation.y,pitch:0,moving,running,lying:false},dt,true);
+    updatePreviewFollower(dt);
     return;
   }
+  if(wasHisView){wasHisView=false;previewFollower.reset();avatar.update(1,false,false);}
   if(bouquetControls.previewing){playerJump.reset();return;}
   if(isPassenger)return;
   if(multiplayerRequested&&!networkReady)return;
@@ -1959,11 +1979,7 @@ function showExpressionBubble(user,value,duration=EXPRESSION_MS){
   if(expression&&value!=='normal'&&duration>0)chatBubbles.show(user,expression.emoji,{emoji:true,duration});
 }
 let lastExpressionSent=-Infinity;
-const expressionControls=buildExpressionControls({container:$('#command'),isOnline:multiplayerRequested,user:islandUser||'ISHIEE',onPreviewMessage:user=>{
-  if(multiplayerRequested||!playing||commandMode)return;
-  const text=Array.from($('#command-input').value.trim()||'I’m so happy to be here with you ♡').slice(0,140).join('');
-  chatBubbles.show(user,text);
-},onSelect:(user,value)=>{
+function selectExpression(user,value){
   if(!playing)return false;
   if(multiplayerRequested){
     if(!network?.connected){toast('RECONNECT TO CHANGE YOUR EXPRESSION');return false;}
@@ -1971,7 +1987,28 @@ const expressionControls=buildExpressionControls({container:$('#command'),isOnli
     lastExpressionSent=performance.now();network.event({type:'expression',value});
   }
   applyExpression(user,value);if(!multiplayerRequested)showExpressionBubble(user,value);return true;
-}});
+}
+function applyGesture(user,value){
+  const character=multiplayerRequested?(user===islandUser?avatar:companion):(user==='ISHIEE'?companion:avatar);
+  if(!character.triggerGesture(value))return false;
+  chatBubbles.show(user,value==='wave'?'👋':'🙌',{emoji:true,duration:2400});return true;
+}
+const gestureWheel=buildGestureWheel({surface:renderer.domElement,
+  canOpen:()=>playing&&(!multiplayerRequested||networkReady)&&!stargazing.active&&!sceneContext.active&&!rewardBusy&&!$('.note-modal.open')&&!$('#command').classList.contains('open'),
+  onOpen:()=>{Object.keys(keys).forEach(k=>keys[k]=false);stoneSkipping.cancelCharge();},
+  onSelect:action=>{
+    if(multiplayerRequested&&!network?.connected){toast('RECONNECT TO USE GESTURES');return;}
+    const user=multiplayerRequested?islandUser:bouquetControls.hisView?'ISHIEE':'MOSHIEE';
+    if(action.kind==='expression'){selectExpression(user,action.id);expressionControls.sync(expressionValues,expressionDeadlines);return;}
+    if(handsLinked()||stoneSkipping.active||companion.throwing||avatar.bouquetActive||companion.bouquetActive){toast('FREE YOUR HANDS TO USE THIS GESTURE');return;}
+    if(applyGesture(user,action.id)&&multiplayerRequested)network.event({type:'gesture',value:action.id});
+  }
+});
+const expressionControls=buildExpressionControls({container:$('#command'),isOnline:multiplayerRequested,user:islandUser||'ISHIEE',onPreviewMessage:user=>{
+  if(multiplayerRequested||!playing||commandMode)return;
+  const text=Array.from($('#command-input').value.trim()||'I’m so happy to be here with you ♡').slice(0,140).join('');
+  chatBubbles.show(user,text);
+},onSelect:selectExpression});
 function openCommand(commands=false){
   commandMode=commands;
   expressionControls.setMode(commands);expressionControls.setConnected(!multiplayerRequested||!!network?.connected);
@@ -2077,6 +2114,7 @@ function requestPointerLock(){
 }
 renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();radio.resume();});
 window.addEventListener('mousemove',e=>{
+  if(gestureWheel.active)return;
   if(stargazing.active||document.pointerLockElement!==renderer.domElement)return;
   if(bouquetControls.hisView){bouquetControls.look(e.movementX,e.movementY);return;}
   playerRig.rotation.y-=e.movementX*.0022;
@@ -2347,7 +2385,10 @@ function animate(now,force){
     firstPersonHand.update(joinedHands,0,playerLinkRotation,claspAxis);
     avatar.poseHand(joinedHands,0,playerLinkRotation);companion.poseHand(partnerHand,0,partnerLinkRotation);
   }
-  stargazing.update(elapsed);bouquetControls.update(dt);dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);updateRadio(dt);
+  stargazing.update(elapsed);bouquetControls.update(dt);avatar.updateCloth(dt);companion.updateCloth(dt);
+  const gestureBusy=stargazing.active||handsLinked()||stoneSkipping.active||companion.throwing;
+  avatar.updateGesture(dt,gestureBusy);companion.updateGesture(dt,gestureBusy);
+  dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);updateRadio(dt);
   gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.auraMat.opacity=(.30+paintUniforms.uPartyGlow.value*.32)*(1+Math.sin(elapsed*1.3+g.phase)*.07);g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
   if(candleBlownAt>=0){
     const age=elapsed-candleBlownAt;
@@ -2521,6 +2562,7 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
       applyingNetwork=true;
       const e=message.event;
       if(e.type==='chat')chatBubbles.show(message.actor,e.text);
+      if(e.type==='gesture'&&message.actor!==islandUser)applyGesture(message.actor,e.value);
       if(e.type==='cheer'&&companionMode&&!isIshiee)companion.triggerCheer();
       if(e.type==='fireworks'&&e.pose){setMood('night');fireworks.launch(new THREE.Vector3(...e.pose.position),e.pose.yaw,e.amount);}
       if(e.type==='stone')stoneSkipping.receiveThrow(e);
@@ -2541,7 +2583,7 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
       if(s.welcome&&s.look)lookMotion.reset({...s.look,position:[0,0,0],lying:false});
       if(isPassenger&&(s.welcome||!!s.online.MOSHIEE!==remoteWasOnline)){ownPose=s.poses.ISHIEE||ownPose;ownMotion.reset(ownPose);}
       if(s.welcome){
-        if(stargazing.active)stargazing.leave();
+        if(stargazing.active)stargazing.leave({immediate:true});
         if(s.startedAt)elapsed=Math.max(0,(s.serverTime-s.startedAt)/1000);
         const pose=s.poses[islandUser];
         if(pose){playerRig.position.fromArray(pose.position);playerRig.rotation.set(0,pose.yaw,0);cameraPivot.rotation.x=pose.pitch;}

@@ -104,6 +104,20 @@ body.is-stargazing .cash-flight-layer { display:none; }
 
 #command { position: fixed; z-index: 80; left: 50%; bottom: 28px; width: min(480px, 88vw); padding: 16px; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: rgba(19,30,46,.91); box-shadow: 0 22px 70px rgba(8,13,22,.4); backdrop-filter: blur(18px); opacity: 0; visibility: hidden; transform: translate(-50%, 18px); transition: .3s; }
 #command.open { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+#gesture-wheel { position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(11,19,29,.20);pointer-events:none; }
+#gesture-wheel[hidden] { display:none; }
+.gesture-wheel-open,.gesture-wheel-open canvas { cursor:none!important; }
+.gesture-wheel-open #reticle { visibility:hidden; }
+.gesture-wheel-disc { position:relative;width:340px;height:340px;color:#fff3dd; }
+.gesture-wheel-disc svg { position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 8px 16px #08121d66); }
+.gesture-wheel-disc path { fill:#182b3ee8;stroke:#fff0d42b;stroke-width:1; }
+.gesture-wheel-disc path.active { fill:#715a43f5;stroke:#f5d89d;stroke-width:1.5; }
+.gesture-wheel-option { position:absolute;transform:translate(-50%,-50%);width:88px;text-align:center;display:grid;gap:5px; }
+.gesture-wheel-option span:first-child { font:29px/1.1 'Segoe UI Emoji','Apple Color Emoji',sans-serif; }
+.gesture-wheel-option span:last-child { font:11px/1.2 system-ui; }
+.gesture-wheel-centre { position:absolute;inset:calc(50% - 46px);display:grid;place-items:center;border-radius:50%;background:#182b3ec9;color:#f8e7c9;font:12px system-ui; }
+.gesture-wheel-centre.active { box-shadow:inset 0 0 0 1px #f5d89d88; }
+.gesture-wheel-dot { position:absolute;left:calc(50% - 3px);top:calc(50% - 3px);width:6px;height:6px;border-radius:50%;background:#fff3d9;box-shadow:0 1px 5px #0008; }
 #command label { display: block; margin-bottom: 10px; font: 650 8px/1 ui-sans-serif, system-ui; letter-spacing: .28em; opacity: .55; }
 #command > div { display: flex; align-items: center; gap: 8px; }
 #command > div > span { font: 400 24px/1 ui-monospace, monospace; color: #f2cb78; }

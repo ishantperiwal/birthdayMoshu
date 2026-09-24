@@ -1,18 +1,24 @@
 import { roundedSleeve } from './rounded-sleeve.js';
+import {addPuffSleeve} from './puff-sleeve.js?v=filled-2';
 import * as THREE from 'three';
 
 // Straight sleeve, short wrist and circular toy hand; no per-frame geometry.
-export function buildHandPose(parent,{color=0xeb94ad,shoulder=[.28,1.36,-.06],side=1,floating=false,sleeveLength=null,shortSleeves=false}={}){
+export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder=[.28,1.36,-.06],side=1,floating=false,sleeveLength=null,shortSleeves=false,bareArms=false,puffSleeves=false,handScale=1}={}){
   const root=new THREE.Group();parent.add(root);root.visible=false;
   const cloth=new THREE.MeshStandardMaterial({color,roughness:.30,emissive:color,emissiveIntensity:.11});
-  const skin=new THREE.MeshStandardMaterial({color:0xf6cc77,roughness:.30,emissive:0xf6cc77,emissiveIntensity:.11});
-  const upper=new THREE.Mesh(roundedSleeve(.095,.105,1,.012,.035),cloth);
-  const lower=new THREE.Mesh(new THREE.CylinderGeometry(shortSleeves?.079:.065,shortSleeves?.079:.075,1,16),skin);
+  const skin=new THREE.MeshStandardMaterial({color:skinColor,roughness:.30,emissive:skinColor,emissiveIntensity:.11});
+  const skinUpper=bareArms||puffSleeves;
+  const upper=new THREE.Mesh(roundedSleeve(skinUpper?.067:shortSleeves?.081:.095,skinUpper?.067:shortSleeves?.089:.105,1,.012,.035),skinUpper?skin:cloth);
+  const puff=puffSleeves?addPuffSleeve(root,cloth):null;
+  if(puffSleeves)cloth.roughness=.68;
+  const lower=new THREE.Mesh(new THREE.CylinderGeometry(shortSleeves?.067:.065,shortSleeves?.067:.075,1,16),skin);
   const elbow=new THREE.Mesh(new THREE.SphereGeometry(.078,12,8),cloth);
   const hand=new THREE.Mesh(new THREE.TorusGeometry(.087,.037,8,20),skin);
+  hand.scale.setScalar(handScale);
   root.add(upper,lower,elbow,hand);
   const start=new THREE.Vector3(...shoulder),end=new THREE.Vector3(),bend=new THREE.Vector3(),rest=new THREE.Vector3();
   const up=new THREE.Vector3(0,1,0),direction=new THREE.Vector3(),wrist=new THREE.Vector3();
+  const down=new THREE.Vector3(0,-1,0);
   const parentRotation=new THREE.Quaternion(),aim=new THREE.Vector3(0,-1,0);
   function segment(mesh,a,b){direction.subVectors(b,a);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.scale.y=direction.length();mesh.quaternion.setFromUnitVectors(up,direction.normalize());}
   return {root,aim,update(worldTarget,amount,worldRotation=null,worldAxis=null){
@@ -43,6 +49,11 @@ export function buildHandPose(parent,{color=0xeb94ad,shoulder=[.28,1.36,-.06],si
     bend.copy(wrist).addScaledVector(direction,.025);
     if(shortSleeves)bend.copy(start).lerp(wrist,.52);
     segment(upper,start,bend);segment(lower,bend,wrist);elbow.visible=false;
+    if(puff){
+      puff.position.copy(start);direction.subVectors(bend,start);
+      puff.scale.y=direction.length()/.20;
+      puff.quaternion.setFromUnitVectors(down,direction.normalize());
+    }
     aim.subVectors(end,start).normalize();
     hand.position.copy(end);
     if(worldRotation){parent.getWorldQuaternion(parentRotation);hand.quaternion.copy(parentRotation).invert().multiply(worldRotation);}

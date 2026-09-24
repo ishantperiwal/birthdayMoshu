@@ -1,6 +1,6 @@
 import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=longer-legs-4';
+import { buildCharacter } from './character.js?v=hat-fit-2';
 
 export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false,resolveMove=(x,z,dx,dz)=>({x:x+dx,z:z+dz})}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
@@ -33,6 +33,9 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     setExpression:(value,duration)=>character.setExpression(value,duration),
     setBouquet:(value,snap=false)=>character.setBouquet(value,snap),
     updateBouquet:(dt,suppressed=false)=>character.updateBouquet(dt,suppressed),
+    updateCloth:dt=>character.updateCloth(dt),
+    triggerGesture:value=>character.triggerGesture(value),
+    updateGesture:(dt,suppressed)=>character.updateGesture(dt,suppressed),
     setBouquetView:value=>character.setBouquetView(value),
     get motion(){return {moving:networkMoving,running:speed>5.2,pitch:attention.pitch,holding,holdReady};},
     get gesture(){return {pointBlend:character.pointingAmount,pointing:!!attention.manualPoint,jumping:expressiveAge<1.8,headYaw:attention.yaw,headPitch:attention.pitch};},

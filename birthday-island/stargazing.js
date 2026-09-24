@@ -106,7 +106,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   function clearDust(){births.fill(-100);dustGeo.attributes.birth.needsUpdate=true;}
   let active=false,saved=null,count=0,drawing=false,last=null,lastBirth=0,strokeStart=0;const strokes=[];
   let drawMode=false;
-  let entering=false,transitionId=0,fadeAnimation=null;
+  let entering=false,leaving=false,transitionId=0,fadeAnimation=null;
   let lastInkActivity=-100,fadeStart=null,fadeFirst=0,fadeRate=1;
   function touchInk(){lastInkActivity=sparkleTime.value;fadeStart=null;eraseTime.value=-100;}
   let previousTime=0,yaw=0,pitch=1.22,hasGazeLock=false;
@@ -118,7 +118,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   function restore(o,s){o.position.copy(s.position);o.rotation.copy(s.rotation);o.up.copy(s.up);o.scale.copy(s.scale);}
   function lock(){ui.requestPointerLock?.()?.catch(()=>{});}
   async function enter(site){
-    if(active||entering||companion.throwing)return;
+    if(active||entering||leaving||companion.throwing)return;
     entering=true;const id=++transitionId;
     Object.keys(keys).forEach(k=>keys[k]=false);
     ui.hidden=false;lock();
@@ -148,14 +148,28 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     basePosition.set(x+side*.62,ground+.62,z+1.05);camera.position.copy(basePosition);
     lookEuler.set(pitch,yaw,0);baseRotation.setFromEuler(lookEuler);camera.quaternion.copy(baseRotation);camera.updateMatrixWorld(true);
   }
-  function leave(){if(!active&&!entering)return;const wasActive=active;active=false;entering=false;++transitionId;fadeAnimation?.cancel();fadeAnimation=null;drawMode=false;ui.style.cursor='';drawing=false;last=null;ui.hidden=true;ink.visible=false;document.body.classList.remove('is-stargazing');
-    if(!wasActive){onLeave();return;}
+  function restoreStanding(){const wasActive=active;active=false;entering=false;drawMode=false;ui.style.cursor='';drawing=false;last=null;ui.hidden=true;ink.visible=false;document.body.classList.remove('is-stargazing');
+    if(!wasActive)return;
     avatar.setFirstPerson(false);restore(playerRig,saved.player);if(canMovePartner()){restore(companion.anchor,saved.partner);companion.anchor.visible=saved.partnerVisible;}restore(avatar.root,saved.avatar);avatar.root.visible=saved.visible;saved.parent.add(camera);restore(camera,saved.camera);Object.keys(keys).forEach(k=>keys[k]=false);
-    onLeave();
+  }
+  async function leave({immediate=false}={}){
+    if(immediate){++transitionId;fadeAnimation?.cancel();fadeAnimation=null;restoreStanding();leaving=false;onLeave();return;}
+    if(leaving||(!active&&!entering))return;
+    leaving=true;entering=false;const id=++transitionId;
+    const opacity=Number.parseFloat(getComputedStyle(blackout).opacity)||0;
+    fadeAnimation?.cancel();finish();drawMode=false;
+    Object.keys(keys).forEach(k=>keys[k]=false);
+    fadeAnimation=blackout.animate([{opacity},{opacity:1}],{duration:350,fill:'forwards',easing:'ease-in-out'});
+    try{await fadeAnimation.finished;}catch{return;}
+    if(id!==transitionId)return;
+    restoreStanding();fadeAnimation.cancel();
+    fadeAnimation=blackout.animate([{opacity:1},{opacity:0}],{duration:550,fill:'forwards',easing:'ease-in-out'});
+    try{await fadeAnimation.finished;}catch{return;}
+    if(id===transitionId){leaving=false;fadeAnimation.cancel();fadeAnimation=null;onLeave();}
   }
   function point(e){return new THREE.Vector3(e.clientX/innerWidth*2-1,1-e.clientY/innerHeight*2,.5).unproject(camera).sub(camera.position).normalize().multiplyScalar(120).add(camera.position);}
   window.addEventListener('mousedown',e=>{
-    if(!active||entering||e.button!==0)return;e.preventDefault();
+    if(!active||entering||leaving||e.button!==0)return;e.preventDefault();
     if(!drawMode){
       // This click only opens the canvas. Never start a stroke from the
       // pointer-lock center while the browser restores the native cursor.
@@ -171,7 +185,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     touchInk();
   });
   window.addEventListener('mousemove',e=>{
-    if(!active)return;
+    if(!active||leaving)return;
     if(drawing&&!(e.buttons&1))finish();
     if(!drawMode){yaw=THREE.MathUtils.clamp(yaw-e.movementX*.0022,-1.3,1.3);pitch=THREE.MathUtils.clamp(pitch-e.movementY*.002,.12,1.40);return;}
     if(!drawing)return;
@@ -199,7 +213,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     touchInk();
     positions.set(points,count*3);inkBirth[count]=inkBirth[count+1]=sparkleTime.value;count+=2;
     geo.attributes.position.needsUpdate=true;geo.attributes.inkBirth.needsUpdate=true;geo.setDrawRange(0,count);geo.computeBoundingSphere();ink.visible=true;
-  },get active(){return active||entering;},enter,leave,update(time){
+  },get active(){return active||entering||leaving;},enter,leave,update(time){
     sparkleTime.value=time;const dt=Math.min(.05,Math.max(0,time-previousTime));previousTime=time;
     inkMotion.value=reducedMotion.matches?0:1;
     // Keep the whole phrase through pauses between letters. After three quiet
@@ -223,7 +237,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
       geo.attributes.position.needsUpdate=true;geo.attributes.inkBirth.needsUpdate=true;geo.setDrawRange(0,count);geo.computeBoundingSphere();
     }
     if(!active&&count===0)ink.visible=false;
-    if(!active)return;
+    if(!active||leaving)return;
     lookEuler.set(pitch,yaw,0);target.setFromEuler(lookEuler);
     if(!drawMode)baseRotation.slerp(target,1-Math.exp(-dt*12));
     camera.position.copy(basePosition);camera.quaternion.copy(baseRotation);
@@ -232,7 +246,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
       sway.setFromEuler(swayEuler);camera.quaternion.multiply(sway);camera.position.y+=Math.sin(time*1.15)*.012;
     }
     camera.updateMatrixWorld(true);
-  },keyDown(e){if(!active&&!entering)return false;
+  },keyDown(e){if(leaving){e.preventDefault();return true;}if(!active&&!entering)return false;
     if(entering){if(e.code==='Escape'||e.code==='KeyQ'){e.preventDefault();leave();}return true;}
     if(e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){e.preventDefault();finish();if(strokes.length){clearDust();count=strokes.pop().start;geo.setDrawRange(0,count);}}
     if(e.code==='KeyC'&&!e.repeat){finish();clearDust();count=0;strokes.length=0;geo.setDrawRange(0,0);}

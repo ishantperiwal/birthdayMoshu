@@ -1,56 +1,82 @@
 import {dressDateSuit} from './date-suit.js?v=5';
-import {dressBirthday,BIRTHDAY_ROSE} from './birthday-dress.js?v=5';
+import {dressBirthday,BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=corsage-bell-10';
 import { legoHairMesh } from './assets/lego-hair.js?v=1';
 import { roundedSleeve } from './rounded-sleeve.js';
 import { roundedToyBox } from './rounded-toy-box.js';
-import {birthdayBodice} from './dress-bodice.js';
+import {birthdayBodice,birthdayNecklineSkin} from './dress-bodice.js?v=sweetheart-2';
+import {dressTextures} from './dress-textures.js';
 import {softHeadGeometry,softFaceGeometry} from './soft-head.js?v=2';
-import { buildHandPose } from './hand-pose.js?v=9';
+import { buildHandPose } from './hand-pose.js?v=puff-10';
+import {addPuffSleeve} from './puff-sleeve.js?v=filled-2';
 import {buildBouquetGesture} from './bouquet.js?v=holder-spread-6';
 import { hairMesh } from './assets/reference-hair-relaxed.js?v=1';
 import * as THREE from 'three';
 import {legoHandGeometry} from './lego-hand.js';
 import {addFaceBlink} from './face-blink.js?v=timed-3';
+import {addBirthdayTiara} from './birthday-tiara.js';
+import {addBirthdayChoker} from './birthday-choker.js?v=chain-2';
+import {createSkirtMotion} from './skirt-motion.js?v=visible-follow-2';
 
 export function buildCharacter(parent,options={}){
   const birthday=!options.shortHair&&!options.suit;
-  const legExtra=options.shortHair?.065:birthday?.085:0,torsoExtra=options.shortHair?.025:0;
+  const stargazingFit=birthday&&!!options.stargazingFit;
+  const legExtra=options.shortHair?.065:birthday&&!stargazingFit?.085:0,torsoExtra=options.shortHair?.025:0;
   const upperLift=legExtra+torsoExtra;
   const topColor=options.top??(birthday?BIRTHDAY_ROSE:0xeb94ad);
   const root=new THREE.Group();root.scale.setScalar(.78);parent.add(root);
   const mat=color=>new THREE.MeshStandardMaterial({color,roughness:.30,metalness:0,emissive:color,emissiveIntensity:.11});
-  const skin=mat(0xf6cc77),hair=mat(0x704630),pink=mat(topColor),cream=mat(options.trousers??(birthday?0xffecd6:0xf1dfbf)),shoe=mat(options.shoes??(birthday?0xbe8792:0x806477));
+  const skinColor=birthday?BIRTHDAY_SKIN:0xf6cc77;
+  const skin=mat(skinColor),hair=mat(0x704630),pink=mat(topColor),cream=mat(options.trousers??(birthday?0xffecd6:0xf1dfbf)),shoe=mat(options.shoes??(birthday?0xbe8792:0x806477));
   if(birthday){skin.roughness=.5;skin.emissiveIntensity=.08;}
   const add=(geo,m,x,y,z,p=root)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;p.add(o);return o;};
   const box=(w,h,d,m,x,y,z,p)=>add(new THREE.BoxGeometry(w,h,d),m,x,y,z,p);
   const legs=[];for(const x of [-.145,.145]){
     const leg=new THREE.Group();leg.position.set(x,.65+legExtra,0);root.add(leg);legs.push(leg);
+    // The floor-length walking gown conceals legs, shoes and shoe decorations.
+    leg.visible=!birthday||stargazingFit;
     const shoeHeight=options.shortHair?.10:birthday?.11:.18,legHeight=.65+legExtra-shoeHeight;
-    add(roundedToyBox(birthday?.22:.25,legHeight,birthday?.23:.26,.018),cream,0,-legHeight/2,0,leg);
+    const legBlock=add(roundedToyBox(birthday&&!stargazingFit?.22:.25,legHeight,birthday&&!stargazingFit?.23:.26,.018),cream,0,-legHeight/2,0,leg);
+    legBlock.visible=!birthday||stargazingFit;
     add(roundedToyBox(.26,shoeHeight,.36,.018),shoe,0,-.65-legExtra+shoeHeight/2,-.045,leg);
   }
   if(!birthday)add(roundedToyBox(.57,.12,.32,.018),options.waistMatchesTrousers?cream:pink,0,.68,0);
-  if(birthday)add(birthdayBodice(),pink,0,0,0);
+  if(birthday){
+    const bodiceMaterial=stargazingFit?pink:pink.clone();
+    if(!stargazingFit){bodiceMaterial.color.setHex(0xffffff);bodiceMaterial.map=dressTextures().bodice;bodiceMaterial.bumpMap=dressTextures().weave;bodiceMaterial.bumpScale=.0007;}
+    add(birthdayBodice(stargazingFit),bodiceMaterial,0,0,0);
+    if(!stargazingFit)add(birthdayNecklineSkin(),skin,0,0,0);
+  }
   else add(roundedToyBox(.57,.49,.32,.035,.48),pink,0,.96,0);
   if(options.suit){pink.roughness=.62;cream.roughness=.66;shoe.roughness=.24;shoe.emissiveIntensity=.025;}
   // Preserve the original jumper collar for the other outfit.
   if(!options.suit&&!birthday)for(const x of [-.09,.09]){const collar=box(.16,.07,.025,cream,x,1.16,-.19);collar.rotation.z=x<0?-.25:.25;}
+  const puffSleeves=birthday&&!stargazingFit;
+  const shoulderWidth=puffSleeves?.263:.36;
   const arms=[];for(const side of [-1,1]){
-    const arm=new THREE.Group();arm.position.set(side*.36,1.14,0);arm.rotation.z=side*.12;root.add(arm);arms.push(arm);
+    const arm=new THREE.Group();arm.position.set(side*shoulderWidth,1.14,0);arm.rotation.z=side*.12;root.add(arm);arms.push(arm);
     // Extend the suit arm from the shoulder, preserving the cuff-to-hand fit.
-    add(roundedSleeve(.105,.095,options.suit?.40:birthday?.19:.35),pink,0,options.suit?-.175:birthday?-.07:-.15,0,arm);
-    if(birthday)add(roundedSleeve(.079,.079,.19,.009),skin,0,-.245,0,arm);
+    if(puffSleeves){
+      add(roundedSleeve(.067,.063,.38,.018,.033),skin,0,-.15,0,arm);
+      addPuffSleeve(arm,pink);
+    }
+    else{
+      add(roundedSleeve(.105,.095,options.suit?.40:birthday?.19:.35),pink,0,options.suit?-.175:birthday?-.07:-.15,0,arm);
+      if(birthday)add(roundedSleeve(.079,.079,.19,.009),skin,0,-.245,0,arm);
+    }
     const hand=add(legoHandGeometry(),skin,0,options.suit?-.49:-.39,0,arm);hand.rotation.z=-Math.PI*.3;
+    if(birthday&&!stargazingFit)hand.scale.setScalar(.92);
   }
   if(options.suit)dressDateSuit(root,arms);
+  let birthdayDress=null;
   if(birthday){
-    dressBirthday(root,arms,legs,pink);
+    birthdayDress=dressBirthday(root,arms,legs,pink,stargazingFit);
     // Shoe decorations follow the lowered shoe relative to the hip pivot.
     for(const leg of legs)for(const detail of leg.children.slice(2))detail.position.y-=legExtra;
   }
   const neckRadius=options.shortHair?.095:.11;
   const neck=add(new THREE.CylinderGeometry(neckRadius,neckRadius,.1,32),skin,0,1.25,0);
-  if(birthday||options.suit){
+  if(birthday&&!stargazingFit)addBirthdayChoker(neck);
+  if(stargazingFit||options.suit){
     // Separate cloth ring around the neck, slightly overlapping the bodice.
     const r=neckRadius;
     const ring=[[r+.001,-.032],[r+.008,-.032],[r+.011,-.028],[r+.011,.010],[r+.008,.014],[r+.001,.014],[r+.001,-.032]];
@@ -111,9 +137,18 @@ export function buildCharacter(parent,options={}){
   const face=new THREE.MeshStandardMaterial({map:texture,transparent:true,depthWrite:false,roughness:.4});
   const faceMesh=add(options.shortHair?new THREE.CylinderGeometry(.252,.252,.34,24,1,true,Math.PI-.86,1.72):softFaceGeometry(),face,0,1.49,0);
   const faceBlink=addFaceBlink(faceMesh,!!options.shortHair);
+  if(birthday)addBirthdayTiara(root);
   const head=new THREE.Group();head.position.y=1.28;
   for(const part of root.children.slice(headStart)){root.remove(part);part.position.y-=1.28;head.add(part);}root.add(head);
-  if(!options.shortHair)head.scale.setScalar(.9);
+  if(!options.shortHair){
+    // Reduce the entire head/hair and neck assembly around the neck base.
+    // The existing face-to-hair fit stays intact and the neckline stays seated.
+    const proportion=stargazingFit?1:.9*.95,neckBase=1.20;
+    head.scale.setScalar(.9*proportion);
+    head.position.y=neckBase+(head.position.y-neckBase)*proportion;
+    neck.scale.setScalar(proportion);
+    neck.position.y=neckBase+(neck.position.y-neckBase)*proportion;
+  }
   else head.position.y-=.012;
   if(birthday){
     // Lift the complete dress and upper body with the longer legs.
@@ -134,11 +169,52 @@ export function buildCharacter(parent,options={}){
   const down=new THREE.Vector3(0,-1,0),pointDirection=new THREE.Vector3(),pointRotation=new THREE.Quaternion();
   let stride=0,blend=0,pointBlend=0,waveBlend=0,previousHandAmount=0,releasingHand=false;
   const heldArm=options.shortHair?0:1;
-  const handPose=buildHandPose(root,{color:topColor,shoulder:[heldArm? .36:-.36,1.14+upperLift,0],side:heldArm?1:-1,sleeveLength:options.shortHair?.38:null,shortSleeves:birthday});
+  const handPose=buildHandPose(root,{color:topColor,skinColor,shoulder:[heldArm?shoulderWidth:-shoulderWidth,1.14+upperLift,0],side:heldArm?1:-1,sleeveLength:options.shortHair?.38:null,shortSleeves:birthday,puffSleeves,handScale:birthday&&!stargazingFit?.92:1});
   const throwStone=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat(0xd1dbe5));throwStone.scale.set(.075,.035,.055);throwStone.position.set(.025,options.suit?-.49:-.39,-.02);throwStone.visible=false;arms[1].add(throwStone);
   const bouquet=buildBouquetGesture(arms[1],{receiver:!options.shortHair});
   let bouquetView=null;
-  return {root,setExpression:(value,duration)=>faceBlink.setExpression(value,duration),setBlinkPreview:value=>faceBlink.setPreview(value),get pointingAmount(){return pointBlend;},setFirstPerson(value){head.visible=!value;},
+  let restingModel=null,walkingVisibility=null;
+  let manualGesture=null;
+  const skirtMotion=birthday&&!stargazingFit?createSkirtMotion():null;
+  const clothPosition=new THREE.Vector3(),clothOffset=new THREE.Vector3(),clothRotation=new THREE.Quaternion(),clothScale=new THREE.Vector3();
+  function setFirstPerson(value){
+    if(!birthday||stargazingFit){head.visible=!value;return;}
+    if(value){
+      if(walkingVisibility)return;
+      // Cache the original proportions once; only one body is rendered at a time.
+      restingModel??=buildCharacter(root,{...options,stargazingFit:true});
+      restingModel.root.scale.setScalar(1);restingModel.setFirstPerson(true);
+      walkingVisibility=new Map(root.children.filter(part=>part!==restingModel.root).map(part=>[part,part.visible]));
+      for(const part of walkingVisibility.keys())part.visible=false;
+      restingModel.root.visible=true;
+    }else if(walkingVisibility){
+      for(const [part,visible] of walkingVisibility)part.visible=visible;
+      walkingVisibility=null;restingModel.root.visible=false;
+    }
+  }
+  return {root,setExpression:(value,duration)=>faceBlink.setExpression(value,duration),setBlinkPreview:value=>faceBlink.setPreview(value),get pointingAmount(){return pointBlend;},setFirstPerson,
+    triggerGesture(value){
+      if(!['wave','cheer'].includes(value)||bouquet?.active||walkingVisibility)return false;
+      manualGesture={value,age:0,rest:arms.map(arm=>arm.rotation.clone())};return true;
+    },
+    updateGesture(dt,suppressed=false){
+      if(!manualGesture)return;
+      const gesture=manualGesture;gesture.age+=dt;
+      if(suppressed||bouquet?.active||gesture.age>=2.4){arms.forEach((arm,i)=>arm.rotation.copy(gesture.rest[i]));manualGesture=null;return;}
+      const strength=THREE.MathUtils.smoothstep(gesture.age,0,.25)*(1-THREE.MathUtils.smoothstep(gesture.age,1.95,2.4));
+      if(gesture.value==='wave'){
+        arms[1].rotation.x=THREE.MathUtils.lerp(gesture.rest[1].x,.35,strength);
+        arms[1].rotation.z=THREE.MathUtils.lerp(gesture.rest[1].z,2.35+Math.sin(gesture.age*11)*.22,strength);
+      }else arms.forEach((arm,i)=>{arm.rotation.x=THREE.MathUtils.lerp(gesture.rest[i].x,2.45,strength);arm.rotation.z=THREE.MathUtils.lerp(gesture.rest[i].z,(i?1:-1)*(.38+Math.sin(gesture.age*8)*.035),strength);});
+    },
+    updateCloth(dt){
+      if(!skirtMotion)return;
+      root.getWorldPosition(clothPosition);
+      const offset=skirtMotion.update(dt,clothPosition,!walkingVisibility);
+      root.getWorldQuaternion(clothRotation);root.getWorldScale(clothScale);
+      clothOffset.set(offset.x,0,offset.z).applyQuaternion(clothRotation.invert()).divide(clothScale);
+      birthdayDress.updateMotion(clothOffset);
+    },
     get bouquetActive(){return !!bouquet?.active;},
     setBouquet(value,snap=false){bouquet?.set(value,snap);},
     updateBouquet(dt,suppressed=false){bouquet?.update(dt,suppressed);if(bouquet?.active&&!suppressed&&!options.shortHair)handPose.root.visible=false;},
@@ -154,6 +230,7 @@ export function buildCharacter(parent,options={}){
     },
     throwOrigin(target){return throwStone.getWorldPosition(target);},
     poseHand(target,amount,rotation){
+    if(walkingVisibility){restingModel.poseHand(target,amount,rotation);return;}
     handPose.update(target,amount,rotation);
     if(amount<previousHandAmount-.000001)releasingHand=true;
     else if(amount>previousHandAmount+.000001)releasingHand=false;
@@ -164,7 +241,7 @@ export function buildCharacter(parent,options={}){
     handPose.root.visible=useHoldingModel;
     arms[heldArm].visible=!useHoldingModel;
     if(amount>.001&&!useHoldingModel)arms[heldArm].quaternion.setFromUnitVectors(down,handPose.aim);
-  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.82:1.88)-1.28,0);hat.rotation.set(0,0,-.08);hat.scale.setScalar(1.65);},update(dt,moving,running,cheer=0,attention=null){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*(.12+cheer*.25);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
+  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);hat.scale.setScalar(1.3);},update(dt,moving,running,cheer=0,attention=null){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*(.12+cheer*.25);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
     waveBlend+=((attention?.wave&&cheer<.1?1:0)-waveBlend)*(1-Math.exp(-dt*7));
     if(waveBlend>.001&&cheer<.1){
       arms[1].rotation.x=THREE.MathUtils.lerp(arms[1].rotation.x,-.35,waveBlend);

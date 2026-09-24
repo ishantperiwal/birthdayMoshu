@@ -22,6 +22,19 @@ function roomFixture(){
   return {room,ctx,male:client('ISHIEE'),female:client('MOSHIEE')};
 }
 
+test('gesture events are temporary, validated, rate limited, and cannot spoof the actor',async()=>{
+  const {room,male,female}=roomFixture();
+  await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'gesture',value:'invalid'}}));
+  assert.equal(female.messages.length,0);
+  await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'gesture',value:'wave',actor:'MOSHIEE'}}));
+  assert.equal(female.messages.at(-1).actor,'ISHIEE');assert.equal(female.messages.at(-1).event.value,'wave');
+  await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'gesture',value:'cheer'}}));
+  assert.equal(female.messages.length,1);
+  await room.webSocketMessage(female.ws,JSON.stringify({type:'event',event:{type:'gesture',value:'cheer'}}));
+  assert.equal(male.messages.at(-1).actor,'MOSHIEE');assert.equal(male.messages.at(-1).event.value,'cheer');
+  assert.equal(room.data.world.gesture,undefined);
+});
+
 test('both players can set their own expression, broadcast and restore it',async()=>{
   const {room,ctx,male,female}=roomFixture();
   await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'expression',value:'surprised'}}));
