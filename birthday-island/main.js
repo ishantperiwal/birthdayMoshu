@@ -1,3 +1,4 @@
+import {buildChatBubbles} from './chat-bubbles.js?v=1';
 import { buildCashRewards } from './cash-rewards.js?v=3d-pool-3';
 import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
 import {companionMode} from './control-mode.js?v=companion-1';
@@ -1847,11 +1848,22 @@ function setMood(name){
 }
 document.querySelectorAll('#moods button').forEach(b=>b.addEventListener('click',()=>setMood(b.dataset.mood)));
 
-function openCommand(){
-  if(isPassenger)return;
+const chatBubbles=buildChatBubbles({scene,camera,
+  getAnchor:user=>user===(islandUser||'MOSHIEE')?playerRig:(network?.remoteLive?companion.anchor:null),
+  onSound:()=>{audio.tone(740,0,.13,.022);audio.tone(988,.08,.19,.017);}
+});
+let commandMode=false,lastChatSent=0;
+function openCommand(commands=false){
+  commandMode=commands;
+  Object.keys(keys).forEach(k=>keys[k]=false);passengerPointing=false;
+  $('#command label').textContent=commands?'ISLAND COMMAND':'A LITTLE MESSAGE';
+  $('#command-input').placeholder=commands?'try: fireworks, night, sunset, day':'say something sweet…';
+  $('#command-input').maxLength=140;
+  $('#command > div > span').textContent=commands?'//':'♡';
+  $('#command small').textContent=commands?'Enter to run · Esc to close':'Enter to send · nearby friends only · / again for commands';
   if(document.pointerLockElement)document.exitPointerLock();
   $('#command').classList.add('open');
-  setTimeout(()=>$('#command-input').focus(),50);
+  $('#command-input').focus();
 }
 function closeCommand(lock=true){
   $('#command').classList.remove('open');$('#command-input').value='';
@@ -1872,16 +1884,31 @@ function runCommand(raw){
   else if(cmd)toast(`THE ISLAND DOESN’T KNOW “${cmd.toUpperCase()}” YET`);
   closeCommand();
 }
-$('#command').addEventListener('submit',e=>{e.preventDefault();runCommand($('#command-input').value);});
-$('#command-button').addEventListener('click',openCommand);
+$('#command').addEventListener('submit',e=>{
+  e.preventDefault();if(e.isComposing)return;
+  const text=$('#command-input').value.trim();
+  if(commandMode){runCommand(text);return;}
+  if(!text)return;
+  if(performance.now()-lastChatSent<1200){toast('ONE LITTLE MOMENT…');return;}
+  if(multiplayerRequested&&!network?.connected){toast('WAITING TO RECONNECT');return;}
+  lastChatSent=performance.now();
+  if(network)network.event({type:'chat',text});else chatBubbles.show(islandUser||'MOSHIEE',text);
+  closeCommand();toast('MESSAGE SENT ♡');
+});
+$('#command-button').addEventListener('click',()=>openCommand());
 $('#sound-button').addEventListener('click',()=>audio.toggle());
 
 window.addEventListener('keydown',e=>{
   if(sceneContext.active){if(e.code==='Escape'){e.preventDefault();sceneContext.close();}return;}
-  if($('#command').classList.contains('open')){if(e.code==='Escape')closeCommand();return;}
+  if($('#command').classList.contains('open')){
+    if(e.code==='Escape'){e.preventDefault();closeCommand();}
+    if(e.code==='Slash'&&!e.repeat&&!commandMode&&!$('#command-input').value){e.preventDefault();openCommand(true);}
+    return;
+  }
   if($('.note-modal.open')||rewardBusy)return;
   if(multiplayerRequested&&!networkReady)return;
   if(e.code==='KeyP'&&!e.repeat&&playing){e.preventDefault();Object.keys(keys).forEach(k=>keys[k]=false);sceneContext.open();return;}
+  if(e.code==='Slash'&&!e.repeat&&playing){e.preventDefault();openCommand();return;}
   if(isPassenger){
     if(!playing)return;
     if(e.code==='KeyR'){e.preventDefault();passengerPointing=true;}
@@ -1892,7 +1919,6 @@ window.addEventListener('keydown',e=>{
   if(stargazing.keyDown(e))return;
   if(stoneSkipping.keyDown(e))return;
   keys[e.code]=true;
-  if(e.code==='Slash'){e.preventDefault();openCommand();}
   if(e.code==='KeyE'&&nearest&&!e.repeat)nearest.action();
   if(e.code==='KeyH'&&!e.repeat&&(companion.holding||companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach))handInteraction.action();
   if(e.code==='KeyF'&&!e.repeat)launchFireworks(7);
@@ -2246,6 +2272,7 @@ function animate(now,force){
   }
   if(fireflyMat.opacity<=.01) paintUniforms.uFireflyPools.value.forEach(pool=>pool.w=0);
   sky.position.copy(camera.getWorldPosition(tmp2));
+  chatBubbles.update();
   const renderStart=performance.now();
   const gpuQuery=beginGpuSample();
   renderer.setRenderTarget(sceneTarget);
@@ -2346,6 +2373,7 @@ if(multiplayerRequested){
     onEvent(message){
       applyingNetwork=true;
       const e=message.event;
+      if(e.type==='chat')chatBubbles.show(message.actor,e.text);
       if(e.type==='cheer'&&companionMode&&!isIshiee)companion.triggerCheer();
       if(e.type==='fireworks'&&e.pose){setMood('night');fireworks.launch(new THREE.Vector3(...e.pose.position),e.pose.yaw,e.amount);}
       if(e.type==='stone')stoneSkipping.receiveThrow(e);
@@ -2425,6 +2453,6 @@ function updatePassenger(dt,now){
 }
 if(isPassenger){
   document.body.classList.add('companion-view');
-  $('#controls').innerHTML='<div><b>Mouse</b> look around <i>·</i> <b>Hold R</b> point <i>·</i> <b>Space</b> cheer / jump</div><div>Following MOSHIEE <i>·</i> <b>M</b> sound <i>·</i> <b>Esc</b> release mouse</div>';
-  $('.welcome-card .dedication').textContent='Walk beside her, wherever she goes. Look around freely, point something out, or jump for joy.';
+  $('#controls').innerHTML='<div><b>Mouse</b> look around <i>·</i> <b>Hold R</b> point <i>·</i> <b>Space</b> cheer / jump</div><div><b>/</b> chat <i>·</i> Following MOSHIEE <i>·</i> <b>M</b> sound <i>·</i> <b>Esc</b> release mouse</div>';
+  $('.welcome-card .subtitle').textContent='Right beside her, wherever she goes.';
 }

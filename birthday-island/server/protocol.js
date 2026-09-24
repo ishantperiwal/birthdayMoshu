@@ -26,3 +26,9 @@ export function cleanLook(p){
   if(!p||!Number.isFinite(p.yaw)||!Number.isFinite(p.pitch))return null;
   return {time:Number.isFinite(p.time)&&p.time>=0?p.time:0,yaw:p.yaw%(Math.PI*2),pitch:Math.max(-1.5,Math.min(1.5,p.pitch)),pointing:!!p.pointing};
 }
+
+export function cleanChat(text){
+  if(typeof text!=='string')return null;
+  const clean=text.replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim();
+  return clean?Array.from(clean).slice(0,140).join(''):null;
+}

@@ -1,6 +1,6 @@
 import {companionMode,ISHIEE_CONTROL_MODE,canControlWorld} from '../control-mode.js';
 import {DurableObject} from 'cloudflare:workers';
-import {USERS,GRACE_MS,cleanPose,cleanLook,initialWorld,reduceWorld} from './protocol.js';
+import {USERS,GRACE_MS,cleanChat,cleanPose,cleanLook,initialWorld,reduceWorld} from './protocol.js';
 
 async function matches(a,b){
   if(!a||!b)return false;
@@ -79,6 +79,11 @@ export class IslandRoom extends DurableObject {
       if(now-(a.eventWindow||0)>1000){a.eventWindow=now;a.eventCount=0;}
       if((a.eventCount=(a.eventCount||0)+1)>30)return;
       const e=m.event;
+      if(e.type==='chat'){
+        const text=cleanChat(e.text);
+        if(text&&now-(a.lastChat||0)>=1200){a.lastChat=now;this.broadcast({type:'event',actor:a.user,event:{type:'chat',text}});}
+        ws.serializeAttachment(a);return;
+      }
       if(!canControlWorld(a.user)){
         if(e.type==='cheer'&&this.live('MOSHIEE')&&now-(a.lastCheer||0)>=2000){a.lastCheer=now;this.broadcast({type:'event',actor:a.user,event:{type:'cheer'}});}
         ws.serializeAttachment(a);return;

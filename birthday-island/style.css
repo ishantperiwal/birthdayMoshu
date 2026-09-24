@@ -150,4 +150,4 @@ body.is-stargazing .cash-flight-layer { display:none; }
 #island-connection{position:fixed;left:50%;top:76px;transform:translateX(-50%);z-index:60;max-width:65vw;padding:9px 15px;border:1px solid #ead9b83b;border-radius:20px;background:#142734d9;color:#eee3cc;font:11px/1.5 system-ui,sans-serif;letter-spacing:.04em;text-align:center;pointer-events:none}
 #welcome .connection-note{color:#e6c799;font:12px/1.5 system-ui,sans-serif;margin-top:14px}
 
-.companion-view #moods,.companion-view #command-button,.companion-view #interaction{display:none!important}
+.companion-view #moods,.companion-view #interaction{display:none!important}

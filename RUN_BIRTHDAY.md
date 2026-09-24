@@ -128,3 +128,14 @@ refresh their existing invite links after a mode change.
 
 The existing Python preview remains solo. For local multiplayer testing and
 Cloudflare deployment instructions, see `birthday-island/server/README.md`.
+
+
+### Nearby chat (local implementation)
+Press `/` to type a message, then Enter to send. Press `/` again while the empty
+chat input is open (`//`) for island commands; Esc closes the input. Both players,
+including ISHIEE in companion mode, can chat. Bubbles face each viewer, type in,
+remain for about 5.5 seconds after typing, then fade. They fade with distance from
+9 to 13 metres. Messages are temporary, capped at 140 characters, and use the
+existing sound toggle. Test multiplayer on the local server at port 8787 with
+the private invite fragments; the static 4173 preview is solo only. This update
+has not been deployed to Cloudflare.
