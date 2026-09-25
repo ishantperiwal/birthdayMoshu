@@ -30,7 +30,7 @@ import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=arms-1';
 import {buildBouquetControls} from './bouquet-controls.js?v=hold-1';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion, legPace } from './companion.js?v=head-look-1';
+import { buildCompanion, legPace } from './companion.js?v=hold-restore-1';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
@@ -53,7 +53,7 @@ import { buildSceneContext } from './scene-context.js?v=2';
 import { buildFireworks } from './fireworks.js?v=festival-5';
 import { buildSkyMessage } from './sky-message.js?v=2';
 import { createSoundscape } from './soundscape.js?v=cash-sound-1';
-import { createRadio } from './radio-player.js?v=prewarm-1';
+import { createRadio } from './radio-player.js?v=softer-1';
 import { COIN_MODE, DASH_NAME } from './coin-mode.js';
 import { buildMeadowLife } from './meadow-life.js?v=colorful-caps-1';
 import { buildCandleSmoke } from './candle-smoke.js';
@@ -1485,7 +1485,8 @@ function updateRadio(dt){
   camera.getWorldPosition(radioEar);
   // After the birthday celebration, the same radio song is barely audible
   // island-wide (2/100 volume), while keeping its familiar fireside loudness.
-  const near=audio.muted?0:1-smoothstep(5,17,radioEar.distanceTo(radioSpot));
+  // A long, gentle fade: loudest beside the fire, easing out to silence ~32 m away.
+  const near=audio.muted?0:Math.pow(1-smoothstep(2,32,radioEar.distanceTo(radioSpot)),1.5);
   const background=!audio.muted&&CONFIG.musicVolume>0&&audio.musicMode==='radio'
     ?.025*smoothstep(7,13,elapsed-audio.musicChangedAt):0;
   radio.update(dt,near,background);audio.scape?.duck(near);
@@ -1903,7 +1904,7 @@ function queueInk(points){if(!network)return;inkQueue.push(...points);inkTimer??
 const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,
   // Stargazing waits until the candles are blown and the cash dash is over.
   canStart:()=>!candlesLit&&!!cashDash?.finished,onBlocked:()=>toast(candlesLit?'BLOW OUT THE CANDLES FIRST':`FINISH THE ${DASH_NAME.toUpperCase()} FIRST`),
-  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:queueInk,onViewerStop:()=>requestPointerLock(),onLeave:()=>requestPointerLock()});
+  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:queueInk,onViewerStop:()=>{},onLeave:()=>requestPointerLock()});
 let playing=false;
 const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,hisEyeHeight:CONFIG.hisEyeHeight,
   isOnline:multiplayerRequested,isMale:isIshiee,roleUI,getNetwork:()=>network,isPlaying:()=>playing,
@@ -2181,7 +2182,8 @@ window.addEventListener('keydown',e=>{
   }
   if(isPassenger){
     if(!playing)return;
-    if(e.code==='Escape'&&stargazing.exitViewerDrawing()){e.preventDefault();requestPointerLock();return;}
+    // Esc stops drawing; the mouse then looks around straight away (no lock needed while lying).
+    if(e.code==='Escape'&&stargazing.exitViewerDrawing()){e.preventDefault();return;}
     if(e.code==='KeyR'){e.preventDefault();passengerPointing=true;}
     if(e.code==='Space'&&!e.repeat){e.preventDefault();if(network?.remoteLive)network.event({type:'cheer'});else toast('WAITING FOR MOSHIEE TO JOIN');}
     if(e.code==='KeyM'&&!e.repeat)audio.toggle();
@@ -2221,13 +2223,20 @@ function requestPointerLock(){
 renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!stargazing.drawMode&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();radio.resume();});
 window.addEventListener('mousemove',e=>{
   if(gestureWheel.active)return;
-  if(stargazing.active||document.pointerLockElement!==renderer.domElement)return;
+  // Lying beside her, he looks around like she does: no pointer lock needed,
+  // except while drawing (the cursor is the pen then).
+  const lyingLook=isPassenger&&passengerLying&&!stargazing.drawMode;
+  if(stargazing.active||(document.pointerLockElement!==renderer.domElement&&!lyingLook))return;
+  if(isPassenger&&passengerLying&&stargazing.drawMode)return;
   // Skip the first events after locking and any physically impossible jump.
   if(lookSettle>0){lookSettle--;return;}
   if(Math.abs(e.movementX)>280||Math.abs(e.movementY)>180)return;
   if(bouquetControls.hisView){bouquetControls.look(e.movementX,e.movementY);return;}
   playerRig.rotation.y-=e.movementX*.0022;
   const pitch=cameraPivot.rotation.x-e.movementY*.0018;
+  // Lying down, his look stays within her stargazing range, so both of them
+  // write on the same, upright sky.
+  if(isPassenger&&passengerLying){playerRig.rotation.y=clamp(playerRig.rotation.y,-1.3,1.3);cameraPivot.rotation.x=clamp(pitch,.12,1.40);return;}
   cameraPivot.rotation.x=CONFIG.thirdPerson?clamp(pitch,-1.15,.35):clampWalkPitch(pitch,holdingHands());
 });
 
@@ -2796,7 +2805,9 @@ function updatePassenger(dt,now){
     playerRig.position.fromArray(pose.position);
     cameraPivot.position.y=pose.lying?.35:CONFIG.hisEyeHeight;
     if(pose.lying)playerRig.position.z+=1.70;
-    if(pose.lying&&!passengerLying)cameraPivot.rotation.x=1.22;
+    // Start from her exact stargazing view (straight up, same heading), so a
+    // phrase he writes reads the right way up for her too.
+    if(pose.lying&&!passengerLying){cameraPivot.rotation.x=1.22;playerRig.rotation.y=0;}
     if(!pose.lying&&passengerLying)cameraPivot.rotation.x=-.12;
     // Lying down or getting up cuts through black in his view too.
     if(pose.lying!==passengerLying)crossfadeBlack();

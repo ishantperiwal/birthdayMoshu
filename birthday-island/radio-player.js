@@ -20,7 +20,8 @@ export const RADIO_PLAYLIST=[
   {id:'yKNxeF4KMsY',title:'Yellow',artist:'Coldplay'}
 ];
 
-const FADE_SECONDS=3.5,MAX_VOLUME=80,EARLY_CHANGE=5;
+// MAX_VOLUME is YouTube's 0–100 scale; 50 keeps the radio a soft background.
+const FADE_SECONDS=3.5,MAX_VOLUME=50,EARLY_CHANGE=5;
 
 let apiPromise=null;
 function loadYouTube(){

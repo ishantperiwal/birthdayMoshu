@@ -45,7 +45,7 @@ for(const fps of [30,60,120])test(`following stops without residual foot shuffli
 test('holding hands still approaches the closer hand-holding distance',()=>{
   const c=fixture();c.anchor.position.x=3.35;c.toggleHolding();
   for(let i=0;i<180;i++)c.update(1/60,{x:0,y:0,z:0});
-  assert.ok(c.anchor.position.x<1.07);assert.ok(c.anchor.position.x>=1.05);
+  assert.ok(c.anchor.position.x<1.67);assert.ok(c.anchor.position.x>=1.65);
   assert.equal(c.holdReady,true);
 });
 
