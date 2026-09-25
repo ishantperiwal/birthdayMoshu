@@ -41,7 +41,7 @@ function fixture(reduced=true){
   const env={THREE:{Vector3,Quaternion,Euler,MathUtils:{clamp:(n,a,b)=>Math.max(a,Math.min(b,n))}},
     blackout,getComputedStyle:()=>({opacity:'0'}),playerRig,avatar,companion,keys:{},canMovePartner:()=>false,onLeave(){env.returned=true;document.pointerLockElement='world';},
     window:{addEventListener:listen,matchMedia:()=>({matches:reduced})},document,ui,
-    innerWidth:1000,innerHeight:800,camera:{position:new Vector3(),quaternion:new Quaternion(),updateMatrixWorld(){}},
+    innerWidth:1000,innerHeight:800,camera:{position:new Vector3(),quaternion:new Quaternion(),updateMatrixWorld(){},getWorldPosition(v){return v.copy(this.position);}},
     max:12000,positions:new Float32Array(36000),inkBirth:new Float32Array(12000),
     geo:{attributes,count:0,setDrawRange(start,count){this.count=count;},computeBoundingSphere(){}},sparkleTime:{value:0},
     eraseTime:{value:-100},eraseSpan:{value:1},inkMotion:{value:1},

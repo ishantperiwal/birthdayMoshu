@@ -157,7 +157,7 @@ export class IslandRoom extends DurableObject {
         ws.serializeAttachment(a);return;
       }
       // Host orchestration remains available while Ishi follows Moshi.
-      if(!canControlWorld(a.user)&&!(a.user==='ISHIEE'&&['mood','fireworks'].includes(e.type))){
+      if(!canControlWorld(a.user)&&!(a.user==='ISHIEE'&&['mood','fireworks','ink'].includes(e.type))){
         if(e.type==='cheer'&&this.live('MOSHIEE')&&now-(a.lastCheer||0)>=2000){a.lastCheer=now;this.broadcast({type:'event',actor:a.user,event:{type:'cheer'}});}
         ws.serializeAttachment(a);return;
       }
@@ -168,7 +168,7 @@ export class IslandRoom extends DurableObject {
       const next=reduceWorld(this.data.world,e,a.user);
       if(next){this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:e,actor:a.user});}
       else if(e.type==='fireworks'){const pose=this.data.poses[a.user]||a.pose;if(!pose)return;this.data.world.mood='night';this.save();this.broadcast(this.snapshot());this.broadcast({type:'event',actor:a.user,event:{type:'fireworks',pose,amount:Math.max(1,Math.min(12,Number(e.amount)||6))}});}
-      else if(e.type==='ink'&&Array.isArray(e.points)&&e.points.length===6&&e.points.every(v=>Number.isFinite(v)&&Math.abs(v)<500))this.broadcast({type:'event',actor:a.user,event:{type:'ink',points:e.points}},ws);
+      else if(e.type==='ink'&&Array.isArray(e.points)&&e.points.length%6===0&&e.points.length>=6&&e.points.length<=600&&e.points.every(v=>Number.isFinite(v)&&Math.abs(v)<500))this.broadcast({type:'event',actor:a.user,event:{type:'ink',points:e.points}},ws);
       else if(e.type==='stone'&&Number.isFinite(e.power)&&e.power>=0&&e.power<=1&&Array.isArray(e.origin)&&Array.isArray(e.direction)&&e.origin.length===3&&e.direction.length===3&&[...e.origin,...e.direction].every(v=>Number.isFinite(v)&&Math.abs(v)<200))this.broadcast({type:'event',actor:a.user,event:{type:'stone',power:e.power,origin:e.origin,direction:e.direction}},ws);
     }
     ws.serializeAttachment(a);

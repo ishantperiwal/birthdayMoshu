@@ -43,3 +43,14 @@ test('an empty room starts over after the grace period, not before',async()=>{
   await room.alarm();
   assert.equal(room.data.world.candles,false);assert.deepEqual(room.data.poses,{});
 });
+test('batched ink from either player reaches the other intact, and malformed ink is refused',async()=>{
+  const {room,male,female}=roomFixture();
+  const batch=Array.from({length:60*6},(_,i)=>i%7);
+  await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'ink',points:batch}}));
+  assert.deepEqual(female.messages.at(-1).event.points,batch);
+  await room.webSocketMessage(female.ws,JSON.stringify({type:'event',event:{type:'ink',points:batch.slice(0,12)}}));
+  assert.deepEqual(male.messages.at(-1).event.points,batch.slice(0,12));
+  const before=female.messages.length;
+  for(const points of [[1,2,3],new Array(606).fill(0),[1,2,3,4,5,'x']])await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'ink',points}}));
+  assert.equal(female.messages.length,before);
+});

@@ -106,7 +106,11 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   }
   function clearDust(){births.fill(-100);dustGeo.attributes.birth.needsUpdate=true;}
   let active=false,saved=null,count=0,drawing=false,last=null,lastBirth=0,strokeStart=0;const strokes=[];
-  let drawMode=false;
+  // viewer: he lies beside her in his own view and may draw too, without the
+  // carpet transition (his camera follows his pose).
+  let drawMode=false,viewer=false;
+  const canDraw=()=>(active&&!entering&&!leaving)||viewer;
+  const cursorTarget=()=>viewer?document.body:ui;
   let entering=false,leaving=false,transitionId=0,fadeAnimation=null;
   let lastInkActivity=-100,fadeStart=null,fadeFirst=0,fadeRate=1;
   function touchInk(){lastInkActivity=sparkleTime.value;fadeStart=null;eraseTime.value=-100;}
@@ -169,26 +173,29 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     try{await fadeAnimation.finished;}catch{return;}
     if(id===transitionId){leaving=false;fadeAnimation.cancel();fadeAnimation=null;onLeave();}
   }
-  function point(e){return new THREE.Vector3(e.clientX/innerWidth*2-1,1-e.clientY/innerHeight*2,.5).unproject(camera).sub(camera.position).normalize().multiplyScalar(120).add(camera.position);}
+  // World-space eye, so his camera (inside his rig) draws in the same sky as hers.
+  const eye=new THREE.Vector3();
+  function point(e){camera.getWorldPosition(eye);return new THREE.Vector3(e.clientX/innerWidth*2-1,1-e.clientY/innerHeight*2,.5).unproject(camera).sub(eye).normalize().multiplyScalar(120).add(eye);}
   window.addEventListener('mousedown',e=>{
-    if(!active||entering||leaving||e.button!==0)return;e.preventDefault();
+    if(!canDraw()||e.button!==0)return;e.preventDefault();
     if(!drawMode){
       // This click only opens the canvas. Never start a stroke from the
       // pointer-lock center while the browser restores the native cursor.
       // Native cursor keeps the dot and drawing coordinates together, without
       // a frame-delayed DOM follower. The hotspot is the center of the dot.
-      drawMode=true;ui.style.cursor=`url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><defs><radialGradient id="glow"><stop stop-color="#fff3d6" stop-opacity=".65"/><stop offset="1" stop-color="#fff3d6" stop-opacity="0"/></radialGradient></defs><circle cx="16" cy="16" r="9" fill="url(#glow)"/><circle cx="16" cy="16" r="2.5" fill="#fff8e8"/></svg>')}") 16 16, default`;
+      drawMode=true;cursorTarget().style.cursor=`url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><defs><radialGradient id="glow"><stop stop-color="#fff3d6" stop-opacity=".65"/><stop offset="1" stop-color="#fff3d6" stop-opacity="0"/></radialGradient></defs><circle cx="16" cy="16" r="9" fill="url(#glow)"/><circle cx="16" cy="16" r="2.5" fill="#fff8e8"/></svg>')}") 16 16, default`;
       camera.updateMatrixWorld(true);
-      if(document.pointerLockElement===ui)document.exitPointerLock();
+      if(document.pointerLockElement)document.exitPointerLock();
       return;
     }
-    if(document.pointerLockElement===ui)return;
+    if(document.pointerLockElement)return;
     drawing=true;strokeStart=count;pen.clientX=e.clientX;pen.clientY=e.clientY;last=point(pen);lastBirth=sparkleTime.value;
     touchInk();
   });
   window.addEventListener('mousemove',e=>{
-    if(!active||leaving)return;
+    if((!active||leaving)&&!viewer)return;
     if(drawing&&!(e.buttons&1))finish();
+    if(!drawMode&&viewer)return;
     if(!drawMode){yaw=THREE.MathUtils.clamp(yaw-e.movementX*.0022,-1.3,1.3);pitch=THREE.MathUtils.clamp(pitch-e.movementY*.002,.12,1.40);return;}
     if(!drawing)return;
     pen.clientX=e.clientX;pen.clientY=e.clientY;
@@ -211,11 +218,17 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   for(const site of sites)interactive.push({object:site.spot,reach:4.5,get prompt(){return canStart()?'lie down together · stargaze':`stargazing opens after the cake and the ${DASH_NAME}`;},action:()=>enter(site)});
   ink.visible=false;
   return {receiveInk(points){
-    if(count+2>max)return;
+    // Points arrive as batches of segments (six numbers per segment).
+    const n=points.length/3;
+    if(!n||count+n>max)return;
     touchInk();
-    positions.set(points,count*3);inkBirth[count]=inkBirth[count+1]=sparkleTime.value;count+=2;
+    positions.set(points,count*3);inkBirth.fill(sparkleTime.value,count,count+n);count+=n;
     geo.attributes.position.needsUpdate=true;geo.attributes.inkBirth.needsUpdate=true;geo.setDrawRange(0,count);geo.computeBoundingSphere();ink.visible=true;
-  },get active(){return active||entering||leaving;},enter,leave,update(time){
+  },
+  setViewer(on){if(viewer===on)return;viewer=on;if(on)ink.visible=true;else{finish();drawMode=false;document.body.style.cursor='';}},
+  // Esc from his drawing returns to looking around; true when it was handled.
+  exitViewerDrawing(){if(!viewer||!drawMode)return false;finish();drawMode=false;document.body.style.cursor='';return true;},
+  get drawMode(){return drawMode;},get active(){return active||entering||leaving;},enter,leave,update(time){
     sparkleTime.value=time;const dt=Math.min(.05,Math.max(0,time-previousTime));previousTime=time;
     inkMotion.value=reducedMotion.matches?0:1;
     // Keep the whole phrase through pauses between letters. After three quiet

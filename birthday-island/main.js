@@ -19,7 +19,7 @@ let remoteWasOnline=false;
 import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested,roleUI} from './multiplayer.js?v=role-preview-2';
 if(roleUI){document.body.classList.add('role-ui');document.body.dataset.role=isIshiee?'ishie':'moshie';}
 let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
-import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=coin-1';
+import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=ink-share-1';
 import { buildStoneSkipping } from './stone-skipping.js?v=three-rounds-2';
 import { SHORE } from './skipping-physics.js?v=more-skips-7';
 import { moveAroundRocks } from './rock-collision.js?v=props-players-1';
@@ -1887,10 +1887,15 @@ playerRig.rotation.y=Math.atan2(spawnX-celebrationPathX(spawnZ-7),7);
 cameraPivot.rotation.x=-.12;
 const keys={};
 const playerJump=createPlayerJump();
+// Ink is sent in small batches (about ten a second) so every segment arrives;
+// one message per segment exceeded the server's per-second event limit.
+let inkQueue=[],inkTimer=null;
+function flushInk(){inkTimer=null;while(inkQueue.length){network?.event({type:'ink',points:inkQueue.splice(0,600)});}}
+function queueInk(points){if(!network)return;inkQueue.push(...points);inkTimer??=setTimeout(flushInk,100);}
 const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,
   // Stargazing waits until the candles are blown and the cash dash is over.
   canStart:()=>!candlesLit&&!!cashDash?.finished,onBlocked:()=>toast(candlesLit?'BLOW OUT THE CANDLES FIRST':`FINISH THE ${DASH_NAME.toUpperCase()} FIRST`),
-  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:points=>network?.event({type:"ink",points}),onLeave:()=>requestPointerLock()});
+  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:queueInk,onLeave:()=>requestPointerLock()});
 let playing=false;
 const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,hisEyeHeight:CONFIG.hisEyeHeight,
   isOnline:multiplayerRequested,isMale:isIshiee,roleUI,getNetwork:()=>network,isPlaying:()=>playing,
@@ -2168,6 +2173,7 @@ window.addEventListener('keydown',e=>{
   }
   if(isPassenger){
     if(!playing)return;
+    if(e.code==='Escape'&&stargazing.exitViewerDrawing()){e.preventDefault();requestPointerLock();return;}
     if(e.code==='KeyR'){e.preventDefault();passengerPointing=true;}
     if(e.code==='Space'&&!e.repeat){e.preventDefault();if(network?.remoteLive)network.event({type:'cheer'});else toast('WAITING FOR MOSHIEE TO JOIN');}
     if(e.code==='KeyM'&&!e.repeat)audio.toggle();
@@ -2204,7 +2210,7 @@ function requestPointerLock(){
   const result=renderer.domElement.requestPointerLock?.();
   result?.catch(()=>{ /* A browser can decline; clicking the world retries. */ });
 }
-renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();radio.resume();});
+renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!stargazing.drawMode&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();radio.resume();});
 window.addEventListener('mousemove',e=>{
   if(gestureWheel.active)return;
   if(stargazing.active||document.pointerLockElement!==renderer.domElement)return;
@@ -2769,6 +2775,10 @@ if(inspect)Object.defineProperty(window,'__multiplayerState',{get:()=>({
 
 // Companion-view mode: camera translation follows MOSHIEE's locally simulated
 // male companion. Only camera orientation and expressive input originate here.
+function crossfadeBlack(){
+  const fade=$('#scene-fade');fade.style.transition='none';fade.classList.add('dark');void fade.offsetWidth;
+  fade.style.transition='';requestAnimationFrame(()=>fade.classList.remove('dark'));
+}
 function updatePassenger(dt,now){
   const pose=ownMotion.sample(now);
   if(pose){
@@ -2777,7 +2787,9 @@ function updatePassenger(dt,now){
     if(pose.lying)playerRig.position.z+=1.70;
     if(pose.lying&&!passengerLying)cameraPivot.rotation.x=1.22;
     if(!pose.lying&&passengerLying)cameraPivot.rotation.x=-.12;
-    passengerLying=pose.lying;
+    // Lying down or getting up cuts through black in his view too.
+    if(pose.lying!==passengerLying)crossfadeBlack();
+    passengerLying=pose.lying;stargazing.setViewer(passengerLying);
   }
   const peer=remoteMotion.sample(now);
   companion.anchor.visible=!!peer&&!!network?.remoteLive;
