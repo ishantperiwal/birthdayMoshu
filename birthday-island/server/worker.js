@@ -25,8 +25,8 @@ export default {
   }
 };
 
-// Once both players have been gone this long, the next visit starts over.
-const EMPTY_RESET_MS=60000;
+// Once both players have been gone 15 s, the next visit starts over (a quick reload keeps it).
+const EMPTY_RESET_MS=15000;
 const freshRoom=()=>({world:initialWorld(),poses:{},away:{},saved:0,startedAt:Date.now()});
 export class IslandRoom extends DurableObject {
   constructor(ctx,env){
