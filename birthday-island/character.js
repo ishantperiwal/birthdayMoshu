@@ -183,7 +183,10 @@ export function buildCharacter(parent,options={}){
   const down=new THREE.Vector3(0,-1,0),pointDirection=new THREE.Vector3(),pointRotation=new THREE.Quaternion();
   let stride=0,blend=0,pointBlend=0,waveBlend=0,previousHandAmount=0,releasingHand=false;
   const heldArm=options.shortHair?0:1;
-  const handPose=buildHandPose(root,{color:topColor,skinColor,shoulder:[heldArm?shoulderWidth:-shoulderWidth,1.14+upperLift,0],side:heldArm?1:-1,sleeveLength:options.shortHair?.38:null,shortSleeves:birthday,puffSleeves,armThickness:puffSleeves?HER_ARM_THICKNESS:1,handScale:birthday&&!stargazingFit?.92:1});
+  // A holding arm for each side (index = arms[] index: 0 left, 1 right); the
+  // hand used is whichever side faces the partner, so arms never cross.
+  const handPoses=[0,1].map(arm=>buildHandPose(root,{color:topColor,skinColor,shoulder:[arm?shoulderWidth:-shoulderWidth,1.14+upperLift,0],side:arm?1:-1,sleeveLength:options.shortHair?.38:null,shortSleeves:birthday,puffSleeves,armThickness:puffSleeves?HER_ARM_THICKNESS:1,handScale:birthday&&!stargazingFit?.92:1}));
+  let handPose=handPoses[heldArm],activeArm=heldArm;
   const throwStone=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat(0xd1dbe5));throwStone.scale.set(.075,.035,.055);throwStone.position.set(.025,options.suit?-.49:puffSleeves?-.39-HER_ARM_EXTRA:-.39,-.02);throwStone.visible=false;arms[1].add(throwStone);
   const bouquet=buildBouquetGesture(arms[1],{receiver:!options.shortHair});
   let bouquetView=null;
@@ -231,7 +234,7 @@ export function buildCharacter(parent,options={}){
     },
     get bouquetActive(){return !!bouquet?.active;},
     setBouquet(value,snap=false){bouquet?.set(value,snap);},
-    updateBouquet(dt,suppressed=false){bouquet?.update(dt,suppressed);if(bouquet?.active&&!suppressed&&!options.shortHair)handPose.root.visible=false;},
+    updateBouquet(dt,suppressed=false){bouquet?.update(dt,suppressed);if(bouquet?.active&&!suppressed&&!options.shortHair)for(const pose of handPoses)pose.root.visible=false;},
     setBouquetView(value){
         if(value){bouquetView??=new Map(root.children.map(o=>[o,o.visible]));for(const child of root.children)child.visible=child===arms[1]&&!!bouquet?.active;}
       else if(!value&&bouquetView){for(const [child,visible] of bouquetView)child.visible=visible;bouquetView=null;}
@@ -243,8 +246,9 @@ export function buildCharacter(parent,options={}){
       arms[1].rotation.set(THREE.MathUtils.lerp(-1.05*wind+2.65*snap,0,recover),0,.22*(1-recover)+.12*recover);
     },
     throwOrigin(target){return throwStone.getWorldPosition(target);},
-    poseHand(target,amount,rotation){
-    if(walkingVisibility){restingModel.poseHand(target,amount,rotation);return;}
+    poseHand(target,amount,rotation,arm=heldArm){
+    if(walkingVisibility){restingModel.poseHand(target,amount,rotation,arm);return;}
+    if(arm!==activeArm){handPose.update(target,0);handPose.root.visible=false;arms[activeArm].visible=true;activeArm=arm;handPose=handPoses[arm];}
     handPose.update(target,amount,rotation);
     if(amount<previousHandAmount-.000001)releasingHand=true;
     else if(amount>previousHandAmount+.000001)releasingHand=false;
@@ -253,8 +257,8 @@ export function buildCharacter(parent,options={}){
     // then keep lowering that original arm for the rest of the gesture.
     const useHoldingModel=amount>=(releasingHand?.85:.55);
     handPose.root.visible=useHoldingModel;
-    arms[heldArm].visible=!useHoldingModel;
-    if(amount>.001&&!useHoldingModel)arms[heldArm].quaternion.setFromUnitVectors(down,handPose.aim);
+    arms[activeArm].visible=!useHoldingModel;
+    if(amount>.001&&!useHoldingModel)arms[activeArm].quaternion.setFromUnitVectors(down,handPose.aim);
   },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);const round=options.shortHair?1:HEAD_SLIM;hat.scale.set(1.3/round,1.3,1.3/round);},update(dt,moving,running,cheer=0,attention=null,pace=1){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9)*pace;legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*THREE.MathUtils.lerp(armRestTilt,.37,cheer);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
     waveBlend+=((attention?.wave&&cheer<.1?1:0)-waveBlend)*(1-Math.exp(-dt*7));
     if(waveBlend>.001&&cheer<.1){

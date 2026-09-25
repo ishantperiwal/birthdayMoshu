@@ -30,7 +30,7 @@ import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=arms-1';
 import {buildBouquetControls} from './bouquet-controls.js?v=hold-1';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion, legPace } from './companion.js?v=hold-restore-1';
+import { buildCompanion, legPace } from './companion.js?v=two-hands-1';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
@@ -41,7 +41,7 @@ import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=heart-messag
 import {buildStageConfetti} from './stage-confetti.js?v=round-wider-4';
 import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter, HER_ARM_THICKNESS } from './character.js?v=slow-follow-1';
+import { buildCharacter, HER_ARM_THICKNESS } from './character.js?v=two-hands-1';
 import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';
@@ -1848,8 +1848,12 @@ function canHoldHands(){
 // ahead of him: his arm keeps its natural length and hers reaches the rest.
 function placeClasp(him,her){
   him.updateWorldMatrix(true,false);her.updateWorldMatrix(true,false);
-  claspShoulder.set(-.36*1.06,1.14*1.06,0);him.localToWorld(claspShoulder);
-  herShoulder.set(.22,1.08,0);her.localToWorld(herShoulder);
+  // Each uses the hand on the side the other stands (so arms never cross);
+  // a small dead zone keeps the choice steady when one is straight ahead.
+  sideProbe.copy(her.position);him.worldToLocal(sideProbe);if(Math.abs(sideProbe.x)>.15)hisHoldSide=Math.sign(sideProbe.x);
+  sideProbe.copy(him.position);her.worldToLocal(sideProbe);if(Math.abs(sideProbe.x)>.15)herHoldSide=Math.sign(sideProbe.x);
+  claspShoulder.set(hisHoldSide*.36*1.06,1.14*1.06,0);him.localToWorld(claspShoulder);
+  herShoulder.set(herHoldSide*.22,1.08,0);her.localToWorld(herShoulder);
   claspPoint.copy(claspShoulder).lerp(herShoulder,.5);claspPoint.y=Math.min(claspShoulder.y,herShoulder.y)-.42;
   hisForward.set(0,0,-1).transformDirection(him.matrixWorld);claspPoint.addScaledVector(hisForward,.16);
   claspAxis.subVectors(claspPoint,claspShoulder).normalize();
@@ -1870,8 +1874,8 @@ function updateHoldingHands(dt){
     claspBody.position.copy(playerRig.position);claspBody.rotation.set(0,avatarHeading,0);
     placeClasp(claspBody,companion.anchor);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
     firstPersonHand.update(partnerHand,CONFIG.thirdPerson?0:handAmount,partnerLinkRotation,reverseAxis);
-    avatar.poseHand(partnerHand,CONFIG.thirdPerson?handAmount:0,partnerLinkRotation);
-    companion.poseHand(joinedHands,handAmount,playerLinkRotation);
+    avatar.poseHand(partnerHand,CONFIG.thirdPerson?handAmount:0,partnerLinkRotation,hisArm());
+    companion.poseHand(joinedHands,handAmount,playerLinkRotation,herArm());
     handInteraction.prompt=companion.holding?'let go of her hand':'hold hands';
     return;
   }
@@ -1881,10 +1885,11 @@ function updateHoldingHands(dt){
   // first-person arm belongs to her own camera only.
   const herBodyArm=CONFIG.thirdPerson||bouquetControls.hisView;
   firstPersonHand.update(joinedHands,herBodyArm?0:handAmount,playerLinkRotation,herAxis);
-  avatar.poseHand(joinedHands,herBodyArm?handAmount:0,playerLinkRotation);
-  companion.poseHand(partnerHand,handAmount,partnerLinkRotation);
+  avatar.poseHand(joinedHands,herBodyArm?handAmount:0,playerLinkRotation,herArm());
+  companion.poseHand(partnerHand,handAmount,partnerLinkRotation,hisArm());
   handInteraction.prompt=companion.holding?'let go of his hand':'hold hands';
 }
+let hisHoldSide=-1,herHoldSide=1;const sideProbe=new THREE.Vector3(),hisArm=()=>hisHoldSide<0?0:1,herArm=()=>herHoldSide<0?0:1;
 const herShoulder=new THREE.Vector3(),claspPoint=new THREE.Vector3(),hisForward=new THREE.Vector3(),herAxis=new THREE.Vector3(),herBody=new THREE.Object3D();
 let avatarHeading=0;
 const spawnZ=27; // Just before the grassy entrance finishes fading into the trail.
@@ -2824,7 +2829,7 @@ function updatePassenger(dt,now){
   if(pose){claspBody.position.fromArray(pose.position);claspBody.rotation.set(0,pose.yaw,0);}
   placeClasp(claspBody,companion.anchor);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
   firstPersonHand.update(partnerHand,handAmount,partnerLinkRotation,reverseAxis);
-  companion.poseHand(joinedHands,handAmount,playerLinkRotation);
+  companion.poseHand(joinedHands,handAmount,playerLinkRotation,herArm());
   pointBlend+=(Number(passengerPointing&&!passengerLying&&!bouquetControls.shown)-pointBlend)*(1-Math.exp(-dt*10));
   camera.getWorldDirection(pointTarget);pointTarget.multiplyScalar(1.4).add(playerRig.position);pointTarget.y+=1.36;
   pointingHand.update(pointTarget,pointBlend);

@@ -1,6 +1,6 @@
 import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=slow-follow-1';
+import { buildCharacter } from './character.js?v=two-hands-1';
 
 // His original following speed, and a leg rhythm that matches the actual
 // ground speed so strides never look rushed or skate.
@@ -69,7 +69,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     },
     get holding(){return holding;},get holdReady(){return holdReady;},
     toggleHolding(){if(state==='celebrating')return false;holding=!holding;holdReady=false;speed=0;if(!holding)state='following';return holding;},
-    poseHand:(target,amount,rotation)=>character.poseHand(target,amount,rotation),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0,manualLook=null){
+    poseHand:(target,amount,rotation,arm)=>character.poseHand(target,amount,rotation,arm),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0,manualLook=null){
     time+=dt;expressiveAge+=dt;attention.manualPoint=false;
     let dx=player.x-anchor.position.x,dz=player.z-anchor.position.z,distance=Math.hypot(dx,dz),moving=false,hop=0,cheer=0;
     if(state==='celebrating'){
