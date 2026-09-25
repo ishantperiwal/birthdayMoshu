@@ -3,8 +3,8 @@
 <style>body{margin:0;background:#ddd5c9;font:14px system-ui;color:#51483e;overflow:hidden}header{position:absolute;top:18px;left:24px}nav{position:absolute;inset:48px 0 0;display:grid;grid-template-columns:1fr 1fr;pointer-events:none;letter-spacing:2px;font-size:11px}nav span{align-self:end;text-align:center;padding-bottom:16px}canvas{display:block}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head><body><header>Guy hairstyle · lego_hair.glb</header><nav><span>FRONT</span><span>THREE-QUARTER</span><span>SIDE</span><span>BACK</span></nav>
 <script type="module">
-import * as THREE from 'three';import {buildCharacter} from '../character.js?v=timed-expressions-3';
-import {buildExpressionControls} from '../expression-controls.js?v=timed-3';
+import * as THREE from 'three';import {buildCharacter} from '../character.js?v=face-decals-1';
+import {buildExpressionControls} from '../expression-controls.js?v=face-decals-1';
 const scene=new THREE.Scene();scene.background=new THREE.Color('#ddd5c9');
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
 const camera=new THREE.OrthographicCamera(-.5,.5,.5,-.5,.01,30);camera.position.set(0,1.5,3.55);camera.lookAt(0,1.23,0);

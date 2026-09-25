@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {paintKeepsakeSign} from './keepsake-sign.js';
 import { cakeMeshes } from './assets/birthday-cake.js?v=2';
 
 export function addBirthdayCentrepiece(party,boardParent=party){
@@ -32,33 +33,18 @@ export function addBirthdayCentrepiece(party,boardParent=party){
   }
   // A little freestanding keepsake board, facing the approach to the cake.
   const board=new THREE.Group();board.position.set(-4.25,0,5.0);board.rotation.y=1.08;boardParent.add(board);
-  const wood=new THREE.MeshStandardMaterial({color:0x896a50,roughness:.70});
+  const wood=new THREE.MeshStandardMaterial({color:0x66564e,roughness:.70});
   add(new THREE.BoxGeometry(1.27,.79,.07),wood,0,1.10,0,board);
   for(const x of [-.45,.45]){
     add(new THREE.BoxGeometry(.055,1.30,.055),wood,x,.65,-.025,board);
     add(new THREE.BoxGeometry(.22,.045,.38),wood,x,.025,-.025,board);
   }
   const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=600;
-  const ctx=canvas.getContext('2d');ctx.fillStyle='#886347';ctx.fillRect(0,0,1024,600);
-  ctx.strokeStyle='rgba(51,30,18,.13)';ctx.lineWidth=2;
-  for(let y=12;y<600;y+=13){ctx.beginPath();for(let x=0;x<=1024;x+=16){const yy=y+Math.sin(x*.012+y)*2;if(x===0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy);}ctx.stroke();}
-  ctx.strokeStyle='#C4A078';ctx.lineWidth=3;ctx.strokeRect(26,26,972,548);
-  ctx.textAlign='center';ctx.fillStyle='#FFF0D0';
-  ctx.font='italic 68px Georgia, serif';ctx.fillText('Happy Birthday,',512,230);
-  ctx.font='bold 116px Georgia, serif';ctx.fillText('Moshiee!',512,356);
-  // A softly shaded heart, printed into the board's existing texture.
-  const heart=ctx.createLinearGradient(0,69,0,146);
-  heart.addColorStop(0,'#F5B6B3');heart.addColorStop(.55,'#DF8793');heart.addColorStop(1,'#BC6076');
-  ctx.beginPath();ctx.moveTo(512,146);
-  ctx.bezierCurveTo(498,133,464,113,464,91);
-  ctx.bezierCurveTo(464,64,499,60,512,83);
-  ctx.bezierCurveTo(525,60,560,64,560,91);
-  ctx.bezierCurveTo(560,113,526,133,512,146);
-  ctx.closePath();ctx.fillStyle=heart;ctx.fill();
-  ctx.strokeStyle='#F3D4A5';ctx.lineWidth=2.5;ctx.stroke();
-  ctx.font='italic 32px Georgia, serif';ctx.fillStyle='#FFF0D0';ctx.fillText('Every day with you is my favourite.',512,460);
+  const ctx=canvas.getContext('2d');
+  paintKeepsakeSign(ctx);
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=4;
-  const lettering=new THREE.MeshStandardMaterial({map,roughness:.9,emissive:0xffffff,emissiveMap:map,emissiveIntensity:.12});
+  document.fonts?.load('600 154px "Caveat"').then(()=>{paintKeepsakeSign(ctx);map.needsUpdate=true;}).catch(()=>{});
+  const lettering=new THREE.MeshStandardMaterial({map,roughness:.9,emissive:0xffffff,emissiveMap:map,emissiveIntensity:.28});
   const face=add(new THREE.PlaneGeometry(1.19,.70),lettering,0,1.10,.037,board);face.castShadow=false;
   return {hats,board};
 }

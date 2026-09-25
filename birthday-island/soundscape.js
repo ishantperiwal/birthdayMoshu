@@ -89,8 +89,26 @@ export function createSoundscape(ctx,out,{musicLevel=1}={}){
 
   /* Music scheduling ------------------------------------------------------- */
 
-  const levels={birthday:.8,calm:.75};
+  const levels={welcome:.65,birthday:.8,calm:.75};
   const songs={
+    welcome(){
+      // An original, unhurried melody: individual notes with breathing room,
+      // without a bass line, pad, or looping drone underneath.
+      const phrases=[
+        [72,76,79,76,74,72],
+        [71,74,79,77,76,74],
+        [69,72,76,79,77,76],
+        [74,76,72,71,72,null]
+      ];
+      let phrase=0,step=0;
+      return t=>{
+        const note=phrases[phrase][step];
+        if(note!==null)warmTone(this.bus,note,t,.72,2.5);
+        const pause=step===5?4.5:step===2?2.4:1.65;
+        if(++step===6){step=0;phrase=(phrase+1)%phrases.length;}
+        return pause;
+      };
+    },
     birthday(){
       const beats=[...new Set([...BIRTHDAY_MELODY.map(e=>e[0]),...BIRTHDAY_ACCOMPANIMENT.map(e=>e[0])])].sort((a,b)=>a-b);
       let index=0,loop=0;

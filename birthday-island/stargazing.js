@@ -1,9 +1,12 @@
 import * as THREE from 'three';
-import {DASH_NAME} from './coin-mode.js';
 
 export const STARGAZING_SPOTS=[{x:-12,z:12}];
+// Lying down, the gaze can nod a little around its resting 1.22 (toward the
+// feet or back over the head) without ever losing the sky.
+import {slideGaze,GAZE_PITCH_MIN,GAZE_PITCH_MAX} from './gaze-limits.js';
+export {GAZE_PITCH_MIN,GAZE_PITCH_MAX};
 
-export function buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode=false,male=false,canMovePartner=()=>true,canStart=()=>true,onBlocked=()=>{},onViewerStop=()=>{},onInk=()=>{},onLeave=()=>{}}){
+export function buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode=false,male=false,canMovePartner=()=>true,canStart=()=>true,onBlocked=()=>{},onViewerStop=()=>{},onFocusDrawing=()=>{},getViewerLook=()=>({yaw:0,pitch:1.22}),onInk=()=>{},onLeave=()=>{}}){
   const sites=[];
   // Woven fabric follows the terrain; the surrounding meadow keeps its own colour.
   const fabric=document.createElement('canvas');fabric.width=fabric.height=512;
@@ -60,10 +63,10 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   const max=12000,positions=new Float32Array(max*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setDrawRange(0,0);
   const ink=new THREE.Group();scene.add(ink);
   const inkBirth=new Float32Array(max);geo.setAttribute('inkBirth',new THREE.BufferAttribute(inkBirth,1));
-  const sparkleTime={value:0},eraseTime={value:-100},eraseSpan={value:1},inkMotion={value:1};
-  const inkUniforms={uTime:sparkleTime,uErase:eraseTime,uEraseSpan:eraseSpan,uMotion:inkMotion};
-  const inkShader=`uniform float uErase;uniform float uEraseSpan;uniform float uMotion;
-    float inkFade(float birth){return 1.0-smoothstep(birth,birth+uEraseSpan,uErase);}
+  const sparkleTime={value:0},eraseTime={value:-100},eraseSpan={value:1},fadeLimit={value:1e9},inkMotion={value:1};
+  const inkUniforms={uTime:sparkleTime,uErase:eraseTime,uEraseSpan:eraseSpan,uFadeLimit:fadeLimit,uMotion:inkMotion};
+  const inkShader=`uniform float uErase;uniform float uEraseSpan;uniform float uFadeLimit;uniform float uMotion;
+    float inkFade(float birth){return birth>uFadeLimit?1.0:1.0-smoothstep(birth,birth+uEraseSpan,uErase);}
     vec3 drift(vec3 p){float s=p.x*.15+p.z*.12;return p+uMotion*vec3(sin(uTime*.65+s)*.10,sin(uTime*.8+s*.7)*.13,cos(uTime*.55+s)*.08);}`;
   ink.add(new THREE.LineSegments(geo,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
     uniforms:inkUniforms,vertexShader:`attribute float inkBirth;uniform float uTime;varying float vFade;${inkShader}
@@ -106,22 +109,38 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   }
   function clearDust(){births.fill(-100);dustGeo.attributes.birth.needsUpdate=true;}
   let active=false,saved=null,count=0,drawing=false,last=null,lastBirth=0,strokeStart=0;const strokes=[];
+  const seeDrawing=document.createElement('button');seeDrawing.className='stargaze-see-drawing';seeDrawing.textContent='See what they draw';seeDrawing.hidden=true;document.body.append(seeDrawing);
+  let remoteSum=[0,0,0],remoteCount=0,remoteAt=-100,remotePending=false;
+  seeDrawing.addEventListener('mousedown',e=>e.stopPropagation());
+  seeDrawing.addEventListener('click',()=>{
+    if(!canDraw()||!remoteCount)return;
+    stopDrawing();camera.getWorldPosition(eye);
+    const dx=remoteSum[0]/remoteCount-eye.x,dy=remoteSum[1]/remoteCount-eye.y,dz=remoteSum[2]/remoteCount-eye.z;
+    const length=Math.hypot(dx,dy,dz)||1;
+    yaw=Math.atan2(-dx,dy);pitch=Math.acos(Math.max(-1,Math.min(1,-dz/length)));
+    if(viewer)onFocusDrawing(yaw,pitch);
+    touchInk();remotePending=false;seeDrawing.hidden=true;
+  });
   // Shown while drawing, for both of them: stop drawing and look around again.
   const drawHint=document.createElement('button');drawHint.type='button';drawHint.className='stargaze-draw-hint';drawHint.hidden=true;
   drawHint.innerHTML='Drawing <span aria-hidden="true">·</span> <b>Esc</b> to stop';document.body.append(drawHint);
   drawHint.addEventListener('mousedown',e=>e.stopPropagation());
-  drawHint.addEventListener('click',()=>stopDrawing());
+  drawHint.addEventListener('click',()=>{if(drawMode)stopDrawing();else startDrawing();});
+  const cursorTrail=Array.from({length:12},()=>{const dot=document.createElement('i');dot.className='stargaze-cursor-trail';document.body.append(dot);return dot;});
+  let trailIndex=0,trailAt=0;
   // viewer: he lies beside her in his own view and may draw too, without the
   // carpet transition (his camera follows his pose).
-  let drawMode=false,viewer=false;
+  let drawMode=false,viewer=false,drawPan=null,gameActive=false,gameCanDraw=true;
   const canDraw=()=>(active&&!entering&&!leaving)||viewer;
   const cursorTarget=()=>viewer?document.body:ui;
   let entering=false,leaving=false,transitionId=0,fadeAnimation=null;
-  let lastInkActivity=-100,fadeStart=null,fadeFirst=0,fadeRate=1;
-  function touchInk(){lastInkActivity=sparkleTime.value;fadeStart=null;eraseTime.value=-100;}
+  let lastInkActivity=-100,fadeStart=null,fadeFirst=0,fadeRate=1,fadingCount=0;
+  function touchInk(){lastInkActivity=sparkleTime.value;if(fadeStart===null)eraseTime.value=-100;else lastBirth=Math.max(lastBirth,fadeLimit.value+.001);}
   let previousTime=0,yaw=0,pitch=1.22,hasGazeLock=false;
   const basePosition=new THREE.Vector3(),baseRotation=new THREE.Quaternion(),target=new THREE.Quaternion();
-  const lookEuler=new THREE.Euler(0,0,0,'YXZ'),sway=new THREE.Quaternion(),swayEuler=new THREE.Euler();
+  // Lying on her back, yaw rolls her head about the body's long axis (world Z)
+  // toward him or away; pitch only nods within GAZE_PITCH so the sky never tips.
+  const lookEuler=new THREE.Euler(0,0,0,'ZXY'),sway=new THREE.Quaternion(),swayEuler=new THREE.Euler();
   const pen={clientX:0,clientY:0};
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
   function remember(o){return {position:o.position.clone(),rotation:o.rotation.clone(),up:o.up.clone(),scale:o.scale.clone()};}
@@ -150,14 +169,15 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     active=true;saved={player:remember(playerRig),partner:remember(companion.anchor),avatar:remember(avatar.root),visible:avatar.root.visible,camera:remember(camera),parent:camera.parent,partnerVisible:companion.anchor.visible};
     if(companion.holding)companion.toggleHolding();
     Object.keys(keys).forEach(k=>keys[k]=false);setMood('night');
-    avatar.update(0,false,false);scene.attach(camera);
+    avatar.resetRestingPose();avatar.update(0,false,false);scene.attach(camera);
+    if(canMovePartner())companion.resetRestingPose();
     avatar.root.scale.setScalar(companion.bodyScale);
     playerRig.position.set(x+side*.62,ground+.27,z-.65);playerRig.rotation.set(Math.PI/2,0,0);avatar.root.rotation.set(0,0,0);avatar.root.visible=true;
     if(canMovePartner()){companion.anchor.position.set(x-.62,ground+.27,z-.65);companion.anchor.rotation.set(Math.PI/2,0,0);}
     ui.hidden=false;document.body.classList.add('is-stargazing');
-    if(canMovePartner())companion.anchor.visible=true;avatar.setFirstPerson(true);ink.visible=true;yaw=0;pitch=1.22;
-    basePosition.set(x+side*.62,ground+.62,z+1.05);camera.position.copy(basePosition);
-    lookEuler.set(pitch,yaw,0);baseRotation.setFromEuler(lookEuler);camera.quaternion.copy(baseRotation);camera.updateMatrixWorld(true);
+    if(canMovePartner())companion.anchor.visible=true;avatar.setFirstPerson(true);avatar.resetRestingPose();ink.visible=true;yaw=0;pitch=1.22;
+    basePosition.set(x+side*.62,ground+(male?.62:.56),z+1.05);camera.position.copy(basePosition);
+    lookEuler.set(pitch,0,yaw);baseRotation.setFromEuler(lookEuler);camera.quaternion.copy(baseRotation);camera.updateMatrixWorld(true);
   }
   function restoreStanding(){const wasActive=active;active=false;entering=false;drawMode=false;ui.style.cursor='';drawing=false;last=null;ui.hidden=true;ink.visible=false;document.body.classList.remove('is-stargazing');
     if(!wasActive)return;
@@ -180,31 +200,67 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   }
   // World-space eye, so his camera (inside his rig) draws in the same sky as hers.
   const eye=new THREE.Vector3();
-  function point(e){camera.getWorldPosition(eye);return new THREE.Vector3(e.clientX/innerWidth*2-1,1-e.clientY/innerHeight*2,.5).unproject(camera).sub(eye).normalize().multiplyScalar(120).add(eye);}
-  window.addEventListener('mousedown',e=>{
-    if(!canDraw()||e.button!==0)return;e.preventDefault();
-    if(!drawMode){
-      // This click only opens the canvas. Never start a stroke from the
-      // pointer-lock center while the browser restores the native cursor.
-      // Native cursor keeps the dot and drawing coordinates together, without
-      // a frame-delayed DOM follower. The hotspot is the center of the dot.
+  // Both cameras draw onto the same bounded world-space canvas overhead.
+  function point(e){
+    camera.getWorldPosition(eye);
+    const ray=new THREE.Vector3(e.clientX/innerWidth*2-1,1-e.clientY/innerHeight*2,.5).unproject(camera).sub(eye).normalize();
+    if(ray.y<=.05)return null;
+    const distance=(100-eye.y)/ray.y,x=eye.x+ray.x*distance,z=eye.z+ray.z*distance;
+    if(distance<=0||Math.abs(x)>75||Math.abs(z+35)>65)return null;
+    return new THREE.Vector3(x,100,z);
+  }
+  function startDrawing(){
+    if(!canDraw()||drawMode)return;
+    const from=viewer?getViewerLook():{yaw,pitch};
+    camera.getWorldPosition(eye);
+    const dx=-eye.x,dy=100-eye.y,dz=-35-eye.z,length=Math.hypot(dx,dy,dz);
+    yaw=Math.atan2(-dx,dy);pitch=Math.acos(Math.max(-1,Math.min(1,-dz/length)));
+    drawPan={from,to:{yaw,pitch},age:0};
+    if(reducedMotion.matches){
+      if(viewer)onFocusDrawing(yaw,pitch);else{lookEuler.set(pitch,0,yaw);baseRotation.setFromEuler(lookEuler);camera.quaternion.copy(baseRotation);}
+      drawPan=null;
+    }else{yaw=from.yaw;pitch=from.pitch;}
       drawMode=true;cursorTarget().style.cursor=`url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><defs><radialGradient id="glow"><stop stop-color="#fff3d6" stop-opacity=".65"/><stop offset="1" stop-color="#fff3d6" stop-opacity="0"/></radialGradient></defs><circle cx="16" cy="16" r="9" fill="url(#glow)"/><circle cx="16" cy="16" r="2.5" fill="#fff8e8"/></svg>')}") 16 16, default`;
       camera.updateMatrixWorld(true);
       if(document.pointerLockElement)document.exitPointerLock();
-      return;
-    }
+
+  }
+  function toggleDrawing(){if(!canDraw())return false;if(drawMode)stopDrawing();else startDrawing();return true;}
+  window.addEventListener('contextmenu',e=>{if(canDraw()&&drawMode)e.preventDefault();});
+  window.addEventListener('mousedown',e=>{
+    if(canDraw()&&drawMode&&e.button===2){e.preventDefault();finish();return;}
+    if(canDraw()&&!drawMode&&active&&e.button===0){lock();return;}
+    if(!canDraw()||!gameCanDraw||!drawMode||drawPan||e.button!==0)return;e.preventDefault();
     if(document.pointerLockElement)return;
     drawing=true;strokeStart=count;pen.clientX=e.clientX;pen.clientY=e.clientY;last=point(pen);lastBirth=sparkleTime.value;
     touchInk();
   });
   window.addEventListener('mousemove',e=>{
     if((!active||leaving)&&!viewer)return;
+    if(drawPan)return;
     if(drawing&&!(e.buttons&1))finish();
     if(!drawMode&&viewer)return;
-    if(!drawMode){yaw=THREE.MathUtils.clamp(yaw-e.movementX*.0022,-1.3,1.3);pitch=THREE.MathUtils.clamp(pitch-e.movementY*.002,.12,1.40);return;}
+    if(!drawMode&&document.pointerLockElement!==ui)return;
+    if(!drawMode||(e.buttons&2)){
+      const next=slideGaze(yaw-e.movementX*.0022,pitch-e.movementY*.002,pitch);yaw=next.yaw;pitch=next.pitch;
+      if(drawMode){
+        if(viewer)onFocusDrawing(yaw,pitch);
+        else{lookEuler.set(pitch,0,yaw);baseRotation.setFromEuler(lookEuler);}
+      }
+      return;
+    }
+    if(!reducedMotion.matches&&sparkleTime.value-trailAt>.025){
+      trailAt=sparkleTime.value;const dot=cursorTrail[trailIndex++%cursorTrail.length];
+      dot.style.left=e.clientX+'px';dot.style.top=e.clientY+'px';
+      dot.getAnimations?.().forEach(animation=>animation.cancel());
+      dot.animate?.([{opacity:.65,transform:'translate(-50%,-50%) scale(1)'},{opacity:0,transform:'translate(-50%,-50%) scale(.15)'}],{duration:320});
+    }
     if(!drawing)return;
     pen.clientX=e.clientX;pen.clientY=e.clientY;
-    const p=point(pen);if(p.distanceTo(last)<.3||count+2>max)return;
+    const p=point(pen);
+    if(!p){last=null;return;}
+    if(!last){last=p;lastBirth=sparkleTime.value;return;}
+    if(p.distanceTo(last)<.3||count+2>max)return;
     touchInk();ink.visible=true;
     // Send the same segments we render, rather than dropping most of them
     // between network sends and leaving gaps in the other player's drawing.
@@ -213,9 +269,9 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     geo.attributes.position.needsUpdate=true;geo.setDrawRange(0,count);geo.computeBoundingSphere();
   });
   function stopDrawing(){
-    if(!drawMode)return false;finish();drawMode=false;ui.style.cursor='';document.body.style.cursor='';
-    // She looks around unlocked (a second Esc gets up); his view needs its pointer lock back.
-    if(viewer)onViewerStop();
+    if(!drawMode)return false;finish();drawPan=null;drawMode=false;cursorTrail.forEach(dot=>dot.getAnimations?.().forEach(a=>a.cancel()));ui.style.cursor='';document.body.style.cursor='';
+    // Reclaim the mouse for looking around after drawing.
+    if(viewer)onViewerStop();else if(active)lock();
     return true;
   }
   function finish(){if(drawing&&count>strokeStart){
@@ -226,7 +282,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     if(document.pointerLockElement===ui){hasGazeLock=true;return;}
     if(hasGazeLock){hasGazeLock=false;finish();if((active||entering)&&!drawMode&&!document.body.classList.contains('is-scene-context'))leave();}
   });
-  for(const site of sites)interactive.push({object:site.spot,reach:4.5,get prompt(){return canStart()?'lie down together · stargaze':`stargazing opens after the cake and the ${DASH_NAME}`;},action:()=>enter(site)});
+  for(const site of sites)interactive.push({object:site.spot,reach:4.5,available:()=>canStart(),prompt:'lie down together · stargaze',action:()=>enter(site)});
   ink.visible=false;
   return {receiveInk(points){
     // Points arrive as batches of segments (six numbers per segment).
@@ -239,16 +295,26 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   setViewer(on){if(viewer===on)return;viewer=on;if(on)ink.visible=true;else{finish();drawMode=false;document.body.style.cursor='';}},
   // Esc from his drawing returns to looking around; true when it was handled.
   exitViewerDrawing(){return viewer&&stopDrawing();},
+  toggleDrawing,startDrawing,stopDrawing,
+  setGame(on,canDraw){gameActive=on;gameCanDraw=canDraw;if(!canDraw)finish();},
+  clearInk(){finish();clearDust();count=0;fadingCount=0;fadeStart=null;eraseTime.value=-100;fadeLimit.value=1e9;strokes.length=0;geo.setDrawRange(0,0);},
   // Her look while lying down, sent with her pose so he sees her head move.
   get look(){return {yaw,pitch};},
   get drawMode(){return drawMode;},get active(){return active||entering||leaving;},enter,leave,update(time){
     sparkleTime.value=time;const dt=Math.min(.05,Math.max(0,time-previousTime));previousTime=time;
+    if(drawPan){
+      drawPan.age+=dt;const t=reducedMotion.matches?1:Math.min(1,drawPan.age/1.1),ease=t*t*(3-2*t);
+      const delta=Math.atan2(Math.sin(drawPan.to.yaw-drawPan.from.yaw),Math.cos(drawPan.to.yaw-drawPan.from.yaw));
+      yaw=drawPan.from.yaw+delta*ease;pitch=drawPan.from.pitch+(drawPan.to.pitch-drawPan.from.pitch)*ease;
+      if(viewer)onFocusDrawing(yaw,pitch);else{lookEuler.set(pitch,0,yaw);baseRotation.setFromEuler(lookEuler);}
+      if(t===1)drawPan=null;
+    }
     inkMotion.value=reducedMotion.matches?0:1;
     // Keep the whole phrase through pauses between letters. After three quiet
     // seconds, replay its birth order as an erasing wave lasting 2–5 seconds.
-    if(count&&time-lastInkActivity>3){
+    if(count&&!gameActive&&(fadeStart!==null||time-lastInkActivity>3)){
       if(fadeStart===null){
-        fadeStart=lastInkActivity+3;fadeFirst=inkBirth[0];
+        fadeStart=lastInkActivity+3;fadeFirst=inkBirth[0];fadingCount=count;fadeLimit.value=inkBirth[count-1];
         const duration=Math.max(.01,inkBirth[count-1]-fadeFirst);
         fadeRate=duration/Math.min(4,Math.max(1,duration*.35));
         eraseSpan.value=fadeRate*1.2;
@@ -256,19 +322,25 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
       eraseTime.value=fadeFirst+(time-fadeStart)*fadeRate;
     }
     let removed=0;
-    while(removed+1<count&&eraseTime.value>=inkBirth[removed+1]+eraseSpan.value)removed+=2;
+    while(removed+1<fadingCount&&eraseTime.value>=inkBirth[removed+1]+eraseSpan.value)removed+=2;
     if(removed){
       positions.copyWithin(0,removed*3,count*3);inkBirth.copyWithin(0,removed,count);count-=removed;
       while(strokes.length&&strokes[0].end<=removed)strokes.shift();
       for(const stroke of strokes){stroke.start=Math.max(0,stroke.start-removed);stroke.end-=removed;}
       strokeStart=Math.max(0,strokeStart-removed);
+      fadingCount-=removed;
+      if(fadingCount===0){fadeStart=null;eraseTime.value=-100;fadeLimit.value=1e9;}
       geo.attributes.position.needsUpdate=true;geo.attributes.inkBirth.needsUpdate=true;geo.setDrawRange(0,count);geo.computeBoundingSphere();
     }
-    drawHint.hidden=!drawMode||!canDraw();
+    seeDrawing.hidden=!canDraw()||!remotePending||count===0;
+    // Leave time to notice the invitation before the shared writing fades.
+    if(remotePending&&time-remoteAt<8&&count)touchInk();
+    drawHint.hidden=!canDraw();
+    drawHint.innerHTML=drawMode?(gameCanDraw?'Drag to draw · right-drag to look · <b>D</b> to stop · <b>P</b> Pictionary':'Guess in Pictionary · <b>P</b> open · <b>Esc</b> look around'):'Press <b>D</b> to draw · <b>P</b> Pictionary';
     // His view (viewer) keeps the sky ink visible even before anything is drawn.
     if(!active&&!viewer&&count===0)ink.visible=false;
     if(!active||leaving)return;
-    lookEuler.set(pitch,yaw,0);target.setFromEuler(lookEuler);
+    lookEuler.set(pitch,0,yaw);target.setFromEuler(lookEuler);
     if(!drawMode)baseRotation.slerp(target,1-Math.exp(-dt*12));
     camera.position.copy(basePosition);camera.quaternion.copy(baseRotation);
     if(!reducedMotion.matches){
@@ -278,8 +350,9 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     camera.updateMatrixWorld(true);
   },keyDown(e){if(leaving){e.preventDefault();return true;}if(!active&&!entering)return false;
     if(entering){if(e.code==='Escape'||e.code==='KeyQ'){e.preventDefault();leave();}return true;}
-    if(e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){e.preventDefault();finish();if(strokes.length){clearDust();count=strokes.pop().start;geo.setDrawRange(0,count);}}
-    if(e.code==='KeyC'&&!e.repeat){finish();clearDust();count=0;strokes.length=0;geo.setDrawRange(0,0);}
+    if(!gameActive&&e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){e.preventDefault();finish();if(strokes.length){clearDust();count=strokes.pop().start;geo.setDrawRange(0,count);}}
+    if(!gameActive&&e.code==='KeyC'&&!e.repeat){finish();clearDust();count=0;strokes.length=0;geo.setDrawRange(0,0);}
+    if(e.code==='KeyD'){e.preventDefault();if(!e.repeat)toggleDrawing();return true;}
     if(e.code==='Escape'&&drawMode){e.preventDefault();stopDrawing();return true;}
     if(e.code==='KeyQ'||e.code==='Escape'){e.preventDefault();leave();}return true;
   }};

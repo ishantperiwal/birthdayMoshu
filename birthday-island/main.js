@@ -1,12 +1,23 @@
+import {buildBenchSeat} from './bench-seat.js';
+import {buildWelcomeMusic} from './welcome-music.js';
+import {buildWelcomePlane} from './welcome-plane.js';
+import {addPebbleSign} from './pebble-sign.js';
+import {slideGaze} from './gaze-limits.js';
+import {buildHandTuner} from './hand-tuner.js';
+import {buildPointMarker} from './point-marker.js';
+import {buildGrassSeat} from './grass-seat.js';
+import {prewarmScene} from './prewarm.js';
+import {addTableEnvelope} from './table-envelope.js';
+import {buildEndingCheque} from './ending-cheque.js';
 import {buildChatBubbles} from './chat-bubbles.js?v=chat-log-6';
 import {buildChatLog} from './chat-log.js';
 import {clampWalkPitch,MIN_HOLD_PITCH} from './look-limits.js?v=hold-1';
 import {createPreviewFollower} from './preview-follower.js?v=follow-orig';
-import {buildGestureWheel} from './gesture-wheel.js';
-import {buildExpressionControls} from './expression-controls.js?v=minimal-chat-5';
-import {EXPRESSIONS,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=kiss-4';
+import {buildGestureWheel} from './gesture-wheel.js?v=face-decals-1';
+import {buildExpressionControls} from './expression-controls.js?v=face-decals-1';
+import {EXPRESSIONS,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=generated-decals-1';
 import { buildCashRewards } from './cash-rewards.js?v=coin-1';
-import {buildCashDash} from './cash-dash.js?v=coin-1';
+import {buildCashDash} from './cash-dash.js?v=coin-3';
 import {CASH_SITES,formatCash} from './cash-dash-state.js?v=coin-1';
 import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
 import {BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=back-seam-12';
@@ -15,22 +26,25 @@ import {createRemoteMotion} from './remote-motion.js?v=catch-up-1';
 const remoteMotion=createRemoteMotion();
 const ownMotion=createRemoteMotion({delay:180}),lookMotion=createRemoteMotion({delay:140});
 let ownPose=null,passengerLying=false,passengerPointing=false,pointBlend=0;
+let clickPointUntil=0;
+const clickPointDirection=new THREE.Vector3();
 let remoteWasOnline=false;
 import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested,roleUI} from './multiplayer.js?v=role-preview-2';
 if(roleUI){document.body.classList.add('role-ui');document.body.dataset.role=isIshiee?'ishie':'moshie';}
 let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
-import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=ink-view-2';
+import { buildStargazing, STARGAZING_SPOTS, GAZE_PITCH_MIN, GAZE_PITCH_MAX } from './stargazing.js?v=head-roll-3';
+import {buildPictionary} from './pictionary.js';
 import { buildStoneSkipping } from './stone-skipping.js?v=three-rounds-2';
 import { SHORE } from './skipping-physics.js?v=more-skips-7';
 import { moveAroundRocks } from './rock-collision.js?v=props-players-1';
 import { createPlayerJump } from './player-jump.js';
-import { buildLovePlane } from './love-plane.js?v=night-blue-5';
+import { buildLovePlane } from './love-plane.js?v=soft-approach-6';
 import { insectVisibility, insectRank } from './insect-density.js';
 import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=arms-1';
-import {buildBouquetControls} from './bouquet-controls.js?v=hold-1';
+import {buildBouquetControls} from './bouquet-controls.js?v=action-bar-1';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion, legPace } from './companion.js?v=two-hands-1';
+import { buildCompanion, legPace } from './companion.js?v=hold-close-4';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
@@ -40,8 +54,8 @@ import { STAGE_HEIGHT, STAGE_RADIUS } from './celebration-stage.js';
 import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=heart-message-1';
 import {buildStageConfetti} from './stage-confetti.js?v=round-wider-4';
 import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
-import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter, HER_ARM_THICKNESS } from './character.js?v=two-hands-1';
+import { auroraGLSL } from './aurora.js?v=5';
+import { buildCharacter, HER_ARM_THICKNESS } from './character.js?v=face-decals-2';
 import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';
@@ -50,10 +64,10 @@ import { buildCelebration } from './celebration.js?v=stage-2';
 import { cakeTableMaterials } from './cake-details.js?v=ambient-1';
 import { buildStars, buildPaintedClouds } from './painted-sky.js?v=github-minus-01-16';
 import { buildSceneContext } from './scene-context.js?v=2';
-import { buildFireworks } from './fireworks.js?v=festival-5';
+import { buildFireworks } from './fireworks.js?v=festival-6';
 import { buildSkyMessage } from './sky-message.js?v=2';
-import { createSoundscape } from './soundscape.js?v=cash-sound-1';
-import { createRadio } from './radio-player.js?v=softer-1';
+import { createSoundscape } from './soundscape.js?v=welcome-melody-2';
+import { createRadio } from './radio-player.js?v=softer-2';
 import { COIN_MODE, DASH_NAME } from './coin-mode.js';
 import { buildMeadowLife } from './meadow-life.js?v=colorful-caps-1';
 import { buildCandleSmoke } from './candle-smoke.js';
@@ -247,8 +261,9 @@ moonSurface.colorSpace=THREE.NoColorSpace;
 const skyUniforms = {
   uMoonSurface:{value:moonSurface},
   uMoonSurfaceReady:moonSurfaceReady,
+  uMoonNight:{value:0},
   uAuroraTime: { value: 0 },
-  uAuroraNight: { value: moodLive.stars },
+  uAuroraNight: { value: 0 },
   uTop: { value: new THREE.Color(moodLive.top) },
   uUpper: { value: new THREE.Color(moodLive.upper) },
   uMid: { value: new THREE.Color(moodLive.mid) },
@@ -265,7 +280,7 @@ const skyGLSL = `
   ${auroraGLSL}
   uniform vec3 uTop, uUpper, uMid, uHorizon, uHorizonSun, uAnti, uGlow, uDisc, uSunDir;
   uniform sampler2D uMoonSurface;
-  uniform float uMoonSurfaceReady;
+  uniform float uMoonSurfaceReady, uMoonNight;
   vec3 skyDome(vec3 d, float discGain){
     float yy = max(d.y, -0.18);
     vec3 col = mix(uHorizon, uMid, smoothstep(-0.02, 0.13, yy));
@@ -283,7 +298,7 @@ const skyGLSL = `
     float ang = dot(d, uSunDir);
     col = mix(col, uGlow, clamp(pow(max(ang,0.0),12.0)*0.40 + pow(max(ang,0.0),2.9)*0.06,0.0,0.9));
     vec3 discColour=uDisc*1.42;
-    if(ang>.9992 && uAuroraNight>.01 && uMoonSurfaceReady>.5){
+    if(ang>.9992 && uMoonNight>.01 && uMoonSurfaceReady>.5){
       vec3 right=normalize(cross(uSunDir,vec3(0.0,1.0,0.0)));
       vec3 up=normalize(cross(right,uSunDir));
       vec2 lunar=vec2(dot(d,right),dot(d,up))/.034;
@@ -293,7 +308,7 @@ const skyGLSL = `
                    .5+asin(clamp(lunar.y,-1.0,1.0))/3.14159265);
       float albedo=dot(texture2D(uMoonSurface,uv).rgb,vec3(.2126,.7152,.0722));
       float detail=clamp(.40+.95*albedo,.58,1.05)*(.97+.03*face);
-      discColour*=mix(1.0,detail,smoothstep(.35,.85,uAuroraNight));
+      discColour*=mix(1.0,detail,smoothstep(.35,.85,uMoonNight));
     }
     col = mix(col, discColour, smoothstep(0.9992, 0.99972, ang) * discGain);
     col = mix(col, mix(uHorizon,uAnti,.35), (1.0-smoothstep(-0.16,0.0,d.y)));
@@ -566,6 +581,7 @@ ocean.renderOrder = 2;
 scene.add(ocean);
 const oceanLife=buildOceanLife(scene,glowTexture);
 let fishRippleCursor=0;
+const fishViewPosition=new THREE.Vector3(),fishViewDirection=new THREE.Vector3();
 const jumpingFish=buildJumpingFish(scene,{terrainHeight,onSplash:(x,z,time,size)=>{
   oceanUniforms.uFishRipples.value[fishRippleCursor++%8].set(x,z,time,size);
 }});
@@ -972,6 +988,7 @@ const treeSpots = [
   [29,5,.78],[-23,-9,.8],[5,29,.7]
 ];
 
+const treeColliders=[];
 const treeRandom=mulberry32(7219);
 for(let variant=0;variant<4;variant++){
   const geometry=referenceTreeGeometry(variant===3?'pine':'broadleaf',471+variant*137);
@@ -982,6 +999,9 @@ for(let variant=0;variant<4;variant++){
   const sway=new Float32Array(placements.length*4),phase=new Float32Array(placements.length);
   placements.forEach(([x,z,size],i)=>{
     const scale=6.6*size/height, ground=renderedGroundHeight(x,z);
+    const vertices=geometry.attributes.position;let trunkRadius=.2;
+    for(let v=0;v<vertices.count;v++)if(vertices.getY(v)*scale<1.25)trunkRadius=Math.max(trunkRadius,Math.hypot(vertices.getX(v),vertices.getZ(v))*scale);
+    treeColliders.push({x,z,radius:trunkRadius});
     dummy.position.set(x,ground,z);dummy.rotation.set(0,treeRandom()*Math.PI*2,0);
     dummy.scale.setScalar(scale);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);
     sway.set([x,ground,z,6.6*size],i*4);phase[i]=treeRandom()*Math.PI*2;
@@ -998,7 +1018,7 @@ for(let variant=0;variant<4;variant++){
 for(let i=0;i<treeSpots.length*50;i++)rand();
 
 // Soft-edged rocks around the beach and paths.
-const rockColliders=[];
+const rockColliders=[...treeColliders,{x:SHORE.x,z:SHORE.z,radius:.52},{x:22,z:-20,radius:1.15}];
 // Static prop footprints share the existing substepped sliding solver.
 for(const [x,z] of lanternSites)rockColliders.push({x,z,radius:.27});
 for (let i = 0; i < 34; i++) {
@@ -1282,7 +1302,8 @@ flowerTintTexture.needsUpdate=true;
 /* -------------------------------------------------------------------------- */
 
 const interactive = [];
-const stoneSkipping=buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion:()=>companion,canAutoplay:()=>!multiplayerRequested||!!network?.autopilot,onThrow:event=>{if(network&&!applyingNetwork)network.event(event);},onWin:complete=>audio.chime(complete?[523.25,659.25,783.99,1046.5]:[659.25,783.99])});
+addPebbleSign(scene,terrainHeight,45.23083,22.33100);
+const stoneSkipping=buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion:()=>companion,canAutoplay:()=>!multiplayerRequested||!!network?.autopilot,onThrow:event=>{if(network&&!applyingNetwork)network.event(event);},onNearMiss:()=>{audio.tone(659.25,0,.28,.035);audio.tone(523.25,.14,.5,.025);},onWin:complete=>{const notes=complete?[523.25,659.25,783.99,1046.5]:[659.25,830.61,987.77];notes.forEach((note,i)=>audio.tone(note,i*.10,i===notes.length-1?.8:.3,.065));if(complete){cashDash.awardBonus();if(network)network.event({type:'hoop-prize'});}}});
 const dandelions=buildDandelions({scene,terrainHeight,meadowMask,random:mulberry32(41551),interactive,
   onRelease:()=>toast('A LITTLE WISH, ON ITS WAY')});
 let partyLightMaterial = null;
@@ -1356,13 +1377,10 @@ function buildBench() {
   const jarFoot=g.localToWorld(new THREE.Vector3(1.95,0,-.3));
   const jarOffset=terrainHeight(jarFoot.x,jarFoot.z)-g.position.y;
   for(const part of g.children.slice(jarPartsStart))part.position.y+=jarOffset;
-  if(CONFIG.sunset)interactive.push({
-    type: 'bench', object: g, reach: 4.2,
-    prompt: 'sit on our bench and watch the sunset',
-    action: () => { setMood('sunset'); toast('THE HORIZON SAVED FOR THE TWO OF US'); audio.chime([523.25, 659.25, 783.99]); }
-  });
+  interactive.push({type:'bench',object:g,reach:4.2,prompt:'sit together',available:()=>playing&&!benchSeat.active&&!stargazing.active&&!stoneSkipping.active&&!bouquetControls.shown&&!companion.holding,action:()=>benchSeat.sit()});
+  return g;
 }
-buildBench();
+const oceanBench=buildBench();
 
 const candleFlames = [];
 let candleSmoke, candleBlownAt=-1, candleFrameCheck=null;
@@ -1392,14 +1410,24 @@ function buildParty() {
   const table = cylinder(1.30, 1.30, .1, 64, cakeTableMaterials(mats.cream)); table.position.y=.62; furniture.add(table);
   const pedestal = cylinder(.25,.42,.56,24,mats.wood); pedestal.position.y=.28; furniture.add(pedestal);
   const {hats,board}=addBirthdayCentrepiece(furniture,party);
-  const hatInteractions=hats.map(hat=>({type:'hat',object:hat,reach:2.5,
-    prompt:'put on our party hats',found:false,action:()=>{
+  // Only he wears a party hat (the teal one); hers is left off the table.
+  hats[0].removeFromParent();
+  const endingEnvelope=addTableEnvelope(furniture);
+  buildEndingCheque({camera,envelope:endingEnvelope,interactive,
+    canPick:()=>playing&&!candlesLit&&finalePendingUntil<0&&!fireworks.active&&!lovePlane.passing&&!isIshiee,
+    canTurn:()=>cashDash.finished,
+    getAmount:()=>cashDash.winnings,
+    onOpen:()=>{Object.keys(keys).forEach(key=>keys[key]=false);document.exitPointerLock?.();},
+    onClose:()=>requestPointerLock()});
+  const hisHat=hats[1];
+  const hatInteractions=[{type:'hat',object:hisHat,reach:2.5,
+    prompt:isIshiee?'put on your party hat':'put on his party hat',found:false,action:()=>{
       if(network&&!applyingNetwork){network.event({type:"hats"});return;}
       if(hatInteractions[0].found)return;
-      hatInteractions.forEach(item=>item.found=true);
-      companion.wearHat(hats[isIshiee?0:1]);avatar.wearHat(hats[isIshiee?1:0]);
-      toast('PARTY HATS ON · BOTH OF US');
-    }}));
+      hatInteractions[0].found=true;
+      (isIshiee?avatar:companion).wearHat(hisHat);
+      toast('PARTY HAT ON');
+    }}];
   interactive.push(...hatInteractions);
   // Rounded belly, tapered curved tip, and a warm luminous core.
   const flameProfile=[];
@@ -1427,9 +1455,13 @@ function buildParty() {
   });
   for(let i=0;i<5;i++){
     const a=i/5*Math.PI*2;
-    const candle=cylinder(.022,.026,.24,7,i%2?mats.pink:mats.gold);candle.position.set(Math.cos(a)*.25,1.49,Math.sin(a)*.25);furniture.add(candle);
+    const candle=cylinder(.022,.026,.24,7,i%2?mats.pink:mats.gold);
+    // Seeded irregular lean; pivot around the wax base so it stays in the cake.
+    candle.rotation.set(Math.sin(i*2.37+1)*.10,0,Math.cos(i*1.71+.4)*.12);
+    const candleBase=new THREE.Vector3(Math.cos(a)*.25,1.37,Math.sin(a)*.25);
+    candle.position.set(0,.12,0).applyQuaternion(candle.quaternion).add(candleBase);furniture.add(candle);
     const phase=rand()*6;
-    const flame=new THREE.Mesh(flameGeo,makeFlameMaterial(phase));flame.position.set(Math.cos(a)*.25,1.66,Math.sin(a)*.25);furniture.add(flame);
+    const flame=new THREE.Mesh(flameGeo,makeFlameMaterial(phase));flame.position.set(0,.24,0).applyQuaternion(candle.quaternion).add(candleBase);flame.position.y+=.05;furniture.add(flame);
     const light=new THREE.PointLight(0xffaa54,.32,3);light.position.copy(flame.position);furniture.add(light);
     candleFlames.push({flame,light,phase});
   }
@@ -1452,7 +1484,7 @@ function buildParty() {
   }
   interactive.push({
     type:'cake', object:party, reach:4.8,
-    get prompt(){ return candlesLit ? 'make a wish and blow out the candles' : 'the wish is on its way'; },
+    prompt:'blow candles',available:()=>candlesLit,
     action: blowCandles
   });
 }
@@ -1474,7 +1506,7 @@ paintUniforms.uStumpBase.value.copy(fireside.stumpBase);
 // both players crossfade to it wherever they are in their own copy.
 const radioSpot=new THREE.Vector3(),radioEar=new THREE.Vector3();
 fireside.root.updateMatrixWorld(true);fireside.radio.getWorldPosition(radioSpot);
-let radioWarned=false;
+let radioWarned=false,radioNearby=false;
 function requestSong(from,to){if(network?.connected)network.event({type:'radio',from,to});else radio.play(to);}
 const radio=createRadio({
   requestNext:requestSong,
@@ -1485,11 +1517,14 @@ function updateRadio(dt){
   camera.getWorldPosition(radioEar);
   // After the birthday celebration, the same radio song is barely audible
   // island-wide (2/100 volume), while keeping its familiar fireside loudness.
-  // A long, gentle fade: loudest beside the fire, easing out to silence ~32 m away.
-  const near=audio.muted?0:Math.pow(1-smoothstep(2,32,radioEar.distanceTo(radioSpot)),1.5);
+  // Distance sets the desired level; the radio approaches it over time.
+  const distance=radioEar.distanceTo(radioSpot);
+  // Separate entry/exit radii prevent the video flickering at the boundary.
+  radioNearby=distance<(radioNearby?13:10);
+  const near=audio.muted?0:Math.pow(1-smoothstep(2,18,distance),1.5);
   const background=!audio.muted&&CONFIG.musicVolume>0&&audio.musicMode==='radio'
-    ?.025*smoothstep(7,13,elapsed-audio.musicChangedAt):0;
-  radio.update(dt,near,background);audio.scape?.duck(near);
+    ?.025*smoothstep(0,6,elapsed-audio.musicChangedAt):0;
+  radio.update(dt,near,background,{visible:radioNearby,muted:audio.muted});audio.scape?.duck(near);
 }
 interactive.push({type:'radio',object:fireside.radio,reach:2.5,prompt:'play the next song',action:()=>{
   if(fireside.audio){if(fireside.audio.paused)fireside.audio.play().catch(()=>toast('THE RADIO TRACK COULD NOT BE LOADED'));else fireside.audio.pause();return;}
@@ -1688,7 +1723,7 @@ for(let i=0;i<22;i++){
 const clouds=buildPaintedClouds(scene,paintUniforms,P);
 // The clouds need the sun in view space to light their baked normals, so they
 // warm and turn with the mood instead of carrying a fixed top-down gradient.
-function updateClouds(){clouds.update(elapsed,camera,skyUniforms.uSunDir.value);}
+function updateClouds(){clouds.update(elapsed,camera,skyUniforms.uSunDir.value,stargazing.active||passengerLying);}
 
 // The retired 12-sprite cloud layout consumed four shared draws per sprite.
 // Keep the downstream firefly layout stable; cloud noise has its own seed now.
@@ -1733,15 +1768,24 @@ const skyMessage=buildSkyMessage(scene,glowTexture,CONFIG.skyMessage);
 const finaleEye=new THREE.Vector3();
 let finalePendingUntil=-1;
 function takeFinale(){const finale=elapsed<finalePendingUntil;finalePendingUntil=-1;return finale;}
-const fireworks=buildFireworks(scene,glowTexture,(origin,variant)=>{audio.fireworkBurst(origin,variant);companion.watchFirework(origin);},(target,variant,life)=>audio.fireworkLaunch(target,variant,life),
-  origin=>{camera.getWorldPosition(finaleEye);skyMessage.show(origin,finaleEye);lovePlane.flyPast(origin,finaleEye);});
+const fireworks=buildFireworks(scene,glowTexture,(origin,variant)=>{audio.fireworkBurst(origin,variant);companion.watchFirework(origin);},(target,variant,life,finale)=>{
+    audio.fireworkLaunch(target,variant,life);
+    if(finale){camera.getWorldPosition(finaleEye);lovePlane.flyPast(target,finaleEye,{lead:life});}
+  },origin=>{camera.getWorldPosition(finaleEye);skyMessage.show(origin,finaleEye);});
 function launchFireworks(amount=6){
   if(network&&!applyingNetwork){network.event({type:"fireworks",amount});return;}
   if(currentMood!=='night')setMood('night');
   toast('LOOK UP  ·  THE SKY IS YOURS');
   fireworks.launch(playerRig.position,playerRig.rotation.y,amount,{finale:takeFinale()});
 }
-function updateFireworks(dt){if(inspect&&inspectParams.has('fireworkStill'))return;fireworks.update(dt);skyMessage.update(dt,lovePlane.passing);}
+function updateFireworks(dt){
+  if(inspect&&inspectParams.has('fireworkStill'))return;
+  const wasActive=fireworks.active;
+  fireworks.update(dt);
+  // All launch paths (including F and multiplayer) finish the birthday music.
+  if(wasActive&&!fireworks.active)audio.setMusic('radio');
+  skyMessage.update(dt,lovePlane.passing);
+}
 
 /* -------------------------------------------------------------------------- */
 /* Small synthesised soundscape                                               */
@@ -1749,7 +1793,7 @@ function updateFireworks(dt){if(inspect&&inspectParams.has('fireworkStill'))retu
 
 const soundEar=new THREE.Vector3(),soundLook=new THREE.Vector3(),soundSpot=new THREE.Vector3();
 const audio={
-  ctx:null,master:null,scape:null,muted:false,musicMode:'birthday',musicChangedAt:0,
+  ctx:null,master:null,scape:null,muted:false,musicMode:'radio',musicChangedAt:0,
   init(){
     if(this.ctx)return;
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
@@ -1759,12 +1803,6 @@ const audio={
     this.master.connect(limiter).connect(this.ctx.destination);
     this.scape=createSoundscape(this.ctx,this.master,{musicLevel:CONFIG.musicVolume});
     if(CONFIG.musicVolume>0)this.scape.setMusic(this.musicMode,{delay:1.6,fade:4});
-    const buffer=this.ctx.createBuffer(1,this.ctx.sampleRate*3,this.ctx.sampleRate),data=buffer.getChannelData(0);
-    let last=0;for(let i=0;i<data.length;i++){last=last*.985+(Math.random()*2-1)*.015;data[i]=last;}
-    const noise=this.ctx.createBufferSource();noise.buffer=buffer;noise.loop=true;
-    const filter=this.ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=430;
-    const gain=this.ctx.createGain();gain.gain.value=.11;noise.connect(filter).connect(gain).connect(this.master);noise.start();
-    this.chime([261.63,329.63,392]);
   },
   resume(){this.ctx?.resume();},
   tone(freq,when=0,duration=1,volume=.06,type='sine'){
@@ -1815,12 +1853,15 @@ if(roleUI)avatar.root.scale.setScalar(1.06);
 avatar.root.visible=CONFIG.thirdPerson;
 const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_HEIGHT,stageRadius:STAGE_RADIUS,female:isIshiee,
   resolveMove:(x,z,dx,dz,player)=>moveAroundRocks(x,z,dx,dz,[...rockColliders,{x:player.x,z:player.z,radius:.30}],onIsland,.32)});
-const pointingHand=isPassenger?buildHandPose(playerRig,{color:SUIT_COLOR,shoulder:[.36,1.36,-.06],sleeveLength:.48}):null;
+const pointingMarker=buildPointMarker(scene),markerDirection=new THREE.Vector3();
 const pointTarget=new THREE.Vector3();
-const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE,skinColor:isIshiee?0xf6cc77:BIRTHDAY_SKIN,shortSleeves:!isIshiee,puffSleeves:!isIshiee,armThickness:isIshiee?1:HER_ARM_THICKNESS,handScale:isIshiee?1:.92});
+const firstPersonHand=buildHandPose(playerRig,{floating:true,floatingOriginX:isIshiee?0:.75,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE,skinColor:isIshiee?0xf6cc77:BIRTHDAY_SKIN,shortSleeves:!isIshiee,puffSleeves:!isIshiee,armThickness:isIshiee?1:HER_ARM_THICKNESS,handScale:isIshiee?1:.92});
 const joinedHands=new THREE.Vector3(),partnerHand=new THREE.Vector3();
 const claspRotation=new THREE.Quaternion(),partnerLinkRotation=new THREE.Quaternion(),playerLinkRotation=new THREE.Quaternion();
 const partnerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2),playerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
+// Roll both linked grips together around the reach axis, preserving their hook.
+const claspQuarterTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);
+partnerLinkTurn.premultiply(claspQuarterTurn);playerLinkTurn.premultiply(claspQuarterTurn);
 const claspAxis=new THREE.Vector3(),claspShoulder=new THREE.Vector3(),ringNormal=new THREE.Vector3(0,0,1);
 let handAmount=0;
 const claspBody=new THREE.Object3D(),reverseAxis=new THREE.Vector3();
@@ -1842,16 +1883,13 @@ function canHoldHands(){
     !bouquetControls.shown&&!bouquetControls.received&&
     (handsLinked()||companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach);
 }
-// The clasp belongs to his lowered left hand, not to anyone's view direction.
+// The clasp belongs to his lowered right hand, not to anyone's view direction.
 // `him` is his body: the companion in her view, his own pose in his view.
-// The hands meet low between his left shoulder and her right one, a little
+// The hands meet low between his right shoulder and her left one, a little
 // ahead of him: his arm keeps its natural length and hers reaches the rest.
 function placeClasp(him,her){
   him.updateWorldMatrix(true,false);her.updateWorldMatrix(true,false);
-  // Each uses the hand on the side the other stands (so arms never cross);
-  // a small dead zone keeps the choice steady when one is straight ahead.
-  sideProbe.copy(her.position);him.worldToLocal(sideProbe);if(Math.abs(sideProbe.x)>.15)hisHoldSide=Math.sign(sideProbe.x);
-  sideProbe.copy(him.position);her.worldToLocal(sideProbe);if(Math.abs(sideProbe.x)>.15)herHoldSide=Math.sign(sideProbe.x);
+  // Always his right hand in her left, whichever way they stand or face.
   claspShoulder.set(hisHoldSide*.36*1.06,1.14*1.06,0);him.localToWorld(claspShoulder);
   herShoulder.set(herHoldSide*.22,1.08,0);her.localToWorld(herShoulder);
   claspPoint.copy(claspShoulder).lerp(herShoulder,.5);claspPoint.y=Math.min(claspShoulder.y,herShoulder.y)-.42;
@@ -1860,14 +1898,75 @@ function placeClasp(him,her){
   partnerHand.copy(claspShoulder).addScaledVector(claspAxis,(.38+.112+.025)*1.06);
   // Both link planes contain the arm axis, with a quarter turn between them.
   claspRotation.setFromUnitVectors(ringNormal,claspAxis);
+  if(!isIshiee){stabilizeHerClasp();offsetMeetingPoint();}
   partnerLinkRotation.copy(claspRotation).multiply(partnerLinkTurn);
   playerLinkRotation.copy(claspRotation).multiply(playerLinkTurn);
   joinedHands.copy(partnerHand).addScaledVector(claspAxis,.09);
   // Her arm runs back from her hand to her own shoulder.
   herAxis.subVectors(herShoulder,joinedHands).normalize();
 }
+const povClaspPosition=new THREE.Vector3(),povClaspOffset=new THREE.Vector3();
+const povClaspRotation=new THREE.Quaternion(),povHookTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
+const handTuning={originX:-.44,originY:.3,originZ:-.09,centerX:-.04,centerY:.15,centerZ:.34,herX:-.05,herY:.065,herZ:.03,spacing:.095,roll:90,hook:-120,rotationX:10,rotationY:-98,rotationZ:158,hisRotationX:70,hisRotationY:0,hisRotationZ:0};
+let claspLocked=false;
+const lockedClaspPosition=new THREE.Vector3(),lockedClaspRotation=new THREE.Quaternion(),claspRigRotation=new THREE.Quaternion();
+const lockedOffsetRotation=new THREE.Quaternion(),offsetWorldRotation=new THREE.Quaternion();
+function stabilizeHerClasp(){
+  // Follow his body, never her camera: looking around must not drag his arm.
+  companion.anchor.updateWorldMatrix(true,false);companion.anchor.getWorldQuaternion(claspRigRotation);
+  if(!claspLocked){
+    // A repeatable lowered right-hand pose, independent of approach direction.
+    meetingOffset.set(0,-1,-.30).normalize();
+    lockedClaspPosition.set(hisHoldSide*.36*1.06,1.14*1.06,0).addScaledVector(meetingOffset,(.38+.112+.025)*1.06);
+    lockedClaspRotation.setFromUnitVectors(ringNormal,meetingOffset);
+    lockedOffsetRotation.setFromAxisAngle(THREE.Object3D.DEFAULT_UP,Math.PI);
+    claspLocked=handAmount>.01;
+  }
+  partnerHand.copy(lockedClaspPosition);companion.anchor.localToWorld(partnerHand);
+  claspRotation.copy(claspRigRotation).multiply(lockedClaspRotation);
+  claspAxis.copy(ringNormal).applyQuaternion(claspRotation);
+}
+const povFineRotation=new THREE.Quaternion();
+const hisFineRotation=new THREE.Quaternion(),hisGripRotation=new THREE.Quaternion();
+const hisGripBase=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2));
+function hisGripOrientation(){return hisGripRotation.copy(claspRotation).multiply(hisGripBase).multiply(hisFineRotation);}
+const meetingOffset=new THREE.Vector3();
+function offsetMeetingPoint(){
+  offsetWorldRotation.copy(claspRigRotation).multiply(lockedOffsetRotation);
+  meetingOffset.set(handTuning.centerX,handTuning.centerY,handTuning.centerZ).applyQuaternion(offsetWorldRotation);
+  partnerHand.add(meetingOffset);
+  // Limit the complete tuned target, not just the untuned base position.
+  claspShoulder.set(hisHoldSide*.36*1.06,1.14*1.06,0);companion.anchor.localToWorld(claspShoulder);
+  meetingOffset.subVectors(partnerHand,claspShoulder).clampLength(.35,.60);
+  partnerHand.copy(claspShoulder).add(meetingOffset);
+}
+const handTuner=buildHandTuner({values:handTuning,
+  canOpen:()=>playing&&!isIshiee&&!stargazing.active&&!passengerLying&&['localhost','127.0.0.1','::1'].includes(location.hostname),
+  onOpen:()=>{Object.keys(keys).forEach(key=>keys[key]=false);document.exitPointerLock?.();sceneContext.open();},
+  onClose:()=>{sceneContext.close();requestPointerLock();},
+  onChange:value=>{
+    if(!isIshiee)firstPersonHand.setOrigin(value.originX,value.originY,value.originZ);
+    claspQuarterTurn.setFromAxisAngle(new THREE.Vector3(0,0,1),value.roll*Math.PI/180);
+    partnerLinkTurn.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2).premultiply(claspQuarterTurn);
+    playerLinkTurn.setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2).premultiply(claspQuarterTurn);
+    povHookTurn.setFromAxisAngle(new THREE.Vector3(1,0,0),value.hook*Math.PI/180);
+    povFineRotation.setFromEuler(new THREE.Euler(value.rotationX*Math.PI/180,value.rotationY*Math.PI/180,value.rotationZ*Math.PI/180));
+    hisFineRotation.setFromEuler(new THREE.Euler(value.hisRotationX*Math.PI/180,value.hisRotationY*Math.PI/180,value.hisRotationZ*Math.PI/180));
+  }});
+function updateHerHoldingHand(amount,axis){
+  // Fix the offset in his grip's frame, so her ring cannot orbit around his.
+  // Both rings share this radial axis but their planes are perpendicular.
+  povClaspOffset.set(-1,0,0).applyQuaternion(partnerLinkRotation);
+  povClaspPosition.copy(partnerHand).addScaledVector(povClaspOffset,handTuning.spacing);
+  // Move only her grip in the stable tuning frame; its attached arm follows.
+  povClaspOffset.set(handTuning.herX,handTuning.herY,handTuning.herZ).applyQuaternion(offsetWorldRotation);
+  povClaspPosition.add(povClaspOffset);
+  povClaspRotation.copy(partnerLinkRotation).multiply(povHookTurn).multiply(povFineRotation);
+  firstPersonHand.update(povClaspPosition,amount,povClaspRotation,axis);
+}
 function updateHoldingHands(dt){
-  handAmount+=((companion.holding&&companion.holdReady?1:0)-handAmount)*(1-Math.exp(-dt*6));
+  if(!companion.holding)claspLocked=false;
+  handAmount+=((companion.holding&&companion.holdReady?1:0)-handAmount)*(1-Math.exp(-dt*18));
   if(isIshiee){
     // He is the local player (ISHIEE preview): build the clasp from his own
     // body; his arm reaches his hand and her model's arm reaches in to hold it.
@@ -1884,12 +1983,12 @@ function updateHoldingHands(dt){
   // Seen from his eyes (local His POV), her real arm reaches in; her floating
   // first-person arm belongs to her own camera only.
   const herBodyArm=CONFIG.thirdPerson||bouquetControls.hisView;
-  firstPersonHand.update(joinedHands,herBodyArm?0:handAmount,playerLinkRotation,herAxis);
+  updateHerHoldingHand(herBodyArm?0:handAmount,herAxis);
   avatar.poseHand(joinedHands,herBodyArm?handAmount:0,playerLinkRotation,herArm());
-  companion.poseHand(partnerHand,handAmount,partnerLinkRotation,hisArm());
+  companion.poseHand(partnerHand,handAmount,hisGripOrientation(),hisArm(),true);
   handInteraction.prompt=companion.holding?'let go of his hand':'hold hands';
 }
-let hisHoldSide=-1,herHoldSide=1;const sideProbe=new THREE.Vector3(),hisArm=()=>hisHoldSide<0?0:1,herArm=()=>herHoldSide<0?0:1;
+const hisHoldSide=1,herHoldSide=-1,hisArm=()=>1,herArm=()=>0;
 const herShoulder=new THREE.Vector3(),claspPoint=new THREE.Vector3(),hisForward=new THREE.Vector3(),herAxis=new THREE.Vector3(),herBody=new THREE.Object3D();
 let avatarHeading=0;
 const spawnZ=27; // Just before the grassy entrance finishes fading into the trail.
@@ -1904,13 +2003,16 @@ const playerJump=createPlayerJump();
 // Ink is sent in small batches (about ten a second) so every segment arrives;
 // one message per segment exceeded the server's per-second event limit.
 let inkQueue=[],inkTimer=null;
-function flushInk(){inkTimer=null;while(inkQueue.length){network?.event({type:'ink',points:inkQueue.splice(0,600)});}}
+function flushInk(){inkTimer=null;while(inkQueue.length){network?.event({type:'ink',round:pictionary.round,points:inkQueue.splice(0,600)});}}
 function queueInk(points){if(!network)return;inkQueue.push(...points);inkTimer??=setTimeout(flushInk,100);}
 const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,
-  // Stargazing waits until the candles are blown and the cash dash is over.
-  canStart:()=>!candlesLit&&!!cashDash?.finished,onBlocked:()=>toast(candlesLit?'BLOW OUT THE CANDLES FIRST':`FINISH THE ${DASH_NAME.toUpperCase()} FIRST`),
-  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:queueInk,onViewerStop:()=>{},onLeave:()=>requestPointerLock()});
+  // Stargazing opens once the candles are blown, before or after the cash dash.
+  canStart:()=>!candlesLit,
+  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:queueInk,onViewerStop:()=>requestPointerLock(),getViewerLook:()=>({yaw:playerRig.rotation.z,pitch:cameraPivot.rotation.x}),onFocusDrawing:(yaw,pitch)=>{playerRig.rotation.y=0;playerRig.rotation.z=yaw;cameraPivot.rotation.x=pitch;},onLeave:()=>requestPointerLock()});
 let playing=false;
+const pictionary=buildPictionary({gaze:stargazing,user:islandUser||'MOSHIEE',available:()=>playing&&(stargazing.active||passengerLying),
+  send:e=>network?.event(e),online:()=>!!network?.connected&&network.remoteLive,local:!multiplayerRequested,toast,
+  clearQueuedInk(){clearTimeout(inkTimer);inkTimer=null;inkQueue=[];}});
 const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,hisEyeHeight:CONFIG.hisEyeHeight,
   isOnline:multiplayerRequested,isMale:isIshiee,roleUI,getNetwork:()=>network,isPlaying:()=>playing,
   isBusy:()=>stargazing.active||passengerLying||companion.throwing||rewardBusy||sceneContext.active||$('#command').classList.contains('open')||!!$('.note-modal.open'),
@@ -1928,17 +2030,28 @@ const cashDash=buildCashDash({scene,camera,ground:renderedGroundHeight,rewards:c
   resolveSite:(x,z)=>moveAroundRocks(x,z,0,0,rockColliders,onIsland,.9),getNetwork:()=>network,isPlaying:()=>playing,
   candlesBlown:()=>!candlesLit,
   getCollector:()=>roleUI&&isIshiee||stargazing.active||bouquetControls.hisView||sceneContext.active?null:playerRig.position,
-  onStart:()=>{if(!multiplayerRequested&&companion.holding)companion.toggleHolding();},
-  onPickup:()=>{audio.tone(880,0,.09,.024);audio.tone(1174.66,.055,.12,.018);}
+  // A dash starting mid-stargaze gets her up so she can collect.
+  onStart:()=>{if(benchSeat.active)benchSeat.stand();if(!multiplayerRequested&&companion.holding)companion.toggleHolding();if(stargazing.active&&!cashDash.finished)stargazing.leave();},
+  onCue:beat=>{if(beat==='go'||beat==='finish'){audio.tone(880,0,.22,.045);audio.tone(1174.66,.12,.25,.035);audio.tone(1760,.24,.3,.025);}else audio.tone(440,0,.16,.045);},
+  onPickup:()=>{audio.tone(880,0,.09,.06);audio.tone(1174.66,.055,.12,.045);}
 });
-const hostControls=roleUI&&isIshiee?buildHostControls():null;
-function buildHostControls(){
-  const bar=document.createElement('nav');bar.id='host-controls';bar.className='hidden-ui';bar.setAttribute('aria-label','Celebration controls');
+// Every important button lives in one top-centre bar, each with a shortcut:
+// the bouquet buttons, Ishi's celebration controls and the cash dash start.
+const actionBar=buildActionBar(roleUI&&isIshiee);
+const benchSeat=buildBenchSeat({bench:oceanBench,player:playerRig,cameraPivot,avatar,companion,keys,isMale:isIshiee,
+  canSit:()=>playing&&!stargazing.active&&!stoneSkipping.active&&!bouquetControls.shown&&!companion.holding,
+  send:on=>{if(!network)return false;network.event({type:'bench',sitting:on});return true;}});
+const grassSeat=buildGrassSeat({scene,enabled:false,player:playerRig,cameraPivot,avatar,companion,ground:renderedGroundHeight,keys,
+  available:()=>playing&&!stargazing.active&&!stoneSkipping.active&&!bouquetControls.previewing&&!rewardBusy&&!companion.throwing});
+function buildActionBar(host){
+  const bar=document.createElement('nav');bar.id='action-bar';bar.className='hidden-ui';bar.setAttribute('aria-label','Actions');
   bar.append($('#bouquet-controls'));
   const actions=[];
   const button=(label,action)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',action);bar.append(b);actions.push(b);};
-  button('Fireworks · F',()=>launchFireworks(7));
-  button('Next song · N',()=>{const from=radio.index??0;requestSong(from,(from+1)%radio.count);});
+  if(host){
+    button('Fireworks · F',()=>launchFireworks(7));
+    button('Next song · N',()=>{const from=radio.index??0;requestSong(from,(from+1)%radio.count);});
+  }
   bar.append($('.cash-dash-start'));document.body.append(bar);
   return {update(){const busy=!playing||!networkReady||stargazing.active||rewardBusy||$('#command').classList.contains('open')||!!$('.note-modal.open');for(const b of actions)b.disabled=busy;}};
 }
@@ -1959,6 +2072,7 @@ function updatePreviewFollower(dt){
   avatar.update(dt,next.moving,next.running,0,null,legPace(next.moving?CONFIG.walkSpeed*(next.running?1.5:.85):0,next.running));
 }
 function movePlayer(dt){
+  if(grassSeat.active||benchSeat.active)return;
   if(gestureWheel.active)return;
   if(bouquetControls.hisView){
     if(!wasHisView){previewFollower.reset();wasHisView=true;}
@@ -2027,11 +2141,17 @@ function movePlayer(dt){
   avatar.root.visible=camera.position.z>.65;
 }
 
+$('#interaction').addEventListener('mousedown',e=>e.stopPropagation());
+$('#interaction').addEventListener('click',e=>{
+  const button=e.target.closest('button[data-action]');if(!button||!playing)return;
+  if(button.dataset.action==='hand'){if(canHoldHands())handInteraction.action();}
+  else if(nearest&&!nearest.found&&(!nearest.available||nearest.available()))nearest.action();
+});
 function updateInteraction(){
-  if(isPassenger||bouquetControls.previewing){nearest=null;$('#interaction').classList.remove('show');return;}
+  if(benchSeat.active||bouquetControls.previewing){nearest=null;$('#interaction').classList.remove('show');return;}
   nearest=null;let best=Infinity;
   for(const item of interactive){
-    if(item.found||item===handInteraction||(item.available&&!item.available()))continue;
+    if((isPassenger&&item.type!=='bench')||item.found||item===handInteraction||(item.available&&!item.available()))continue;
     item.object.getWorldPosition(tmp);
     const d=tmp.distanceTo(playerRig.position);
     if(d<item.reach&&d<best){best=d;nearest=item;}
@@ -2041,8 +2161,11 @@ function updateInteraction(){
   if(stoneSkipping.active||stargazing.active){el.classList.remove('show');return;}
   if(nearest||canHold){
     const pickupKey='<b aria-label="Left mouse button" title="Left mouse button"><svg width="14" height="18" viewBox="0 0 24 28" aria-hidden="true"><path d="M11 4a6 6 0 0 0-6 6v2h6Z" fill="currentColor"/><rect x="4" y="2" width="16" height="24" rx="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v10M5 13h14" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></b><span class="key-alternative">/</span><b>E</b>';
-    const interaction=nearest?`${nearest.type==='skipping'?pickupKey:'<b>E</b>'} ${nearest.prompt}`:'';
-    el.innerHTML=interaction+(canHold?`${interaction?' · ':''}<b>H</b> ${handsLinked()?'let go':handInteraction.prompt}`:'');el.classList.add('show');
+    const label=nearest?({cake:'blow candles',radio:'next song',skipping:'pick up pebble',bench:'sit together'}[nearest.type]||nearest.prompt):'';
+    const interaction=nearest?`<b>E</b> ${label}`:'';
+    const html=(interaction?`<button type="button" data-action="nearby">${interaction}</button>`:'')+(canHold?`<button type="button" data-action="hand"><b>H</b> ${handsLinked()?'let go':'hold hands'}</button>`:'');
+    if(el.innerHTML!==html)el.innerHTML=html;
+    el.classList.add('show');
   }
   else el.classList.remove('show');
 }
@@ -2161,6 +2284,7 @@ $('#command-button').addEventListener('click',()=>openCommand());
 $('#sound-button').addEventListener('click',()=>audio.toggle());
 
 window.addEventListener('keydown',e=>{
+  if(pictionary.keyDown(e))return;
   if(sceneContext.active){if(e.code==='Escape'){e.preventDefault();sceneContext.close();}return;}
   if($('#command').classList.contains('open')){
     if(e.code==='Escape'){e.preventDefault();closeCommand();}
@@ -2171,7 +2295,7 @@ window.addEventListener('keydown',e=>{
   if($('.note-modal.open')||rewardBusy)return;
   if(multiplayerRequested&&!networkReady)return;
   if(!roleUI&&e.code==='KeyP'&&!e.repeat&&playing){e.preventDefault();Object.keys(keys).forEach(k=>keys[k]=false);sceneContext.open();return;}
-  if(playing&&bouquetControls.keyDown(e))return;
+  if(playing&&!grassSeat.active&&!benchSeat.active&&bouquetControls.keyDown(e))return;
   if(bouquetControls.hisView){
     if(e.code==='Slash'&&!e.repeat){e.preventDefault();openCommand();return;}
     if(e.code==='Space'){e.preventDefault();if(!e.repeat&&document.pointerLockElement===renderer.domElement)playerJump.start();return;}
@@ -2185,15 +2309,22 @@ window.addEventListener('keydown',e=>{
     if(e.code==='KeyF'){e.preventDefault();launchFireworks(7);return;}
     if(e.code==='KeyN'){e.preventDefault();const from=radio.index??0;requestSong(from,(from+1)%radio.count);return;}
   }
+  // G presses the cash dash button whenever it is showing for this player.
+  const dashButton=$('.cash-dash-start');
+  if(e.code==='KeyG'&&!e.repeat&&playing&&!dashButton.hidden&&!dashButton.disabled){e.preventDefault();dashButton.click();return;}
+  if(benchSeat.active){if(e.code==='Escape'){e.preventDefault();benchSeat.stand();}return;}
+  if(isPassenger&&playing&&e.code==='KeyE'&&nearest?.type==='bench'){e.preventDefault();nearest.action();return;}
   if(isPassenger){
     if(!playing)return;
     // Esc stops drawing; the mouse then looks around straight away (no lock needed while lying).
+    if(e.code==='KeyD'&&passengerLying){e.preventDefault();if(!e.repeat)stargazing.toggleDrawing();return;}
     if(e.code==='Escape'&&stargazing.exitViewerDrawing()){e.preventDefault();return;}
     if(e.code==='KeyR'){e.preventDefault();passengerPointing=true;}
     if(e.code==='Space'&&!e.repeat){e.preventDefault();if(network?.remoteLive)network.event({type:'cheer'});else toast('WAITING FOR MOSHIEE TO JOIN');}
     if(e.code==='KeyM'&&!e.repeat)audio.toggle();
     return;
   }
+  if(grassSeat.active){if(e.code==='KeyV'&&!e.repeat){e.preventDefault();grassSeat.switchView();}if(e.code==='KeyQ'||e.code==='Escape'){e.preventDefault();grassSeat.stand();}return;}
   if(stargazing.keyDown(e))return;
   if(stoneSkipping.keyDown(e))return;
   if(e.code==='Space'){
@@ -2202,6 +2333,8 @@ window.addEventListener('keydown',e=>{
   }
   keys[e.code]=true;
   if(e.code==='KeyE'&&nearest&&nearest!==handInteraction&&!e.repeat)nearest.action();
+  // Beside the radio, N also plays the next song (host shortcuts handle N anywhere).
+  if(e.code==='KeyN'&&nearest?.type==='radio'&&!e.repeat)nearest.action();
   if(e.code==='KeyH'&&!e.repeat&&(handsLinked()||canHoldHands()))handInteraction.action();
   if(e.code==='KeyM')audio.toggle();
   if((!roleUI||isIshiee)&&e.code==='Digit1')setMood('day');
@@ -2226,22 +2359,31 @@ function requestPointerLock(){
   result?.catch(()=>{ /* A browser can decline; clicking the world retries. */ });
 }
 renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active&&!stargazing.drawMode&&!$('.note-modal.open')&&!$('#command').classList.contains('open'))requestPointerLock();audio.resume();radio.resume();});
+renderer.domElement.addEventListener('mousedown',e=>{
+  if(e.button!==1)return;e.preventDefault();
+  if(!playing||stargazing.active||passengerLying||grassSeat.active||bouquetControls.shown||companion.holding||companion.throwing||stoneSkipping.active)return;
+  camera.getWorldDirection(clickPointDirection);
+  clickPointUntil=performance.now()+2200;
+  if(!isPassenger&&!multiplayerRequested)companion.pointBriefly(clickPointDirection);
+});
+renderer.domElement.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
 window.addEventListener('mousemove',e=>{
   if(gestureWheel.active)return;
   // Lying beside her, he looks around like she does: no pointer lock needed,
   // except while drawing (the cursor is the pen then).
-  const lyingLook=isPassenger&&passengerLying&&!stargazing.drawMode;
-  if(stargazing.active||(document.pointerLockElement!==renderer.domElement&&!lyingLook))return;
+  if(stargazing.active||document.pointerLockElement!==renderer.domElement)return;
   if(isPassenger&&passengerLying&&stargazing.drawMode)return;
   // Skip the first events after locking and any physically impossible jump.
   if(lookSettle>0){lookSettle--;return;}
   if(Math.abs(e.movementX)>280||Math.abs(e.movementY)>180)return;
+  if(benchSeat.active){benchSeat.look(e.movementX,e.movementY);return;}
+  if(grassSeat.active){grassSeat.look(e.movementX,e.movementY);return;}
   if(bouquetControls.hisView){bouquetControls.look(e.movementX,e.movementY);return;}
+  // Lying down, he turns his head and nods within the same limits as her, so
+  // both of them keep looking up at the same, upright sky.
+  if(isPassenger&&passengerLying){const gaze=slideGaze(playerRig.rotation.z-e.movementX*.0022,cameraPivot.rotation.x-e.movementY*.002,cameraPivot.rotation.x);playerRig.rotation.z=gaze.yaw;cameraPivot.rotation.x=gaze.pitch;return;}
   playerRig.rotation.y-=e.movementX*.0022;
   const pitch=cameraPivot.rotation.x-e.movementY*.0018;
-  // Lying down, his look stays within her stargazing range, so both of them
-  // write on the same, upright sky.
-  if(isPassenger&&passengerLying){playerRig.rotation.y=clamp(playerRig.rotation.y,-1.3,1.3);cameraPivot.rotation.x=clamp(pitch,.12,1.40);return;}
   cameraPivot.rotation.x=CONFIG.thirdPerson?clamp(pitch,-1.15,.35):clampWalkPitch(pitch,holdingHands());
 });
 
@@ -2387,6 +2529,7 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMaterial));
 
 const clock=new THREE.Clock();
 let elapsed=0;
+let wasStargazingForAurora=false,auroraUnlockedAt=null;
 let lastShadowTime=-1;
 let lastFrameTime=-Infinity;
 let resolutionScale=1;
@@ -2474,13 +2617,18 @@ function updateMood(dt){
   paintUniforms.uPartyGlow.value=clamp((.96-moodLive.ambient)/.83,0,1);
   sunLight.intensity=moodLive.sunPower;hemi.intensity=moodLive.hemi;
   skyUniforms.uAuroraTime.value=elapsed;
-  skyUniforms.uAuroraNight.value=smoothstep(.25,1,moodLive.stars);
+  skyUniforms.uMoonNight.value=smoothstep(.25,1,moodLive.stars);
+  // Reveal gently after the first local or shared stargazing session ends.
+  const gazingForAurora=stargazing.active||passengerLying;
+  if(wasStargazingForAurora&&!gazingForAurora&&auroraUnlockedAt===null)auroraUnlockedAt=elapsed;
+  wasStargazingForAurora=gazingForAurora;
+  skyUniforms.uAuroraNight.value=auroraUnlockedAt===null?0:smoothstep(0,6,elapsed-auroraUnlockedAt)*smoothstep(.25,1,moodLive.stars);
   shootingStars.update(elapsed,moodLive.stars,camera,stargazing.active);
   stars.update(elapsed,moodLive.stars,renderer.getPixelRatio()*resolutionScale,stargazing.active);fireflyMat.opacity=clamp((moodLive.stars-.2)*.78,0,.7);
   oceanUniforms.uNight.value=moodLive.stars;
   updatePartyLight();
   celebration.update(elapsed,paintUniforms.uPartyGlow.value);
-  fireside.update(elapsed,paintUniforms.uPartyGlow.value);
+  fireside.update(elapsed,paintUniforms.uPartyGlow.value,playing&&!audio.muted&&(fireside.audio?!fireside.audio.paused&&!fireside.audio.ended:radio.playing));
 }
 function animate(now,force){
   // A quiet scene should not spend power chasing a 120 Hz display refresh.
@@ -2501,7 +2649,10 @@ function animate(now,force){
   oceanUniforms.uTime.value=elapsed;
   oceanLife.update(elapsed,moodLive.stars,camera);
   if(inspect&&inspectParams.has('fishStill')){jumpingFish.update(3);jumpingFish.update(3.55);oceanUniforms.uTime.value=3.55;}
-  else jumpingFish.update(elapsed);
+  else {
+    camera.getWorldPosition(fishViewPosition);camera.getWorldDirection(fishViewDirection);
+    jumpingFish.update(elapsed,playing&&!stargazing.active?{x:fishViewPosition.x,z:fishViewPosition.z,dx:fishViewDirection.x,dz:fishViewDirection.z}:null);
+  }
   stageConfetti.update(elapsed);
   lovePlane.update(inspect&&inspectParams.has('planeStill')?3:elapsed,moodLive.stars);
   paintUniforms.uTime.value=elapsed;
@@ -2509,17 +2660,19 @@ function animate(now,force){
   for(const material of bladeMaterials)material.uniforms.uCam.value.copy(tmp2);
   stoneSkipping.update(dt,playerRig.position,elapsed);
   movePlayer(dt);
-  if(multiplayerRequested){updateMultiplayer(dt,now);}
-  else if(!stargazing.active&&!bouquetControls.hisView){
+  if(benchSeat.active){benchSeat.update();}
+  else if(multiplayerRequested){updateMultiplayer(dt,now);}
+  else if(!stargazing.active&&!bouquetControls.hisView&&!grassSeat.active){
     companion.update(dt,playerRig.position,gifts,playerRig.rotation.y);updateHoldingHands(dt);
   }else{
+    if(stargazing.active)companion.updateRestingLook(dt,null);
     handAmount=0;
     firstPersonHand.update(joinedHands,0,playerLinkRotation,claspAxis);
     avatar.poseHand(joinedHands,0,playerLinkRotation);companion.poseHand(partnerHand,0,partnerLinkRotation);
   }
-  stargazing.update(elapsed);bouquetControls.update(dt);avatar.updateCloth(dt);companion.updateCloth(dt);
-  const gestureBusy=stargazing.active||handsLinked()||stoneSkipping.active||companion.throwing;
-  avatar.updateGesture(dt,gestureBusy);companion.updateGesture(dt,gestureBusy);
+  stargazing.update(elapsed);pictionary.update();if(!grassSeat.active&&!benchSeat.active)bouquetControls.update(dt);avatar.updateCloth(dt);companion.updateCloth(dt);
+  const gestureBusy=benchSeat.active||grassSeat.active||stargazing.active||handsLinked()||stoneSkipping.active||companion.throwing;
+  avatar.updateGesture(dt,gestureBusy);companion.updateGesture(dt,gestureBusy);grassSeat.update();benchSeat.update();
   dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);updateRadio(dt);
   gifts.forEach(g=>{if(g.object.visible&&!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
   if(candleBlownAt>=0){
@@ -2589,9 +2742,15 @@ function animate(now,force){
   }
   if(fireflyMat.opacity<=.01) paintUniforms.uFireflyPools.value.forEach(pool=>pool.w=0);
   sky.position.copy(camera.getWorldPosition(tmp2));
+  const remotePoint=multiplayerRequested&&!isPassenger?lookMotion.sample(now):null;
+  const timedPoint=now<clickPointUntil;
+  const showingPoint=(isPassenger?(passengerPointing||timedPoint):multiplayerRequested?!!remotePoint?.pointing:timedPoint)&&!stargazing.active&&!passengerLying&&!bouquetControls.shown;
+  if(remotePoint&&multiplayerRequested&&!isPassenger)markerDirection.set(-Math.sin(remotePoint.yaw)*Math.cos(remotePoint.pitch),Math.sin(remotePoint.pitch),-Math.cos(remotePoint.yaw)*Math.cos(remotePoint.pitch));
+  else if(timedPoint)markerDirection.copy(clickPointDirection);else camera.getWorldDirection(markerDirection);
+  pointingMarker.update(dt,isPassenger?playerRig:companion.anchor,markerDirection,showingPoint);
   chatBubbles.update();
   cashDash.update();
-  hostControls?.update();
+  actionBar.update();
   chatLog.update();
   expressionControls.update();
   const renderStart=performance.now();
@@ -2635,49 +2794,65 @@ window.addEventListener('resize',()=>{
 // "Come in" appears only when every texture and font has loaded, the scene's
 // shaders are compiled, the connection is ready and the countdown has ended.
 const loadingLines=['keeping a secret…','folding the clouds…','teaching the stars your name…','saving you the softest light…','almost there…'];
-let fontsReady=false,gpuReady=false,entryReady=false,shownProgress=0;
+let fontsReady=false,gpuReady=false,entryReady=false,shownProgress=0,warmProgress=0,entryPending=false;
 Promise.race([
   Promise.all(['300 40px "Fraunces"','700 20px "Dancing Script"'].map(font=>document.fonts?.load(font))),
   new Promise(resolve=>setTimeout(resolve,8000)) // Offline fonts must never lock her out.
 ]).catch(()=>{}).finally(()=>{fontsReady=true;});
-renderer.compileAsync(scene,camera).catch(()=>{}).finally(()=>{renderer.render(scene,camera);gpuReady=true;});
+
 // Pre-warm everything entering needs while the welcome still shows, so the click
 // only starts what is already built: the sound engine (silent until her click),
 // the radio's players (no song yet) and every texture, including off-screen ones.
 let prewarmed=false;
-function prewarmEntry(){
+let stopWelcomePlane=null;
+async function prewarmEntry(){
   if(prewarmed)return;prewarmed=true;
-  audio.init();
-  if(!inspect||inspectParams.has('radio'))radio.start();
-  const upload=value=>{if(value?.isTexture)renderer.initTexture(value);};
-  scene.traverse(object=>{
-    for(const material of [object.material].flat()){
-      if(!material)continue;
-      for(const key in material)upload(material[key]);
-      for(const uniform of Object.values(material.uniforms||{}))upload(uniform?.value);
-    }
-  });
+  renderer.setAnimationLoop(null);
+  try{
+    audio.init();
+    if(!playing&&!stopWelcomePlane)stopWelcomePlane=buildWelcomePlane();
+    if(!inspect||inspectParams.has('radio'))radio.start();
+    await prewarmScene(renderer,scene,camera,{onProgress:value=>{warmProgress=value;}});
+    // Warm the postprocessing programs and framebuffers as well as the world.
+    renderer.setRenderTarget(sceneTarget);renderer.render(scene,camera);
+    renderBloom();renderer.setRenderTarget(null);renderer.render(postScene,postCamera);
+  }catch(error){console.warn('Some island warmup work could not complete',error);}
+  finally{renderer.setRenderTarget(null);gpuReady=true;renderer.setAnimationLoop(animate);}
 }
 const entryTimer=setInterval(()=>{
   const textures=assetLoad.total?assetLoad.loaded/assetLoad.total:1;
-  const progress=.3+.4*textures+.12*fontsReady+.18*gpuReady,loaded=progress>=.999;
+  if(textures===1&&fontsReady&&!prewarmed)void prewarmEntry();
+  const progress=.3+.4*textures+.12*fontsReady+.18*(gpuReady?1:warmProgress),loaded=textures===1&&fontsReady&&gpuReady;
   shownProgress+=(progress-shownProgress)*.35;
   $('#load-bar').style.width=`${Math.min(100,shownProgress*100)}%`;
   $('#load-copy').textContent=loadingLines[Math.min(loadingLines.length-1,Math.floor(shownProgress*loadingLines.length))];
   // The inline welcome script owns the countdown, so it runs before this code loads.
-  if(loaded){$('.welcome-card').classList.add('loaded');prewarmEntry();}
+  if(loaded){$('.welcome-card').classList.add('loaded');}
   entryReady=loaded&&(window.welcomeTimer?.over??true);
-  $('#enter').disabled=!entryReady||!networkReady;$('#enter').classList.toggle('ready',entryReady);
+  $('#enter').disabled=!entryReady||entryPending;$('#enter').classList.toggle('ready',entryReady);
   if(entryReady)clearInterval(entryTimer);
 },200);
 
+const welcomeMusic=buildWelcomeMusic($('#welcome-music'));
+
 $('#enter').addEventListener('click',()=>{
-  if(!networkReady||!entryReady)return;
+  if(!entryReady||playing||entryPending)return;
+  if(multiplayerRequested&&!networkReady){
+    audio.ctx?.resume().catch(()=>{});
+    audio.ctx?.resume().catch(()=>{});
+    entryPending=true;$('#enter').disabled=true;$('#enter').textContent='Joining our island…';
+    startIslandConnection();return;
+  }
   document.title='Our Little Island';
   // Fade to black, swap the welcome for the island, then fade in from black.
   const fade=$('#scene-fade');fade.classList.add('dark');
-  setTimeout(()=>{$('#welcome').classList.add('gone','instant');fade.classList.remove('dark');},750);
+  setTimeout(()=>{$('#welcome').classList.add('gone','instant');fade.classList.remove('dark');},1250);
+  welcomeMusic.leave();
+  stopWelcomePlane?.();stopWelcomePlane=null;
   playing=true;document.body.classList.add('playing');prewarmEntry();audio.resume();
+  audio.musicMode='birthday';audio.musicChangedAt=elapsed;
+  if(CONFIG.musicVolume>0)audio.scape?.setMusic('birthday',{delay:.75,fade:5});
+  if(audio.master)audio.master.gain.setTargetAtTime(audio.muted?0:.5,audio.ctx.currentTime,.15);
   if(!inspect||inspectParams.has('radio'))radio.begin();
   setTimeout(()=>requestPointerLock(),300);
   setTimeout(()=>toast(isPassenger?'LOOK AROUND · HOLD R TO POINT · SPACE TO CHEER':'MAKE A WISH AT THE BIRTHDAY CAKE'),1300);
@@ -2694,6 +2869,7 @@ function poseOf(object,moving=false){
   const gaze=object===playerRig&&stargazing.active?stargazing.look:null;
   return {time:performance.now(),position:object.position.toArray(),yaw:object.rotation.y,pitch:gaze?gaze.pitch:cameraPivot.rotation.x,...(gaze?{headYaw:gaze.yaw}:{}),moving,running:!!(keys.ShiftLeft||keys.ShiftRight),lying:Math.abs(object.rotation.x)>1};}
 function updateMultiplayer(dt,now){
+  if(!network)return;
   if(isPassenger){updatePassenger(dt,now);return;}
   const auto=!!network?.autopilot;
   if(auto!==wasAutopilot){companion.resumeAutopilot();remoteMotion.reset(poseOf(companion.anchor));}
@@ -2707,14 +2883,18 @@ function updateMultiplayer(dt,now){
     const displayedPose=remoteMotion.sample(now);
     if(displayedPose)companion.setNetworkPose(displayedPose,dt,true);
     const linked=network?.snapshot.world.holding&&network.remoteLive;
-    handAmount+=(Number(!!linked)-handAmount)*(1-Math.exp(-dt*6));
+    if(!linked)claspLocked=false;
+    handAmount+=(Number(!!linked)-handAmount)*(1-Math.exp(-dt*18));
     if(linked){
       joinedHands.copy(playerRig.position).lerp(companion.anchor.position,.5);joinedHands.y+=1.0;
       partnerHand.copy(joinedHands);claspAxis.subVectors(companion.anchor.position,playerRig.position).normalize();
-      claspRotation.setFromUnitVectors(ringNormal,claspAxis);partnerLinkRotation.copy(claspRotation).multiply(partnerLinkTurn);playerLinkRotation.copy(claspRotation).multiply(playerLinkTurn);
+      claspRotation.setFromUnitVectors(ringNormal,claspAxis);
+      if(!isIshiee){stabilizeHerClasp();offsetMeetingPoint();}
+      partnerLinkRotation.copy(claspRotation).multiply(partnerLinkTurn);playerLinkRotation.copy(claspRotation).multiply(playerLinkTurn);
     }
-    firstPersonHand.update(joinedHands,CONFIG.thirdPerson?0:handAmount,playerLinkRotation,claspAxis);
-    avatar.poseHand(joinedHands,CONFIG.thirdPerson?handAmount:0,playerLinkRotation);companion.poseHand(partnerHand,handAmount,partnerLinkRotation);
+    if(isIshiee)firstPersonHand.update(joinedHands,CONFIG.thirdPerson?0:handAmount,playerLinkRotation,claspAxis);
+    else updateHerHoldingHand(CONFIG.thirdPerson?0:handAmount,claspAxis);
+    avatar.poseHand(joinedHands,CONFIG.thirdPerson?handAmount:0,playerLinkRotation);companion.poseHand(partnerHand,handAmount,isIshiee?partnerLinkRotation:hisGripOrientation(),undefined,!isIshiee);
     handInteraction.prompt=linked?'let go':network?.snapshot.world.handRequest&&network.snapshot.world.handRequest!==islandUser?'accept hand holding':'offer your hand';
   }
   if(networkReady&&now-lastNetworkFrame>=66){
@@ -2723,10 +2903,13 @@ function updateMultiplayer(dt,now){
     network.sendPose(poseOf(playerRig,moving),auto?{...poseOf(companion.anchor,false),...companion.motion}:undefined);
   }
 }
-if(multiplayerRequested){
+function startIslandConnection(){
+  if(!multiplayerRequested||network)return;
   const note=document.createElement('p');note.className='connection-note';$('.welcome-card').append(note);
   network=connectIsland({
-onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;note.textContent=text;$('#enter').disabled=!ready||!entryReady;if(!ready){Object.keys(keys).forEach(k=>keys[k]=false);}},
+onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;note.textContent=text;
+  if(ready&&entryPending){entryPending=false;$('#enter').disabled=!entryReady;$('#enter').textContent="Let's celebrate";queueMicrotask(()=>$('#enter').click());}
+  if(!ready){Object.keys(keys).forEach(k=>keys[k]=false);}},
     onPose(user,pose){
       if(isPassenger&&user===islandUser){ownPose=pose;ownMotion.push(pose,performance.now());}
       else if(user!==islandUser){remotePose=pose;remoteMotion.push(pose,performance.now());}
@@ -2742,7 +2925,8 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
       if(e.type==='cheer'&&companionMode&&!isIshiee)companion.triggerCheer();
       if(e.type==='fireworks'&&e.pose){setMood('night');fireworks.launch(new THREE.Vector3(...e.pose.position),e.pose.yaw,e.amount,{finale:takeFinale()});}
       if(e.type==='stone')stoneSkipping.receiveThrow(e);
-      if(e.type==='ink')stargazing.receiveInk(e.points);
+      if(e.type==='pictionary')pictionary.receive(e.state);
+      if(e.type==='ink'&&e.round===pictionary.round)stargazing.receiveInk(e.points);
       applyingNetwork=false;
     },
     onSnapshot(s){
@@ -2782,6 +2966,7 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
       }
       if(s.world.candles&&candlesLit)blowCandles({confetti:!s.welcome&&s.event?.type==='candles'});
       cashDash.sync(s);
+      benchSeat.sync(!!s.world.bench);
       if(s.world.hats)interactive.find(i=>i.type==='hat')?.action();
       if(s.event?.type==='hand')toast(s.world.holding?'HOLDING HANDS · H TO LET GO':s.world.handRequest===islandUser?'HAND OFFERED · WAITING FOR YOUR PARTNER':'YOUR PARTNER OFFERS A HAND · PRESS H NEARBY');
       if(s.event?.type==='candles'&&s.actor===islandUser)setTimeout(()=>network.event({type:'fireworks',amount:7}),650);
@@ -2804,6 +2989,7 @@ function crossfadeBlack(){
   const fade=$('#scene-fade');fade.style.transition='none';fade.classList.add('dark');void fade.offsetWidth;
   fade.style.transition='';requestAnimationFrame(()=>fade.classList.remove('dark'));
 }
+const lyingGaze=new THREE.Vector3();
 function updatePassenger(dt,now){
   const pose=ownMotion.sample(now);
   if(pose){
@@ -2812,8 +2998,8 @@ function updatePassenger(dt,now){
     if(pose.lying)playerRig.position.z+=1.70;
     // Start from her exact stargazing view (straight up, same heading), so a
     // phrase he writes reads the right way up for her too.
-    if(pose.lying&&!passengerLying){cameraPivot.rotation.x=1.22;playerRig.rotation.y=0;}
-    if(!pose.lying&&passengerLying)cameraPivot.rotation.x=-.12;
+    if(pose.lying&&!passengerLying){cameraPivot.rotation.x=1.22;playerRig.rotation.y=0;playerRig.rotation.z=0;}
+    if(!pose.lying&&passengerLying){cameraPivot.rotation.x=-.12;playerRig.rotation.z=0;}
     // Lying down or getting up cuts through black in his view too.
     if(pose.lying!==passengerLying)crossfadeBlack();
     passengerLying=pose.lying;stargazing.setViewer(passengerLying);
@@ -2823,23 +3009,27 @@ function updatePassenger(dt,now){
   if(peer)companion.setNetworkPose(peer,dt,true);
   avatar.root.visible=false;
   const linked=!!(pose?.holding&&pose?.holdReady&&!pose?.lying&&network?.remoteLive);
-  handAmount+=(Number(linked)-handAmount)*(1-Math.exp(-dt*6));
+  handAmount+=(Number(linked)-handAmount)*(1-Math.exp(-dt*18));
   // The same clasp as in her view, built from his body: his arm reaches his
   // lowered left hand and her arm reaches in to interlock with it.
   if(pose){claspBody.position.fromArray(pose.position);claspBody.rotation.set(0,pose.yaw,0);}
   placeClasp(claspBody,companion.anchor);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
   firstPersonHand.update(partnerHand,handAmount,partnerLinkRotation,reverseAxis);
   companion.poseHand(joinedHands,handAmount,playerLinkRotation,herArm());
-  pointBlend+=(Number(passengerPointing&&!passengerLying&&!bouquetControls.shown)-pointBlend)*(1-Math.exp(-dt*10));
-  camera.getWorldDirection(pointTarget);pointTarget.multiplyScalar(1.4).add(playerRig.position);pointTarget.y+=1.36;
-  pointingHand.update(pointTarget,pointBlend);
+  pointBlend+=(Number((passengerPointing||now<clickPointUntil)&&!passengerLying&&!bouquetControls.shown)-pointBlend)*(1-Math.exp(-dt*10));
+  if(now<clickPointUntil)pointTarget.copy(clickPointDirection);else camera.getWorldDirection(pointTarget);pointTarget.multiplyScalar(1.4).add(playerRig.position);pointTarget.y+=1.36;
+
   if(networkReady&&now-lastNetworkFrame>=66){
     lastNetworkFrame=now;
-    network.sendLook({time:performance.now(),yaw:playerRig.rotation.y,pitch:cameraPivot.rotation.x,pointing:passengerPointing&&!bouquetControls.shown});
+    let lookYaw=playerRig.rotation.y,lookPitch=cameraPivot.rotation.x;
+    // Lying down his head rolls instead of turning, so send where he actually looks.
+    if(passengerLying){camera.getWorldDirection(lyingGaze);lookYaw=Math.atan2(-lyingGaze.x,-lyingGaze.z);lookPitch=Math.asin(clamp(lyingGaze.y,-1,1));}
+    if(now<clickPointUntil){lookYaw=Math.atan2(-clickPointDirection.x,-clickPointDirection.z);lookPitch=Math.asin(clamp(clickPointDirection.y,-1,1));}
+    network.sendLook({time:performance.now(),yaw:lookYaw,pitch:lookPitch,pointing:(passengerPointing||now<clickPointUntil)&&!bouquetControls.shown&&!passengerLying});
   }
 }
 if(isPassenger){
   document.body.classList.add('companion-view');
-  $('#controls').innerHTML='<div><b>Mouse</b> look around <i>·</i> <b>Hold R</b> point <i>·</i> <b>Space</b> cheer / jump</div><div><b>/</b> chat <i>·</i> Following MOSHIEE <i>·</i> <b>M</b> sound <i>·</i> <b>Esc</b> release mouse</div>';
+  $('#controls').innerHTML='<div><b>Mouse</b> look around <i>·</i> <b>Middle-click</b> point briefly <i>·</i> <b>Hold R</b> point <i>·</i> <b>Space</b> cheer / jump</div><div><b>/</b> chat <i>·</i> Following MOSHIEE <i>·</i> <b>M</b> sound <i>·</i> <b>Esc</b> release mouse</div>';
   $('.welcome-script').textContent='Right beside her, wherever she goes.';
 }

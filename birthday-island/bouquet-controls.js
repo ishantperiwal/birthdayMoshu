@@ -7,13 +7,14 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
   let state='hidden',preview=null,hisView=false,savedCamera=null,age=3,armView=false,hisPitch=-.27;
   const originalScale=avatar.root.scale.clone();
   const panel=document.createElement('div');panel.id='bouquet-controls';
-  panel.style.cssText='position:fixed;left:24px;bottom:82px;z-index:25;display:none;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 48px)';
+  // Lives in the shared top-centre action bar (see main.js).
+  panel.style.cssText='display:none;gap:8px;flex-wrap:wrap;justify-content:center';
   const button=(label,action)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.style.cssText='border:1px solid #f4e4cd55;border-radius:18px;padding:9px 13px;background:#233e42dd;color:#fff0dc;font:12px system-ui;cursor:pointer';b.addEventListener('click',action);panel.append(b);return b;};
   const reveal=button('Reveal bouquet · B',()=>request(true));
   const pov=button('His POV · V',()=>switchView());
   const receive=button('Receive bouquet · R',()=>receiveFlowers());
-  const putAway=button('Put away',()=>state==='received'?storeFlowers():request(false));
-  const end=button('End preview',()=>endPreview());
+  const putAway=button('Put away · X',()=>state==='received'?storeFlowers():request(false));
+  const end=button('End preview · Esc',()=>endPreview());
   document.body.append(panel);
   if(roleAware){pov.hidden=true;end.hidden=true;}
   function apply(value,snap=false){
@@ -95,6 +96,7 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
       if(e.code==='KeyB'&&(!roleAware||isMale)){e.preventDefault();request(roleAware?state!=='offered':true);return true;}
       if(e.code==='KeyR'&&(!roleAware||!isMale)&&state==='offered'){e.preventDefault();receiveFlowers();return true;}
       if(e.code==='KeyV'&&!roleAware){e.preventDefault();switchView();return true;}
+      if(e.code==='KeyX'&&!putAway.hidden&&!putAway.disabled){e.preventDefault();putAway.click();return true;}
       if(e.code==='Escape'&&preview){
         if(state==='received'||state==='stored')resumeWalking();else endPreview();
         return true;

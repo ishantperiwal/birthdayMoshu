@@ -6,11 +6,11 @@
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#17263b">
   <title>For you ♡</title>
-  <link rel="stylesheet" href="./style.css?v=draw-hint-1">
+  <link rel="stylesheet" href="./style.css?v=welcome-audio-2">
   <link rel="preload" as="image" href="./assets/moon-lroc.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Dancing+Script:wght@700&family=Caveat:wght@600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Dancing+Script:wght@700&family=Caveat:wght@600&family=DM+Sans:wght@400&display=swap">
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js" } }
   </script>
@@ -25,17 +25,19 @@
       <div class="welcome-stars"></div><div class="welcome-stars far"></div>
       <div class="welcome-moon"></div>
       <!-- Big, faded numerals set behind the clouds. -->
-      <div id="countdown" class="welcome-countdown"><small>it opens in</small><b id="countdown-value">&nbsp;</b></div>
+      <div id="countdown" class="welcome-countdown"><b id="countdown-value">&nbsp;</b><small id="welcome-clock"></small></div>
       <div class="welcome-clouds back"></div>
     </div>
     <!-- A few larger clouds drift in front of the words; the button stays above them. -->
     <div class="welcome-clouds front" aria-hidden="true"></div>
     <div class="welcome-card counting">
-      <h1>Somewhere soft is waiting</h1>
-      <p class="welcome-script">Can't wait to see you. Muuuaaahhhh!!!</p>
+      <p class="welcome-script"></p>
+      <h1>The day the world became <span class="welcome-shine">magical</span></h1>
+      <p class="welcome-message"></p>
+      <button id="welcome-music" type="button" aria-pressed="false">♪ Play a little music</button>
       <!-- A fixed slot for the button, so nothing shifts when it appears. -->
       <div class="welcome-action">
-        <button id="enter" type="button" disabled>Come in <span class="enter-heart" aria-hidden="true">♥</span></button>
+        <button id="enter" type="button" disabled>Let's celebrate <span class="enter-heart" aria-hidden="true">♥</span></button>
       </div>
       <div class="welcome-loading" role="status">
         <div class="loading" aria-hidden="true"><span id="load-bar"></span></div>
@@ -47,12 +49,22 @@
   <script>
     // ---------------------------------------------------------------------
     // WELCOME TIMER — when "Come in" becomes available.
-    //   A number:  seconds after the page opens (10 for now).
+    //   A number:  seconds after the page opens (180 for the message preview).
     //   A string:  an Irish wall-clock time, e.g. '2026-10-02T00:00'
     //              (midnight in Europe/Dublin, whatever her device's zone).
     // ISHIEE's own link, or an inspection view, may override it with ?timer=0.
     // ---------------------------------------------------------------------
-    const WELCOME_TIMER=10;
+    const WELCOME_TIMER='2026-09-26T00:00:00'; // Europe/Dublin birthday midnight.
+    function addWelcomeSparkles(){
+      document.querySelectorAll('.welcome-shine').forEach(word=>{
+        for(let i=0;i<6;i++){
+          const star=document.createElement('i');star.className='welcome-sparkle';star.textContent='✦';star.setAttribute('aria-hidden','true');
+          star.style.cssText=`left:${8+i*17}%;top:${20+(i%3)*23}%;font-size:${8+i%3*3}px;animation-delay:${-i*.31}s;--spark-drift:${i%2?12:-12}px`;
+          word.append(star);
+        }
+      });
+    }
+    addWelcomeSparkles();
 
     // Runs the moment the page opens, before any game code has loaded.
     window.welcomeTimer=(()=>{
@@ -78,25 +90,54 @@
         const server=Date.parse(r.headers.get('Date')||'');
         if(Number.isFinite(server)&&Math.abs(server-Date.now())>3000)offset=server-Date.now();
       }).catch(()=>{});
-      const now=()=>Date.now()+offset,remaining=()=>Math.max(0,opensAt-now());
-      const two=n=>String(n).padStart(2,'0');
+      let skipCountdown=false;
+      const now=()=>Date.now()+offset,remaining=()=>skipCountdown?0:Math.max(0,opensAt-now());
+      const clockFormat=new Intl.DateTimeFormat('en-IE',{timeZone:'Europe/Dublin',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
       function text(ms){
-        const total=Math.ceil(ms/1000),days=Math.floor(total/86400),h=Math.floor(total%86400/3600),m=Math.floor(total%3600/60),s=total%60;
-        return days?`${days}d ${two(h)}:${two(m)}:${two(s)}`:h?`${h}:${two(m)}:${two(s)}`:`${two(m)}:${two(s)}`;
+        return ms<=60000?String(Math.ceil(ms/1000)).padStart(2,'0'):`${Math.ceil(ms/60000)} minutes to go`;
       }
       const card=document.querySelector('.welcome-card'),countdown=document.querySelector('#countdown'),value=document.querySelector('#countdown-value');
+      const messages=["Been so long, I’ve even forgotten some of your favourite songs. But I remember how much you loved Cigarettes After Sex. I guess I have grown to like them too.","Night's young but you say you don't like birthday parties at 12. If I were there with you, you would be getting 24 of those in the whole day. I miss you.","Whenever I want to feel something special, my mind takes me back to you. To us in Bangalore, and then to us when I was in Ireland. Somehow, this distance keeps making those memories feel more and more sacred.","I know there hasn’t been much romance lately. I know. But you’re still the most romantic person I’ve ever known.","You know why I keep trying to stay positive? It’s cheesy, but I feel like life has a way about things. I can’t really explain it I just feel it and to have met you is closest it will ever get to evidence.","Its about time. My love, I am sorry that I am not there with you. But cheers to whatever this is. Come in I am waiting for you. <3"];
+      const message=card.querySelector('.welcome-message');let messageIndex=-1;
+      function showMessage(left){
+        const index=left<=180000?Math.min(5,Math.max(0,Math.floor((180000-left)/30000))):0;
+        if(index===messageIndex)return;
+        messageIndex=index;message.textContent=messages[index];
+        if(!matchMedia('(prefers-reduced-motion: reduce)').matches)message.animate([{opacity:0},{opacity:1}],{duration:800,easing:'ease-out'});
+      }
       function tick(){
         const left=remaining();
-        if(left>0){value.textContent=text(left);return;}
+        showMessage(left);
+        const irelandTime=clockFormat.format(new Date(now()));
+        const subtext=card.querySelector('.welcome-script');
+        const minutes=Math.ceil(left/60000);
+        subtext.classList.add('welcome-time');
+        subtext.textContent=irelandTime+', '+minutes+' '+(minutes===1?'minute':'minutes')+' to go';
+        document.querySelector('#welcome-clock').textContent='';
+        countdown.style.visibility=left>60000?'hidden':'';
+        countdown.classList.toggle('last-minute',left<=60000);
+        if(left>0){value.textContent=left<=60000?text(left):'';return;}
+        subtext.classList.remove('welcome-time');
+        subtext.textContent="Can't wait to see you.";
+        value.textContent='00';
+        const heading=card.querySelector('h1');
+        heading.innerHTML='Happy Birthday to the <span class="welcome-shine">best woman</span> I know';
+        addWelcomeSparkles();
+        if(!matchMedia('(prefers-reduced-motion: reduce)').matches)heading.animate([{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'translateY(0)'}],{duration:1100,easing:'ease-out'});
         // Countdown over: fade it away; the loader may now show if still needed.
         countdown.classList.add('over');card.classList.remove('counting');clearInterval(timer);
       }
       const timer=setInterval(tick,250);tick();
+      // Local testing only: reveal entry without bypassing asset/network readiness.
+      if(['localhost','127.0.0.1','[::1]'].includes(location.hostname))window.addEventListener('keydown',event=>{
+        if(event.code!=='Enter'||!event.shiftKey||event.repeat||document.querySelector('#welcome').classList.contains('gone')||remaining()<=0)return;
+        event.preventDefault();skipCountdown=true;tick();
+      });
       return {remaining,get over(){return remaining()<=0;}};
     })();
 
     // Reveal the words only once their font is ready, so they never swap visibly.
-    Promise.race([document.fonts?.load('300 40px "Fraunces"'),new Promise(r=>setTimeout(r,2500))])
+    Promise.race([document.fonts?.load('400 40px "Fraunces"'),new Promise(r=>setTimeout(r,2500))])
       .catch(()=>{}).finally(()=>document.querySelector('#welcome')?.classList.add('fonts-ready'));
   </script>
   <script>
@@ -119,6 +160,14 @@
         // Let the underside dissolve instead of ending in a hard line.
         g.globalCompositeOperation='destination-out';
         const fade=g.createLinearGradient(0,base-h*.08,0,h);fade.addColorStop(0,'rgba(0,0,0,0)');fade.addColorStop(1,'rgba(0,0,0,1)');g.fillStyle=fade;g.fillRect(0,0,w,h);
+        // Dissolve upper and side edges too, where puffs can exceed the canvas.
+        g.globalCompositeOperation='destination-in';
+        const vertical=g.createLinearGradient(0,0,0,h);
+        vertical.addColorStop(0,'transparent');vertical.addColorStop(.16,'#000');vertical.addColorStop(.8,'#000');vertical.addColorStop(1,'transparent');
+        g.fillStyle=vertical;g.fillRect(0,0,w,h);
+        const horizontal=g.createLinearGradient(0,0,w,0);
+        horizontal.addColorStop(0,'transparent');horizontal.addColorStop(.1,'#000');horizontal.addColorStop(.9,'#000');horizontal.addColorStop(1,'transparent');
+        g.fillStyle=horizontal;g.fillRect(0,0,w,h);
         return c;
       }
       const vw=Math.max(innerWidth,360);
@@ -192,6 +241,6 @@
   </section>
 
   <div id="error"></div>
-  <script type="module" src="./main.js?v=two-hands-1"></script>
+  <script type="module" src="./main.js?v=welcome-audio-2"></script>
 </body>
 </html>

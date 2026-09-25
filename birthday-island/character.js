@@ -1,4 +1,5 @@
 import {dressDateSuit} from './date-suit.js?v=8';
+import {buildSeatedCards} from './seated-cards.js';
 import {dressBirthday,BIRTHDAY_ROSE,BIRTHDAY_SKIN,BIRTHDAY_EXTRA_HEIGHT} from './birthday-dress.js?v=taller-1';
 import { legoHairMesh } from './assets/lego-hair.js?v=1';
 import { roundedSleeve } from './rounded-sleeve.js';
@@ -8,11 +9,11 @@ import {dressTextures} from './dress-textures.js';
 import {softHeadGeometry,softFaceGeometry} from './soft-head.js?v=straight-1';
 import { buildHandPose } from './hand-pose.js?v=arms-1';
 import {addPuffSleeve} from './puff-sleeve.js?v=closer-lace-3';
-import {buildBouquetGesture} from './bouquet.js?v=holder-spread-6';
+import {buildBouquetGesture} from './bouquet.js?v=holder-spread-7';
 import { hairMesh } from './assets/reference-hair-relaxed.js?v=1';
 import * as THREE from 'three';
 import {legoHandGeometry} from './lego-hand.js';
-import {addFaceBlink} from './face-blink.js?v=kiss-4';
+import {addFaceBlink} from './face-blink.js?v=generated-decals-1';
 import {addBirthdayTiara} from './birthday-tiara.js?v=set-back-1';
 import {addBirthdayChoker} from './birthday-choker.js?v=chain-2';
 import {createSkirtMotion} from './skirt-motion.js?v=visible-follow-2';
@@ -54,7 +55,7 @@ export function buildCharacter(parent,options={}){
   if(options.suit){pink.roughness=.62;cream.roughness=.66;shoe.roughness=.24;shoe.emissiveIntensity=.025;}
   // Preserve the original jumper collar for the other outfit.
   if(!options.suit&&!birthday)for(const x of [-.09,.09]){const collar=box(.16,.07,.025,cream,x,1.16,-.19);collar.rotation.z=x<0?-.25:.25;}
-  const puffSleeves=birthday&&!stargazingFit;
+  const puffSleeves=birthday;
   const shoulderWidth=puffSleeves?.248:.36;
   const armRestTilt=puffSleeves?.26:.12;
   const arms=[];for(const side of [-1,1]){
@@ -192,6 +193,9 @@ export function buildCharacter(parent,options={}){
   let bouquetView=null;
   let restingModel=null,walkingVisibility=null;
   let manualGesture=null;
+  let seatedTorso=null;
+  const standingLegs=legs.map(leg=>({position:leg.position.clone(),scale:leg.scale.clone(),visible:leg.visible}));
+  const seatedCards=buildSeatedCards();seatedCards.position.set(0,-.43,-.14);seatedCards.rotation.x=-1.15;arms[1].add(seatedCards);
   const skirtMotion=birthday&&!stargazingFit?createSkirtMotion():null;
   const clothPosition=new THREE.Vector3(),clothOffset=new THREE.Vector3(),clothRotation=new THREE.Quaternion(),clothScale=new THREE.Vector3();
   function setFirstPerson(value){
@@ -209,7 +213,52 @@ export function buildCharacter(parent,options={}){
       walkingVisibility=null;restingModel.root.visible=false;
     }
   }
-  return {root,setExpression:(value,duration)=>faceBlink.setExpression(value,duration),setBlinkPreview:value=>faceBlink.setPreview(value),get pointingAmount(){return pointBlend;},setFirstPerson,
+  let benchLegs=null,benchFabric=null;
+  function poseBench(on){
+    if(!on){this.resetRestingPose();if(benchLegs)benchLegs.visible=false;if(benchFabric){benchFabric.visible=true;benchFabric=null;}legs.forEach((leg,i)=>leg.visible=standingLegs[i].visible);root.position.y=0;return;}
+    if(!benchLegs){
+      benchLegs=new THREE.Group();root.add(benchLegs);
+      for(const x of [-.145,.145]){
+        box(.25,.23,.40,cream,x,.65,-.18,benchLegs);
+        box(.23,.43,.24,cream,x,.36,-.36,benchLegs);
+        box(.26,.10,.36,shoe,x,.12,-.42,benchLegs);
+      }
+      if(birthday){const cloth=add(new THREE.SphereGeometry(1,24,12),pink,0,.49,-.20,benchLegs);cloth.scale.set(.52,.27,.48);}
+    }
+    this.resetRestingPose();root.position.y=.62/root.scale.y-(.65+legExtra);
+    legs.forEach(leg=>leg.visible=false);benchLegs.visible=true;
+    if(birthday){benchFabric=root.getObjectByName('skirt fabric sway');if(benchFabric)benchFabric.visible=false;}
+    arms.forEach((arm,i)=>arm.rotation.set(.65,0,i?.12:-.12));seatedCards.visible=false;
+  }
+  return {root,poseBench,setExpression:(value,duration)=>faceBlink.setExpression(value,duration),setBlinkPreview:value=>faceBlink.setPreview(value),get pointingAmount(){return pointBlend;},setFirstPerson,
+    setSeatedHeadVisible(value){if(walkingVisibility&&restingModel)restingModel.setSeatedHeadVisible(value);else head.visible=value;},
+    resetRestingPose(){
+      if(walkingVisibility&&restingModel){restingModel.resetRestingPose();return;}
+      blend=0;waveBlend=0;pointBlend=0;manualGesture=null;
+      legs.forEach((leg,i)=>{leg.rotation.set(0,0,0);leg.position.copy(standingLegs[i].position);leg.scale.copy(standingLegs[i].scale);});
+      if(seatedTorso)seatedTorso.rotation.set(0,0,0);
+      arms.forEach((arm,i)=>arm.rotation.set(0,0,(i===0?-1:1)*armRestTilt));
+      root.position.y=0;
+    },
+    poseSitting(on){
+      if(walkingVisibility&&restingModel){restingModel.poseSitting(on);return;}
+      this.resetRestingPose();
+      if(!on){
+        legs.forEach((leg,i)=>leg.visible=standingLegs[i].visible);seatedCards.visible=false;
+        if(seatedTorso){for(const part of [...seatedTorso.children]){part.position.y+=seatedTorso.position.y;root.add(part);}root.remove(seatedTorso);seatedTorso=null;}
+        return;
+      }
+      if(!seatedTorso){
+        seatedTorso=new THREE.Group();seatedTorso.position.y=.65+legExtra;
+        const upper=root.children.filter(part=>!legs.includes(part));root.add(seatedTorso);
+        for(const part of upper){part.position.y-=seatedTorso.position.y;seatedTorso.add(part);}
+      }
+      seatedTorso.rotation.x=-.08;
+      root.position.y=-.55;
+      legs.forEach(leg=>leg.visible=false);
+      arms.forEach((arm,i)=>arm.rotation.set(1.25,0,i?.12:-.12));
+      seatedCards.visible=true;
+    },
     triggerGesture(value){
       if(!['wave','cheer'].includes(value)||bouquet?.active||walkingVisibility)return false;
       manualGesture={value,age:0,rest:arms.map(arm=>arm.rotation.clone())};return true;
@@ -236,6 +285,7 @@ export function buildCharacter(parent,options={}){
     setBouquet(value,snap=false){bouquet?.set(value,snap);},
     updateBouquet(dt,suppressed=false){bouquet?.update(dt,suppressed);if(bouquet?.active&&!suppressed&&!options.shortHair)for(const pose of handPoses)pose.root.visible=false;},
     setBouquetView(value){
+      if(bouquet)bouquet.firstPerson=!!value;
         if(value){bouquetView??=new Map(root.children.map(o=>[o,o.visible]));for(const child of root.children)child.visible=child===arms[1]&&!!bouquet?.active;}
       else if(!value&&bouquetView){for(const [child,visible] of bouquetView)child.visible=visible;bouquetView=null;}
     },
@@ -246,10 +296,10 @@ export function buildCharacter(parent,options={}){
       arms[1].rotation.set(THREE.MathUtils.lerp(-1.05*wind+2.65*snap,0,recover),0,.22*(1-recover)+.12*recover);
     },
     throwOrigin(target){return throwStone.getWorldPosition(target);},
-    poseHand(target,amount,rotation,arm=heldArm){
-    if(walkingVisibility){restingModel.poseHand(target,amount,rotation,arm);return;}
+    poseHand(target,amount,rotation,arm=heldArm,freeReach=false){
+    if(walkingVisibility){restingModel.poseHand(target,amount,rotation,arm,freeReach);return;}
     if(arm!==activeArm){handPose.update(target,0);handPose.root.visible=false;arms[activeArm].visible=true;activeArm=arm;handPose=handPoses[arm];}
-    handPose.update(target,amount,rotation);
+    handPose.update(target,amount,rotation,null,freeReach);
     if(amount<previousHandAmount-.000001)releasingHand=true;
     else if(amount>previousHandAmount+.000001)releasingHand=false;
     previousHandAmount=amount;
@@ -259,7 +309,7 @@ export function buildCharacter(parent,options={}){
     handPose.root.visible=useHoldingModel;
     arms[activeArm].visible=!useHoldingModel;
     if(amount>.001&&!useHoldingModel)arms[activeArm].quaternion.setFromUnitVectors(down,handPose.aim);
-  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);const round=options.shortHair?1:HEAD_SLIM;hat.scale.set(1.3/round,1.3,1.3/round);},update(dt,moving,running,cheer=0,attention=null,pace=1){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9)*pace;legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*THREE.MathUtils.lerp(armRestTilt,.37,cheer);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
+  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);const round=options.shortHair?1:HEAD_SLIM;hat.scale.set(1.04/round,1.04,1.04/round);},update(dt,moving,running,cheer=0,attention=null,pace=1){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9)*pace;legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*THREE.MathUtils.lerp(armRestTilt,.37,cheer);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
     waveBlend+=((attention?.wave&&cheer<.1?1:0)-waveBlend)*(1-Math.exp(-dt*7));
     if(waveBlend>.001&&cheer<.1){
       arms[1].rotation.x=THREE.MathUtils.lerp(arms[1].rotation.x,-.35,waveBlend);
@@ -269,8 +319,12 @@ export function buildCharacter(parent,options={}){
     head.rotation.y+=((attention?.yaw??0)-head.rotation.y)*ease;
     head.rotation.x+=((attention?.pitch??0)-head.rotation.x)*ease;
     head.rotation.z+=((attention?.tilt??0)-head.rotation.z)*ease;
-    pointBlend+=((attention?.point&&cheer<.1&&(!moving||attention?.manualPoint)?1:0)-pointBlend)*(1-Math.exp(-dt*6));
-    if(attention?.direction&&pointBlend>.001){pointDirection.copy(attention.direction).normalize();pointRotation.setFromUnitVectors(down,pointDirection);arms[1].quaternion.slerp(pointRotation,pointBlend*.94);}
+    const pointing=!!(attention?.point&&cheer<.1&&(!moving||attention?.manualPoint));
+    pointBlend+=((pointing?1:0)-pointBlend)*(1-Math.exp(-dt*(pointing?6:3.8)));
+    // Preserve the last pointing direction during release; idle attention may
+    // change immediately, but the arm must ease back from its actual pose.
+    if(pointing&&attention?.direction){pointDirection.copy(attention.direction).normalize();pointRotation.setFromUnitVectors(down,pointDirection);}
+    if(pointBlend>.001)arms[1].quaternion.slerp(pointRotation,pointBlend*.94);
     if(!moving&&!cheer){arms.forEach((arm,i)=>arm.rotation.z+=(i?1:-1)*Math.sin(stride*.18)*.015*(1-pointBlend));}
 }};
 }

@@ -12,7 +12,7 @@ const source=(await readFile(new URL('../companion.js',import.meta.url),'utf8'))
     const THREE={Vector3,Quaternion,Group,MathUtils:{clamp:(x,a,b)=>Math.max(a,Math.min(b,x)),smoothstep:(x,a,b)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);}}};
   `)
   .replace(/import \{ buildCharacter \}[^;]+;/,`function buildCharacter(parent){return {root:{scale:{x:1,setScalar(x){this.x=x;}}},update(dt,moving,running){parent.userData.motion={moving,running};}};}`);
-const {buildCompanion}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+const {buildCompanion,HOLD_SPACING}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 function fixture(options={}){
   const companion=buildCompanion({add(){}},{terrainHeight:()=>0,onIsland:()=>true,stageHeight:0,stageRadius:3,...options});
   companion.anchor.position.set(10,0,0);companion.celebrate();companion.update(2.2,{x:10,y:0,z:0});
@@ -45,7 +45,7 @@ for(const fps of [30,60,120])test(`following stops without residual foot shuffli
 test('holding hands still approaches the closer hand-holding distance',()=>{
   const c=fixture();c.anchor.position.x=3.35;c.toggleHolding();
   for(let i=0;i<180;i++)c.update(1/60,{x:0,y:0,z:0});
-  assert.ok(c.anchor.position.x<1.67);assert.ok(c.anchor.position.x>=1.65);
+  assert.ok(c.anchor.position.x<HOLD_SPACING+.02);assert.ok(c.anchor.position.x>=HOLD_SPACING);
   assert.equal(c.holdReady,true);
 });
 

@@ -5,6 +5,22 @@ export const FISH_AREAS=[
   {x:SHORE.x+17,z:SHORE.z+3,rx:10,rz:9},
   {x:-62,z:-3,rx:10,rz:16}
 ];
+export function sampleNearbyFish(view,ground,random=Math.random){
+  if(!view||Math.hypot(view.dx,view.dz)<.2)return null;
+  let shore=false;
+  for(let i=0;i<12;i++){
+    const angle=i*Math.PI/6;
+    if(ground(view.x+Math.cos(angle)*9,view.z+Math.sin(angle)*9)<-1.1){shore=true;break;}
+  }
+  if(!shore)return null;
+  const heading=Math.atan2(view.dz,view.dx);
+  for(let i=0;i<8;i++){
+    const angle=heading+(random()-.5)*.9,distance=10+random()*12;
+    const jump=sampleFishJump({x:view.x+Math.cos(angle)*distance,z:view.z+Math.sin(angle)*distance,rx:2,rz:2},ground,random);
+    if(jump)return jump;
+  }
+  return null;
+}
 // Validate the full arc's footprint so near-shore jumps never cross dry land.
 export function sampleFishJump(area,ground,random=Math.random){
   for(let attempt=0;attempt<30;attempt++){
@@ -18,7 +34,7 @@ export function sampleFishJump(area,ground,random=Math.random){
   return null;
 }
 export function buildJumpingFish(scene,{areas=FISH_AREAS,terrainHeight=()=>-10,onSplash=()=>{}}={}){
-  const palettes=[[0xc9e3db,0x447e86],[0xffc69c,0xc77745],[0xf0df9a,0xb79243],[0xd4d5ed,0x747fa9]]
+  const palettes=[[0xc9e3db,0x447e86],[0xffc69c,0xf07827],[0xffe898,0xe5b82e],[0xd4d5ed,0x747fa9]]
     .map(([belly,top])=>[new THREE.MeshStandardMaterial({color:belly,roughness:.32,metalness:.18}),new THREE.MeshStandardMaterial({color:top,roughness:.42,metalness:.08,side:THREE.DoubleSide})]);
   const [silver,back]=palettes[0];
   const eyeMat=new THREE.MeshStandardMaterial({color:0x142c31,roughness:.3});
@@ -38,17 +54,29 @@ export function buildJumpingFish(scene,{areas=FISH_AREAS,terrainHeight=()=>-10,o
   drops.frustumCulled=false;drops.visible=false;scene.add(drops);
   const dummy=new THREE.Object3D();let fishCursor=0,splashCursor=0;
   const nextJumps=areas.map((_,i)=>3+i*8);
+  let nextNearby=0;
   function splash(x,z,time,size){const s=splashes[splashCursor++%splashes.length];Object.assign(s,{x,z,start:time,size});onSplash(x,z,time,size);}
-  return {update(time){
+  function launch(jump,time){
+    const f=fish.find(f=>time-f.start>f.duration);if(!f)return false;
+    const palette=palettes[Math.floor(Math.random()*palettes.length)];
+    Object.assign(f,jump,{start:time,landed:false});f.root.scale.setScalar(f.size);
+    f.root.children[0].material=palette[0];for(const j of [1,4,5])f.root.children[j].material=palette[1];
+    splash(f.x,f.z,time,f.size*.55);return true;
+  }
+  return {update(time,view=null){
     areas.forEach((area,i)=>{
       if(time<nextJumps[i])return;
       nextJumps[i]=time+12+Math.random()*14;
       const jump=sampleFishJump(area,terrainHeight);if(!jump)return;
-      const f=fish[fishCursor++%fish.length],palette=palettes[Math.floor(Math.random()*palettes.length)];
-      Object.assign(f,jump,{start:time,landed:false});f.root.scale.setScalar(f.size);
-      f.root.children[0].material=palette[0];for(const j of [1,4,5])f.root.children[j].material=palette[1];
-      splash(f.x,f.z,time,f.size*.55);
+      launch(jump,time);
     });
+    if(!view)nextNearby=time+4;
+    else if(time>=nextNearby){
+      nextNearby=time+3;
+      const jump=sampleNearbyFish(view,terrainHeight);
+      // Existing spots already supply regular sightings; avoid doubling them.
+      if(jump&&!fish.some(f=>time-f.start<f.duration)&&launch(jump,time))nextNearby=time+15+Math.random()*10;
+    }
     for(const f of fish){
       const age=time-f.start,u=age/f.duration;
       if(f.start>=0&&u>=.94&&!f.landed){

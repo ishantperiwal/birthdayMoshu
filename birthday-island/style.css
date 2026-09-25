@@ -12,17 +12,22 @@ body.role-ui .preview-message { display:none!important; }
 body.role-ui #topbar { justify-content:flex-end; }
 body.role-ui:not(.cash-revealed) .treasure-card,
 body.role-ui:not(.cash-revealed) .cash-flight-layer { visibility:hidden!important; }
-body.role-ui #bouquet-controls { bottom:24px!important; }
 body.role-ui #interaction { bottom:82px; max-width:calc(100vw - 48px); min-width:0; letter-spacing:.025em; }
-#host-controls { position:fixed; z-index:26; left:24px; bottom:24px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; max-width:calc(100vw - 160px); }
-#host-controls #bouquet-controls { position:static!important; max-width:none!important; gap:8px!important; }
-#host-controls button,#host-controls select { border:0; border-radius:16px; background:#233e42ed; color:#fff0dc; padding:10px 13px; font:12px/1.25 system-ui; cursor:pointer; }
-#host-controls .cash-dash-start { position:static; margin:0; background:#f0ddbc; color:#263c40; }
-#host-controls button:disabled,#host-controls select:disabled { opacity:.5; cursor:default; }
-#host-controls button:hover:not(:disabled),#host-controls select:hover:not(:disabled) { filter:brightness(1.15); }
-#host-controls [hidden] { display:none!important; }
-body.is-stargazing #host-controls { display:none; }
-@media(max-width:600px){#host-controls{left:14px;bottom:72px;max-width:calc(100vw - 28px);gap:6px}#host-controls button,#host-controls select{font-size:11px;padding:9px 10px}body.role-ui #interaction{bottom:160px}body.role-ui[data-role=moshie] #interaction{bottom:82px}}
+/* One top-centre bar holds every important button (bouquet, Ishi's controls,
+   cash dash), each labelled with its shortcut. Toasts and the dash timer sit below it. */
+#action-bar { position:fixed; z-index:26; top:18px; left:50%; transform:translateX(-50%); display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; width:max-content; max-width:calc(100vw - 560px); }
+#action-bar #bouquet-controls { gap:8px!important; }
+#action-bar button,#action-bar select { border:0; border-radius:16px; background:#233e42ed; color:#fff0dc; padding:10px 13px; font:12px/1.25 system-ui; cursor:pointer; white-space:nowrap; }
+#action-bar .cash-dash-start { position:static; margin:0; background:#f0ddbc; color:#263c40; }
+#action-bar button:disabled,#action-bar select:disabled { opacity:.5; cursor:default; }
+#action-bar button:hover:not(:disabled),#action-bar select:hover:not(:disabled) { filter:brightness(1.15); }
+#action-bar [hidden] { display:none!important; }
+body.is-stargazing #action-bar { display:none; }
+#toast { top:76px!important; }
+.cash-dash-timer { top:70px!important; }
+body:has(.cash-dash-timer:not([hidden])) #toast { top:150px!important; }
+@media(max-width:1000px){#action-bar{top:84px;max-width:calc(100vw - 28px);gap:6px}#toast{top:140px!important}.cash-dash-timer{top:134px!important}body:has(.cash-dash-timer:not([hidden])) #toast{top:214px!important}}
+@media(max-width:600px){#action-bar button,#action-bar select{font-size:11px;padding:9px 10px}body.role-ui #interaction{bottom:82px}}
 
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
@@ -127,6 +132,11 @@ body button,body select { border:0!important; }
 #interaction.show { opacity: 1 !important; visibility: visible !important; transform: translateX(-50%); }
 #interaction b { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; box-sizing: border-box; vertical-align: middle; white-space: nowrap; margin-right: 7px; border-radius: 6px; color: #29384a; background: #fff2cf; }
 #interaction .key-alternative { margin-right: 7px; vertical-align: middle; opacity: .65; }
+#interaction { display:flex;justify-content:center;flex-wrap:wrap;gap:10px;min-width:0;width:max-content;max-width:calc(100vw - 32px);padding:0;background:none;backdrop-filter:none; }
+#interaction button { display:flex;align-items:center;justify-content:center;min-height:44px;padding:10px 16px;border:0;border-radius:999px;background:rgba(22,34,49,.82);color:inherit;font:550 12px/1.2 ui-sans-serif,system-ui;letter-spacing:.025em;pointer-events:auto;cursor:pointer; }
+#interaction button:hover { background:rgba(38,54,70,.95); }
+#interaction button:focus-visible { outline:2px solid #fff2cf;outline-offset:3px; }
+#interaction b { border-radius:50%; }
 #toast { position: fixed; z-index: 60; left: 50%; top: 32px; transform: translate(-50%, -10px); max-width: min(470px, 85vw); padding: 11px 20px; border-radius: 999px; text-align: center; background: rgba(24, 37, 54, .79); border: 1px solid rgba(255,255,255,.13); backdrop-filter: blur(11px); font: 600 10px/1.35 ui-sans-serif, system-ui; letter-spacing: .1em; opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
@@ -255,24 +265,36 @@ body button,body select { border:0!important; }
 .welcome-stars.far { opacity:.5; animation-delay:-2.5s; transform:scale(1.35) translate(4%,3%); }
 @keyframes welcome-twinkle { from { opacity:.35; } to { opacity:.9; } }
 /* The island's own moon photograph: the middle half of the map is its near side. */
-.welcome-moon { position:absolute; top:11%; right:16%; width:78px; height:78px; border-radius:50%; overflow:hidden;
-  background:url(./assets/moon-lroc.jpg) center/200% 100%, #d9dcef; filter:saturate(.55) brightness(1.4) contrast(.92);
+.welcome-moon { position:absolute; z-index:0; top:11%; right:16%; width:188px; height:188px; border-radius:50%; overflow:hidden;
+  background:linear-gradient(rgba(225,229,246,.58),rgba(225,229,246,.58)),url(./assets/moon-lroc.jpg) center/200% 100%, #d9dcef; filter:saturate(.4) brightness(1.2) contrast(.85);
   box-shadow:0 0 50px 14px rgba(214,222,255,.26),0 0 140px 50px rgba(160,150,255,.12); }
-.welcome-moon::after { content:""; position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle at 36% 34%,rgba(255,255,255,.18),transparent 45%,rgba(20,24,70,.42) 100%); }
+.welcome-moon::after { content:""; position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle at 36% 34%,rgba(255,255,255,.18),transparent 45%,rgba(20,24,70,.22) 100%); }
 .welcome-clouds { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.welcome-clouds.back { z-index:1; }
 .welcome-clouds.front { z-index:2; }
 .welcome-cloud { position:absolute; left:0; filter:blur(.6px); will-change:transform; animation:welcome-drift 120s linear infinite; }
 .welcome-clouds.front .welcome-cloud { filter:blur(1.5px); }
 @keyframes welcome-drift { from { transform:translateX(-65vw); } to { transform:translateX(110vw); } }
 /* No z-index on the card: its words sit under the front clouds, the button above. */
-#welcome .welcome-card { z-index:auto; color:#f1f0ff; text-shadow:0 2px 24px rgba(8,10,40,.5); }
-#welcome h1 { text-wrap:balance; font-family:"Fraunces",Georgia,serif; font-style:normal; font-weight:300; font-variation-settings:"opsz" 144; font-size:clamp(38px,6.6vw,68px); letter-spacing:-.02em; line-height:1.05; }
-.welcome-script { margin:16px 0 0; font:700 clamp(22px,3.4vw,32px)/1.25 "Dancing Script","Segoe Script",cursive; color:#c9c4ff; }
+#welcome .welcome-card { z-index:3; color:#f1f0ff; text-shadow:0 2px 24px rgba(8,10,40,.5); }
+.welcome-shine{position:relative;display:inline-block;color:#fff0cf;text-shadow:0 0 12px #ffe3a95c,0 0 30px #f5d9c42b;animation:welcome-word-glow 4s ease-in-out infinite}
+.welcome-shine::before,.welcome-shine::after{content:'✦';position:absolute;pointer-events:none;font:normal 16px/1 Georgia;color:#fff7da;text-shadow:0 0 8px #ffdea8;animation:welcome-word-sparkle 3.4s ease-in-out infinite}
+.welcome-shine::before{left:8%;top:0;animation-delay:-1.4s}.welcome-shine::after{right:0;bottom:8%;font-size:11px;animation-delay:-.2s}
+@keyframes welcome-word-glow{0%,100%{color:#fff0cf;text-shadow:0 0 12px #ffe3a95c}50%{color:#fffbed;text-shadow:0 0 18px #ffe3a999,0 0 36px #ffe3a940}}
+@keyframes welcome-word-sparkle{0%{opacity:0;transform:translate(0,5px) scale(.4)}20%{opacity:.85}100%{opacity:0;transform:translate(var(--spark-drift,8px),-30px) scale(.2)}}
+.welcome-shine::before,.welcome-shine::after{content:none}
+.welcome-sparkle{position:absolute;pointer-events:none;font-family:Georgia;font-style:normal;line-height:1;color:#fff7da;text-shadow:0 0 7px #ffdea8;animation:welcome-word-sparkle 1.86s linear infinite}
+@media(prefers-reduced-motion:reduce){.welcome-sparkle{display:none}}
+@media(prefers-reduced-motion:reduce){.welcome-shine{animation:none}.welcome-shine::before,.welcome-shine::after{animation:none;opacity:.6}}
+#welcome h1 { text-wrap:balance; font-family:"Fraunces",Georgia,serif; font-style:normal; font-weight:400; font-variation-settings:"opsz" 144; font-size:clamp(38px,6.6vw,68px); letter-spacing:-.02em; line-height:1.05; }
+.welcome-script { margin:0 0 16px; font:400 clamp(17px,2vw,21px)/1.5 "DM Sans",sans-serif; color:#ded9f7; }
 #welcome .subtitle { margin-top:20px; font:400 clamp(15px,1.8vw,18px)/1.5 "Fraunces",Georgia,serif; opacity:.8; }
 /* The countdown sits in the sky behind the clouds: big, soft and faded. */
-.welcome-countdown { position:absolute; left:0; right:0; top:62%; display:grid; gap:10px; justify-items:center; color:#dcdcff; opacity:.3; transition:opacity 1.6s ease; }
-.welcome-countdown small { font:500 11px/1 ui-sans-serif,system-ui; letter-spacing:.42em; text-transform:uppercase; opacity:.8; }
+.welcome-countdown { position:absolute; left:0; right:0; top:clamp(20px,4vh,48px); display:grid; gap:10px; justify-items:center; color:#dcdcff; opacity:.3; transition:opacity 1.6s ease; }
+.welcome-countdown small { font:400 clamp(15px,1.8vw,20px)/1.5 "Fraunces",Georgia,serif; letter-spacing:.02em; text-align:center; max-width:90vw; opacity:.95; }
 .welcome-countdown b { font:300 clamp(84px,15vw,190px)/1 "Fraunces",Georgia,serif; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+.welcome-countdown:not(.last-minute) b { font-size:clamp(32px,6vw,74px); line-height:1.2; padding:0 20px; }
+.welcome-countdown #welcome-clock { font:400 14px/1.5 system-ui; letter-spacing:.08em; }
 #welcome #enter { position:relative; z-index:3; margin-top:36px; padding:17px 34px; font:400 18px/1 "Fraunces",Georgia,serif; letter-spacing:.01em; background:#e9e7ff; color:#232a5c; border-radius:999px; box-shadow:0 10px 36px rgba(8,10,44,.4),0 0 0 6px rgba(200,200,255,.08); transition:opacity .9s, transform .9s, background .3s; transform:translateY(8px); }
 #welcome #enter:not(.ready) { visibility:hidden; }
 #welcome #enter.ready { transform:none; }
@@ -290,7 +312,7 @@ body button,body select { border:0!important; }
 @media (prefers-reduced-motion: reduce) { #welcome #enter .enter-heart { animation:none; } }
 
 /* Fixed slot for the countdown and "Come in", which cross-fade in place. */
-.welcome-action { position:relative; height:84px; margin-top:26px; }
+.welcome-action { position:relative; height:64px; margin-top:14px; }
 #welcome:not(.fonts-ready) .welcome-countdown,.welcome-countdown.over { opacity:0; }
 #welcome .welcome-action #enter { position:absolute; left:50%; top:50%; margin:0; translate:-50% -50%; }
 /* The words fade in once their fonts are ready. */
@@ -298,8 +320,8 @@ body button,body select { border:0!important; }
 #welcome.fonts-ready .welcome-card { opacity:1; }
 /* Entering: fade to black, then the island fades in from black. */
 #welcome.gone.instant { transition:none; display:none; } /* Stops its clouds and stars costing anything after entry. */
-#scene-fade { position:fixed; inset:0; z-index:200; background:#02030a; opacity:0; pointer-events:none; transition:opacity 1.4s ease; }
-#scene-fade.dark { opacity:1; transition:opacity .7s ease; }
+#scene-fade { position:fixed; inset:0; z-index:200; background:#02030a; opacity:0; pointer-events:none; transition:opacity 2.8s ease; }
+#scene-fade.dark { opacity:1; transition:opacity 1.2s ease; }
 
 /* Top-centre guide while drawing in the stars; click it or press Esc to look around again. */
 .stargaze-draw-hint { position:fixed; z-index:160; top:22px; left:50%; transform:translateX(-50%); padding:9px 18px; border:1px solid rgba(255,244,214,.22); border-radius:999px;
@@ -307,3 +329,43 @@ body button,body select { border:0!important; }
 .stargaze-draw-hint[hidden] { display:none; }
 .stargaze-draw-hint b { display:inline-grid; place-items:center; min-width:30px; height:20px; margin:0 3px; padding:0 5px; border-radius:6px; background:#fff3dc; color:#23284f; font-size:10px; }
 .stargaze-draw-hint:hover { background:rgba(40,46,92,.85); }
+
+/* Countdown takes focus before the collection clock starts. */
+.cash-dash-timer[data-phase=countdown],.cash-dash-timer[data-phase=go] { top:42%!important; transform:translate(-50%,-50%); }
+.cash-dash-timer[data-phase=countdown] span,.cash-dash-timer[data-phase=go] span { display:block; font:600 20px/1.4 system-ui; margin-bottom:12px; }
+.cash-dash-timer[data-phase=countdown] b,.cash-dash-timer[data-phase=go] b { font-size:clamp(72px,13vw,120px); color:#fff2d6; }
+.cash-pickup-cue { position:fixed; z-index:86; pointer-events:none; opacity:0; color:#fff2b0; font:750 36px/1 system-ui; text-shadow:0 3px 8px #182b24; }
+
+.stargaze-draw-hint { top:auto; left:50%; bottom:12%; transform:translateX(-50%); white-space:nowrap; }
+.stargaze-draw-hint b { display:inline-block; padding:4px 9px; margin:0 4px; border:1px solid #fff2cf99; border-radius:5px; background:#fff0cd; color:#25383c; font:700 15px system-ui; }
+.stargaze-cursor-trail { position:fixed; width:7px; height:7px; border-radius:50%; background:#fff1bd; pointer-events:none; opacity:0; z-index:100; }
+
+.grass-seat-test { position:fixed; bottom:100px; left:50%; transform:translateX(-50%); z-index:170; border:1px solid #fff0cc66; border-radius:20px; padding:12px 22px; background:#263c40; color:#fff0cc; cursor:pointer; font:14px system-ui; }
+.grass-seat-test[hidden]{display:none}
+
+.grass-seat-pov{bottom:152px}body.grass-seated #bouquet-controls{display:none!important}
+
+.stargaze-see-drawing{position:fixed;z-index:165;left:50%;bottom:32%;transform:translateX(-50%);padding:12px 22px;border:1px solid #fff0cc99;border-radius:22px;background:#fff0cc;color:#263c40;font:600 15px system-ui;cursor:pointer;animation:see-drawing-pulse 1.5s ease-in-out 3}
+.stargaze-see-drawing[hidden]{display:none}
+@keyframes see-drawing-pulse{50%{background:#dbc6ed;transform:translateX(-50%) scale(1.035)}}
+@media(prefers-reduced-motion:reduce){.stargaze-see-drawing{animation:none}}
+
+.stargaze-draw-hint{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;white-space:normal;font:500 15px/1.5 system-ui;letter-spacing:0;padding:12px 20px}
+.stargaze-draw-hint b{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;min-width:32px;height:32px;padding:0 8px;line-height:1;font-size:17px;overflow:visible}
+
+#welcome-music{position:fixed;bottom:24px;left:24px;border:0;background:transparent;color:#e4def3;font:inherit;font-size:13px;letter-spacing:.04em;padding:12px 18px;cursor:pointer;white-space:nowrap;opacity:.8} #welcome-music:hover,#welcome-music:focus-visible{opacity:1}
+
+.welcome-script.welcome-time{font:400 clamp(15px,1.8vw,18px)/1.5 "DM Sans",sans-serif;letter-spacing:.015em;text-align:center;width:100%;}
+
+.welcome-message{margin:24px auto 0;max-width:580px;min-height:150px;font:400 clamp(17px,1.8vw,21px)/1.65 "DM Sans",sans-serif;color:#e5e1f5;text-wrap:pretty;}
+@media(max-height:700px){.welcome-message{margin-top:16px;min-height:120px;font-size:18px}}
+
+#welcome .welcome-card:not(.counting) .welcome-message{min-height:0;}
+.sky-pictionary{position:fixed;z-index:110;top:7vh;left:50%;transform:translateX(-50%);width:min(500px,90vw);padding:18px 22px;text-align:center;color:#fff3dc;background:rgba(18,25,49,.86);border:1px solid #d5c3f033;border-radius:24px;box-shadow:0 8px 50px #151d3844;font:16px/1.5 "DM Sans",sans-serif;}
+.sky-pictionary[hidden],.sky-pictionary [hidden]{display:none}
+.sky-game-label{font-size:12px;letter-spacing:.1em;color:#cdc9e8}
+.sky-game-word{font-size:24px;margin:8px 0}
+.sky-game-guess{min-height:24px;color:#ded8ee}
+.sky-pictionary input{display:block;box-sizing:border-box;width:100%;margin:12px 0;padding:10px 14px;border:1px solid #e4d6f766;border-radius:12px;background:#151a36;color:#fff6e3;font:inherit;text-align:center;}
+.sky-game-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:14px}
+.sky-game-actions button{padding:7px 11px;border:1px solid #d5c3f033;border-radius:20px;background:#ffffff0d;color:inherit;font:inherit;font-size:13px;cursor:pointer}

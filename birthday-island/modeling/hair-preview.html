@@ -2,7 +2,7 @@
 <style>body{margin:0;background:#ddd5c9;font:14px system-ui;color:#51483e}header{position:absolute;top:25px;left:32px}nav{position:absolute;bottom:30px;width:100%;display:flex;justify-content:space-around;letter-spacing:2px;font-size:11px}canvas{display:block}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script></head><body><header>Hair model study · Blender export</header><nav><span>FRONT</span><span>THREE-QUARTER</span><span>BACK</span></nav>
 <script type="module">
-import * as THREE from 'three';import {buildCharacter} from '../character.js?v=sidepart-17';
+import * as THREE from 'three';import {buildCharacter} from '../character.js?v=face-decals-1';
 const scene=new THREE.Scene();scene.background=new THREE.Color('#ddd5c9');
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
 const camera=new THREE.PerspectiveCamera(29,innerWidth/innerHeight,.01,30);camera.position.set(0,1.48,3.35);camera.lookAt(0,1.10,0);

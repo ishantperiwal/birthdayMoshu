@@ -2,6 +2,7 @@ import {companionMode,ISHIEE_CONTROL_MODE,canControlWorld} from '../control-mode
 import {DurableObject} from 'cloudflare:workers';
 import {USERS,GRACE_MS,cleanChat,cleanPose,cleanLook,initialWorld,reduceWorld} from './protocol.js';
 import {CASH_SITES} from '../cash-dash-state.js';
+import {changeGame,gameView} from '../pictionary-state.js';
 
 async function matches(a,b){
   if(!a||!b)return false;
@@ -47,6 +48,7 @@ export class IslandRoom extends DurableObject {
   snapshot(){return {type:'snapshot',controlMode:ISHIEE_CONTROL_MODE,look:companionMode&&this.live('ISHIEE')?[...this.sockets.values()].find(a=>a.user==='ISHIEE')?.look||null:null,startedAt:this.data.startedAt||Date.now(),serverTime:Date.now(),world:this.data.world,poses:this.data.poses,online:Object.fromEntries(USERS.map(u=>[u,this.live(u)])),npc:this.npc()};}
   send(ws,msg){try{ws.send(JSON.stringify(msg));}catch{/* Close handler performs cleanup. */}}
   broadcast(msg,except){for(const ws of this.sockets.keys())if(ws!==except)this.send(ws,msg);}
+  sendGame(ws,user){this.send(ws,{type:'event',event:{type:'pictionary',state:gameView(this.data.pictionary,user)}});}
   async fetch(request){
     const user=new URL(request.url).searchParams.get('user');
     const [client,server]=Object.values(new WebSocketPair());
@@ -61,6 +63,8 @@ export class IslandRoom extends DurableObject {
     if(!companionMode&&user==='ISHIEE')for(const [ws,a] of this.sockets){delete a.npc;ws.serializeAttachment(a);}
     if(!companionMode){this.data.world.holding=false;this.data.world.handRequest=null;}
     this.save();this.send(server,{...this.snapshot(),self:user,welcome:true});this.broadcast(this.snapshot(),server);
+    this.sendGame(server,user);
+    if(this.data.pictionaryInk?.length)this.send(server,{type:'event',event:{type:'ink',round:this.data.pictionary?.round,points:this.data.pictionaryInk}});
     await this.ctx.storage.setAlarm(Date.now()+15000);
     return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'island'}});
   }
@@ -88,6 +92,19 @@ export class IslandRoom extends DurableObject {
       if(now-(a.eventWindow||0)>1000){a.eventWindow=now;a.eventCount=0;}
       if((a.eventCount=(a.eventCount||0)+1)>30)return;
       const e=m.event;
+      if(e.type==='pictionary'){
+        if(e.action==='start'&&!USERS.every(u=>this.live(u)))return;
+        const previous=this.data.pictionary;
+        const next=changeGame(previous,e,a.user);
+        if(next!==undefined){
+          if(!previous&&next)next.round=now;
+          if(next?.round!==previous?.round)this.data.pictionaryInk=[];
+          this.data.pictionary=next;
+          if(e.action!=='type')this.save();
+          for(const [peer,who] of this.sockets)this.sendGame(peer,who.user);
+        }
+        ws.serializeAttachment(a);return;
+      }
       // Short gestures are transient events and always belong to the authenticated sender.
       if(e.type==='gesture'){
         if(['wave','cheer'].includes(e.value)&&now-(a.lastGesture||0)>=1000){
@@ -168,7 +185,13 @@ export class IslandRoom extends DurableObject {
       const next=reduceWorld(this.data.world,e,a.user);
       if(next){this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:e,actor:a.user});}
       else if(e.type==='fireworks'){const pose=this.data.poses[a.user]||a.pose;if(!pose)return;this.data.world.mood='night';this.save();this.broadcast(this.snapshot());this.broadcast({type:'event',actor:a.user,event:{type:'fireworks',pose,amount:Math.max(1,Math.min(12,Number(e.amount)||6))}});}
-      else if(e.type==='ink'&&Array.isArray(e.points)&&e.points.length%6===0&&e.points.length>=6&&e.points.length<=600&&e.points.every(v=>Number.isFinite(v)&&Math.abs(v)<500))this.broadcast({type:'event',actor:a.user,event:{type:'ink',points:e.points}},ws);
+      else if(e.type==='ink'&&Array.isArray(e.points)&&e.points.length%6===0&&e.points.length>=6&&e.points.length<=600&&e.points.every(v=>Number.isFinite(v)&&Math.abs(v)<500)){
+        const game=this.data.pictionary;
+        if(game&&(game.drawer!==a.user||game.solved||e.round!==game.round))return;
+        if(!game&&e.round!=null)return;
+        if(game){const ink=this.data.pictionaryInk??=[];if(ink.length+e.points.length>36000)return;ink.push(...e.points);}
+        this.broadcast({type:'event',actor:a.user,event:{type:'ink',round:game?.round,points:e.points}},ws);
+      }
       else if(e.type==='stone'&&Number.isFinite(e.power)&&e.power>=0&&e.power<=1&&Array.isArray(e.origin)&&Array.isArray(e.direction)&&e.origin.length===3&&e.direction.length===3&&[...e.origin,...e.direction].every(v=>Number.isFinite(v)&&Math.abs(v)<200))this.broadcast({type:'event',actor:a.user,event:{type:'stone',power:e.power,origin:e.origin,direction:e.direction}},ws);
     }
     ws.serializeAttachment(a);

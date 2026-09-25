@@ -1,6 +1,7 @@
-import {createThrow,advanceThrow} from './skipping-physics.js?v=targets-8';
+import {createThrow,advanceThrow,SKIP_LANE} from './skipping-physics.js?v=targets-8';
 
-export const TARGET_RADIUS=3.2;
+export const TARGET_RADIUS=1.9;
+const ROUND_RADII=[TARGET_RADIUS,1.5,1.15];
 export function predictFinish(origin,direction,power,time,terrainHeight){
   const flight=createThrow(origin,direction,power);
   for(let i=0;i<241&&!flight.done;i++)advanceThrow(flight,.05,time+(i+1)*.05,terrainHeight);
@@ -9,19 +10,23 @@ export function predictFinish(origin,direction,power,time,terrainHeight){
 
 // Pick destinations from real throws, so each hoop has a reachable solution.
 export function generateTarget(origin,round,time,terrainHeight,random=Math.random){
-  for(let i=0;i<48;i++){
-    const angle=(random()-.5)*.8;
-    const direction={x:Math.cos(angle),y:.02+random()*.08,z:Math.sin(angle)};
-    const power=.10+(round-1)*.10+random()*.10;
+  const radius=ROUND_RADII[Math.max(0,Math.min(2,round-1))];
+  const [minDistance,maxDistance]=[[8,17],[18,26],[27,36]][Math.max(0,Math.min(2,round-1))];
+  for(let i=0;i<192;i++){
+    const direction={x:SKIP_LANE.x,y:.02+random()*.12,z:SKIP_LANE.z};
+    // Prefer the round's gentle throw, then search other reachable powers if
+    // the current wave phase would stop it short or send it beyond the lane.
+    const power=i<12?.12+(round-1)*.08+random()*.06:.08+random()*.62;
     const flight=predictFinish(origin,direction,power,time,terrainHeight);
     const {x,z}=flight.position;
-    if(flight.finish!=='water'||Math.hypot(x-origin.x,z-origin.z)<8)continue;
+    const distance=Math.hypot(x-origin.x,z-origin.z);
+    if(flight.finish!=='water'||distance<minDistance||distance>maxDistance)continue;
     let clear=terrainHeight(x,z)<-1.2;
     for(let j=0;j<16&&clear;j++){
       const a=j/16*Math.PI*2;
-      clear=terrainHeight(x+Math.cos(a)*TARGET_RADIUS,z+Math.sin(a)*TARGET_RADIUS)<-1.2;
+      clear=terrainHeight(x+Math.cos(a)*radius,z+Math.sin(a)*radius)<-1.2;
     }
-    if(clear)return {x,z,radius:TARGET_RADIUS};
+    if(clear)return {x,z,radius};
   }
   return null;
 }

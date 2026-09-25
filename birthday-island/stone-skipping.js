@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import {legoHandGeometry} from './lego-hand.js';
-import {SHORE,throwPower,throwPlan,createThrow,advanceThrow,ballisticPoint,waterHeight} from './skipping-physics.js?v=targets-8';
+import {cashBundleGeometry} from './cash-bundle.js';
+import {SHORE,SKIP_LANE,throwPower,throwPlan,createThrow,advanceThrow,ballisticPoint,waterHeight} from './skipping-physics.js?v=targets-8';
 import {createTargetGame,predictFinish} from './pebble-targets.js';
 
-export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion,canAutoplay=()=>true,onThrow=()=>{},onWin=()=>{}}){
+export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera,getCompanion,canAutoplay=()=>true,onThrow=()=>{},onWin=()=>{},onNearMiss=()=>{}}){
   const {x,z}=SHORE,root=new THREE.Group();root.position.set(x,terrainHeight(x,z),z);scene.add(root);
   const pebbleGeo=new THREE.SphereGeometry(1,16,10);
   const palette=[0xe5ded0,0xc1ddd8,0xd1dbe5,0xe9c9b0];
@@ -25,10 +26,28 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
     @media(max-width:600px){.skip-card{left:12px;bottom:100px;width:240px;padding:14px}.skip-title{font-size:20px}}
     .skip-card{left:50%;bottom:112px;transform:translateX(-50%);width:240px;padding:10px 14px;border:0;border-radius:12px;background:#182b32aa;box-shadow:none;text-align:center}
     .skip-kicker,.skip-title,.skip-scale,.skip-help,.skip-sweet{display:none}.skip-status{min-height:0;font:11px Georgia;line-height:1.4}.skip-meter{margin:9px 0;height:5px}.skip-records{font-size:10px;margin-top:7px;padding-top:6px}.skip-needle{height:13px;z-index:1}
+    .skip-meter{height:14px;margin:12px 0 6px}.skip-needle{height:22px}
+    .skip-scale{display:flex}.skip-records{border:0;margin-top:8px;padding:0}
+    .skip-card{box-sizing:border-box;width:min(420px,calc(100vw - 32px));padding:15px 20px}
+    .skip-status{font:15px/1.45 system-ui}.skip-scale,.skip-records{font:13px/1.4 system-ui}
+    .skip-meter{height:16px}.skip-needle{height:24px}
+    .skip-success{position:fixed;left:50%;top:43%;transform:translate(-50%,-50%);z-index:90;pointer-events:none;text-align:center;color:#fff0c5;text-shadow:0 3px 14px #172e37;opacity:0;width:min(440px,90vw)}
+    .skip-success strong{display:block;font:600 clamp(26px,2.4vw,38px)/1.2 Georgia,serif}
+    .skip-success span{display:block;margin-top:8px;font:15px/1.4 system-ui}
   `;document.head.append(style);
   const hud=document.createElement('div');hud.className='skip-card';hud.hidden=true;
+  const success=document.createElement('div');success.className='skip-success';success.setAttribute('role','status');document.body.append(success);
+  const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');let successAnimation=null;
+  function celebrateWin(complete,nearMiss=false){
+    success.style.color=nearMiss?'#efaaa7':'#fff0c5';
+    success.innerHTML=nearMiss?'<strong>Near miss, nice try</strong>':complete?'<strong>All three hoops!</strong><span>You did it!</span>':'<strong>Inside the hoop!</strong><span>Beautiful throw!</span>';
+    successAnimation?.cancel();
+    const rest='translate(-50%,-50%)';
+    successAnimation=success.animate([{opacity:0,transform:rest+(reducedMotion.matches?'':' scale(.92)')},{opacity:1,transform:rest,offset:.12},{opacity:1,transform:rest,offset:.78},{opacity:0,transform:rest}],{duration:2400,easing:'ease-out'});
+  }
   hud.innerHTML='<div class="skip-kicker">THE QUIET SHORE</div><div class="skip-title">A little further, together</div><div class="skip-status"></div><div class="skip-meter"><div class="skip-fill"></div><div class="skip-sweet"></div><div class="skip-needle"></div></div><div class="skip-scale"><span>gentle</span><span class="skip-range"></span><span>far</span></div><div class="skip-records"><span class="skip-you"></span><span class="skip-him"></span></div><div class="skip-help">Hold SPACE · release when it feels right<br>Q to leave · best throws this visit</div>';document.body.append(hud);
   const status=hud.querySelector('.skip-status'),fill=hud.querySelector('.skip-fill'),needle=hud.querySelector('.skip-needle'),range=hud.querySelector('.skip-range'),you=hud.querySelector('.skip-you'),him=hud.querySelector('.skip-him');
+  hud.querySelector('.skip-scale span:last-child').textContent='strong';
   const meter=hud.querySelector('.skip-meter');
   const held=new THREE.Group();camera.add(held);held.position.set(.27,-.28,-.55);held.rotation.z=-.22;held.visible=false;
   const skin=new THREE.MeshStandardMaterial({color:0xf3c94e,roughness:.34,emissive:0xdba835,emissiveIntensity:.12});
@@ -68,28 +87,54 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
   let remoteCursor=0;
   let opponentPending=false;
   const game=createTargetGame();
-  const targetGeometry=new THREE.RingGeometry(.96,1,80);targetGeometry.rotateX(-Math.PI/2);
+  const prizeCanvas=document.createElement('canvas');prizeCanvas.width=256;prizeCanvas.height=128;
+  const prizeCtx=prizeCanvas.getContext('2d');prizeCtx.fillStyle='#fff0c4';prizeCtx.font='bold 64px Georgia';prizeCtx.textAlign='center';prizeCtx.fillText('+€50',128,85);
+  const prize=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(prizeCanvas),transparent:true,depthWrite:false}));prize.scale.set(2.4,1.2,1);prize.visible=false;scene.add(prize);
+  const prizeCash=new THREE.Mesh(cashBundleGeometry(),new THREE.MeshBasicMaterial({vertexColors:true}));prizeCash.visible=false;scene.add(prizeCash);
+  const targetGeometry=new THREE.RingGeometry(.92,1,64);targetGeometry.rotateX(-Math.PI/2);
   const targetBase=targetGeometry.attributes.position.array.slice();
-  const targetRing=new THREE.Mesh(targetGeometry,new THREE.MeshBasicMaterial({color:0xffd99a,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide}));
-  targetRing.frustumCulled=false;targetRing.visible=false;scene.add(targetRing);
+  const targetRing=new THREE.Mesh(targetGeometry,new THREE.MeshBasicMaterial({color:new THREE.Color(2.2,1.7,.9),toneMapped:false,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
+  targetRing.frustumCulled=false;targetRing.visible=false;targetRing.renderOrder=3;scene.add(targetRing);
+  // Two lines of floating markers define a straight offshore throwing lane.
+  const lane=new THREE.InstancedMesh(new THREE.SphereGeometry(.10,8,5),new THREE.MeshBasicMaterial({color:new THREE.Color(1.4,1.8,1.6),toneMapped:false}),18);
+  lane.frustumCulled=false;scene.add(lane);
+  const sparkPositions=new Float32Array(24*3),sparkGeometry=new THREE.BufferGeometry();
+  sparkGeometry.setAttribute('position',new THREE.BufferAttribute(sparkPositions,3));
+  const targetSparks=new THREE.Points(sparkGeometry,new THREE.PointsMaterial({map:splash.material.map,color:new THREE.Color(1.3,1.1,.7),toneMapped:false,size:.075,opacity:.65,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  targetSparks.frustumCulled=false;targetSparks.visible=false;targetSparks.renderOrder=3;scene.add(targetSparks);
   const landingDot=new THREE.Mesh(new THREE.RingGeometry(.12,.28,24),new THREE.MeshBasicMaterial({color:0xffefd0,transparent:true,opacity:.85,depthWrite:false,side:THREE.DoubleSide}));
   landingDot.rotation.x=-Math.PI/2;landingDot.visible=false;scene.add(landingDot);
   let prediction=null,predictionAt=-Infinity;
   function updateTarget(){
+    for(let i=0;i<18;i++){
+      const along=5+Math.floor(i/2)*4,side=(i%2?1:-1)*SKIP_LANE.halfWidth;
+      const px=x+along*SKIP_LANE.x-side*SKIP_LANE.z,pz=z+along*SKIP_LANE.z+side*SKIP_LANE.x;
+      dummy.position.set(px,waterHeight(px,pz,time)+.45,pz);dummy.scale.setScalar(1);dummy.updateMatrix();lane.setMatrixAt(i,dummy.matrix);
+    }
+    lane.instanceMatrix.needsUpdate=true;
     const target=game.target;targetRing.visible=active&&!!target;
+    targetSparks.visible=targetRing.visible;
+    prize.visible=targetRing.visible&&game.round===3&&!game.complete;
+    if(prize.visible)prize.position.set(target.x,waterHeight(target.x,target.z,time)+2.4+Math.sin(time*1.5)*.08,target.z);
+    prizeCash.visible=prize.visible;if(prize.visible){prizeCash.position.copy(prize.position);prizeCash.position.y+=.9;prizeCash.rotation.y=time*.6;}
     if(!targetRing.visible)return;
     const p=targetGeometry.attributes.position;
     for(let i=0;i<p.count;i++){
       const px=target.x+targetBase[i*3]*target.radius,pz=target.z+targetBase[i*3+2]*target.radius;
-      p.setXYZ(i,px,waterHeight(px,pz,time)+.10,pz);
+      p.setXYZ(i,px,waterHeight(px,pz,time)+.24,pz);
     }
-    p.needsUpdate=true;targetRing.material.color.setHex(game.won?0xc8f5b1:0xffd99a);
+    p.needsUpdate=true;targetRing.material.color.setRGB(...(game.won?[1.5,2.4,1.2]:[2.2,1.7,.9]));
+    for(let i=0;i<24;i++){
+      const angle=i*2.39996,age=(time*.38+i/24)%1;
+      const px=target.x+Math.cos(angle)*target.radius,pz=target.z+Math.sin(angle)*target.radius;
+      sparkPositions.set([px,waterHeight(px,pz,time)+.25+age*.4,pz],i*3);
+    }
+    sparkGeometry.attributes.position.needsUpdate=true;
     targetRing.material.opacity=game.won?.86+.10*Math.sin(time*4):.76;
   }
   let active=false,equipped=false,charge=-1,chargeSource=null,flight=null,turn='you',wait=0,time=0,best=[0,0],result='',lastPower=.5,labelUntil=0,labelPoint=null;
   function startCharge(source){if(equipped&&!flight&&wait<=0&&!opponentPending&&charge<0){charge=time;chargeSource=source;}}
   function releaseCharge(source){if(charge>=0&&chargeSource===source){held.updateWorldMatrix(true,true);launch(throwPower(time-charge),'you');chargeSource=null;}}
-  function distanceAt(p){const start=flight?.start||SHORE;return Math.hypot(p.x-start.x,p.z-start.z);}
   function aim(){camera.getWorldDirection(aimDir);camera.getWorldPosition(eye);}
   function launch(power,who,origin=null,aimOverride=null){
     aim();turn=who;lastPower=power;const start=new THREE.Vector3();
@@ -101,7 +146,7 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
     for(const sample of trailSamples)sample.age=1;
     equipped=false;held.visible=false;charge=-1;pebble.visible=true;result='';
   }
-  function leave(){opponentPending=false;active=false;equipped=false;held.visible=false;charge=-1;chargeSource=null;wait=0;hud.hidden=true;dots.visible=false;label.hidden=true;targetRing.visible=false;landingDot.visible=false;game.reset();}
+  function leave(){successAnimation?.cancel();success.textContent='';opponentPending=false;active=false;equipped=false;held.visible=false;charge=-1;chargeSource=null;wait=0;hud.hidden=true;dots.visible=false;label.hidden=true;targetRing.visible=false;targetSparks.visible=false;landingDot.visible=false;game.reset();}
   function impact(point){const i=point.index,r=ripples[rippleCursor++%ripples.length];r.age=0;r.x=point.x;r.z=point.z;
     if(i<12)for(let j=0;j<6;j++){const d=droplets[dropCursor++%droplets.length],angle=j*Math.PI*2/6+i*.8,speed=.45+(j%3)*.17;Object.assign(d,{age:0,x:point.x,y:waterHeight(point.x,point.z,time)+.13,z:point.z,vx:Math.cos(angle)*speed,vz:Math.sin(angle)*speed,vy:1.25+(j%4)*.2});}
   }
@@ -140,23 +185,30 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
       let trailPoint=null;
       if(flight){const f=flight;for(const event of advanceThrow(f,dt,time,terrainHeight))impact(event);
         const p=f.position;trailPoint=p;pebble.position.set(p.x,p.y,p.z);pebble.rotation.set(f.age*8,f.age*5,f.age*2);
-        labelPoint={...p};labelUntil=time+1.5;label.textContent=`${distanceAt(p).toFixed(1)} m`;
+        labelPoint={...p};labelUntil=0;
         if(f.done){
-          const index=turn==='you'?0:1,distance=distanceAt(p);best[index]=Math.max(best[index],distance);
           const won=turn==='you'&&active&&game.finish(f);
           if(won){
             result=game.complete?`All three hoops! · ${game.attempts} throws`:`Round ${game.round} won!`;
-            label.textContent=game.complete?'Three for three ♡':'Inside the hoop ♡';
-            toast(game.complete?'THREE ROUNDS COMPLETE ♡':'RIGHT IN THE HOOP ♡');onWin(game.complete);
-          }else result=turn==='you'?'Missed this one · try the same hoop again':`His stone · ${distance.toFixed(1)} m`;
-          flight=null;pebble.visible=false;
-          if(turn==='you'&&active&&!game.won&&nearby())wait=1.4;
+            labelUntil=0;celebrateWin(game.complete);onWin(game.complete);
+          }else{
+            result=turn==='you'?'Try again':'His turn finished';
+            const target=game.target;
+            if(turn==='you'&&active&&f.finish==='water'&&target){
+              const outside=Math.hypot(f.position.x-target.x,f.position.z-target.z)-target.radius;
+              if(outside>0&&outside<=.85){result='Near miss, nice try';celebrateWin(false,true);onNearMiss();}
+            }
+          }
+          flight=null;
+          if(f.finish==='land'){
+            const restingAge=f.age;
+            setTimeout(()=>{if(!flight&&pebble.rotation.x===restingAge*8)pebble.visible=false;},1800);
+          }else pebble.visible=false;
+          if(turn==='you'&&active&&!game.complete)wait=.8;
         }
-      }else if(wait>0){wait-=dt;if(wait<=0&&active&&nearby()){
-        const direction=new THREE.Vector3(.98,.08,.20).normalize(),power=.45+Math.random()*.4;
-        opponentPending=partner.startThrow(direction,(origin,aim)=>{
-          opponentPending=false;if(active&&nearby())launch(power,'him',origin,aim);
-        });
+      }else if(wait>0){wait-=dt;if(wait<=0&&active){
+        const origin=new THREE.Vector3();held.updateWorldMatrix(true,true);heldStone.getWorldPosition(origin);
+        if(game.prepare(origin,time,terrainHeight)){equipped=true;held.visible=true;predictionAt=-Infinity;}
       }}
       for(const stone of remoteStones){if(!stone.flight)continue;
         for(const event of advanceThrow(stone.flight,dt,time,terrainHeight))impact(event);
@@ -183,9 +235,9 @@ export function buildStoneSkipping({scene,terrainHeight,interactive,toast,camera
           dummy.position.set(p.x,p.y,p.z);dummy.scale.setScalar(.20+t*.35);dummy.updateMatrix();dots.setMatrixAt(i,dummy.matrix);
         }dots.instanceMatrix.needsUpdate=true;
       }
-      if(active){hud.hidden=false;meter.hidden=charge<0;
-        status.textContent=opponentPending?'His turn…':flight?(turn==='you'?'Watch where your stone finishes…':'His turn…'):wait>0?result:equipped?(charge>=0?'Release when the small dot is inside the hoop':'Aim at the hoop · hold left-click for power'):result+(game.complete?' · Click the bowl to play again':game.won?' · Click the bowl for the next round':' · Click the bowl to retry');
-        fill.style.width=needle.style.left=`${power*100}%`;range.textContent='';you.textContent=game.complete?'3 / 3 complete':`Round ${game.round} / 3`;him.textContent=`${game.attempts} ${game.attempts===1?'throw':'throws'} · Q to leave`;
+      if(active){hud.hidden=false;meter.hidden=false;
+        status.textContent=opponentPending?'His turn…':flight?'Watch your stone…':wait>0?result:equipped?(charge>=0?'Release to throw':'Aim · hold click for power'):game.complete?'Click bowl to replay':game.won?'Click bowl for next hoop':'Click bowl to retry';
+        fill.style.width=needle.style.left=`${power*100}%`;range.textContent='';you.textContent=game.complete?'3 / 3 complete':`Round ${game.round} / 3`;him.textContent='Esc · leave';
       }
       label.hidden=true;if(active&&labelPoint&&time<labelUntil){screen.set(labelPoint.x,labelPoint.y+.40,labelPoint.z).project(camera);if(screen.z>-1&&screen.z<1&&Math.abs(screen.x)<.98&&Math.abs(screen.y)<.95){label.hidden=false;label.style.transform=`translate(${(screen.x*.5+.5)*innerWidth}px,${(-screen.y*.5+.5)*innerHeight}px) translate(-50%,-100%)`;}}
     }

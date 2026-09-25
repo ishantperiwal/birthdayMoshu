@@ -17,14 +17,15 @@ export const RADIO_PLAYLIST=[
   {id:'0yW7w8F2TVA',title:'Say You Won’t Let Go',artist:'James Arthur'},
   {id:'nSDgHBxUbVQ',title:'Photograph',artist:'Ed Sheeran'},
   {id:'LjhCEhWiKXk',title:'Just The Way You Are',artist:'Bruno Mars'},
-  {id:'yKNxeF4KMsY',title:'Yellow',artist:'Coldplay'}
+  {id:'yKNxeF4KMsY',title:'Yellow',artist:'Coldplay'},
+  {id:'LmwcJ3UsX48',title:'Never Enough',artist:'Loren Allred'}
 ];
 
 // MAX_VOLUME is YouTube's 0–100 scale; 50 keeps the radio a soft background.
 const FADE_SECONDS=3.5,MAX_VOLUME=50,EARLY_CHANGE=5;
 
 let apiPromise=null;
-function loadYouTube(){
+export function loadYouTube(){
   if(window.YT?.Player)return Promise.resolve(window.YT);
   apiPromise??=new Promise((resolve,reject)=>{
     const previous=window.onYouTubeIframeAPIReady;
@@ -45,7 +46,7 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
   const screens=[...card.querySelectorAll('.radio-deck')],title=card.querySelector('b'),artist=card.querySelector('.radio-meta span');
   const decks=screens.map(()=>({player:null,ready:false,index:-1,mix:0,target:0,volume:-1,paused:true,requested:false}));
   // started: players exist (created early, during the welcome). live: she has entered, so songs play.
-  let active=0,index=null,proximity=0,started=false,starting=false,live=false,failures=0,checkClock=0;
+  let active=0,index=null,proximity=0,started=false,starting=false,live=false,failures=0,checkClock=0,smoothedLevel=0;
 
   function show(){
     screens.forEach((s,i)=>s.classList.toggle('active',i===active));
@@ -104,8 +105,13 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
   function begin(){live=true;if(!started){start();return;}if(index!==null){const pending=index;index=null;play(pending);}}
   function resume(){const deck=decks[active];if(started&&deck.index>=0&&deck.target>0)deck.player.playVideo?.();}
 
-  function update(dt,near,background=0){
-    proximity=near;card.classList.toggle('near',started&&index!==null&&near>.03);
+  function update(dt,near,background=0,{visible=near>.03,muted=false}={}){
+    const targetLevel=near+(1-near)*Math.max(0,Math.min(1,background));
+    // A four-second attack eases toward the distance-defined peak, even standing still.
+    const fadeSeconds=targetLevel>smoothedLevel?4:1.5;
+    smoothedLevel+=(targetLevel-smoothedLevel)*(1-Math.exp(-Math.min(dt,.1)/fadeSeconds));
+    if(muted)smoothedLevel=0;
+    proximity=near;card.classList.toggle('near',started&&index!==null&&visible);
     if(!started)return;
     for(const deck of decks){
       if(deck.index<0)continue;
@@ -113,7 +119,7 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
       if(deck.target===0&&deck.mix<=0&&!deck.paused){deck.paused=true;deck.player.pauseVideo();}
       // The distant bed uses this same playing deck. Only proximity reveals
       // the radio card; hearing it faintly elsewhere should not open UI.
-      const level=proximity+(1-proximity)*Math.max(0,Math.min(1,background));
+      const level=smoothedLevel;
       const volume=Math.round(MAX_VOLUME*level*deck.mix);
       if(volume!==deck.volume){deck.volume=volume;deck.player.setVolume(volume);}
     }
@@ -126,5 +132,5 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
 
   // Read-only snapshot for inspection and browser tests.
   const state=()=>({index,active,started,decks:decks.map(d=>({index:d.index,mix:+d.mix.toFixed(2),volume:d.volume,state:d.player?.getPlayerState?.()??null,time:+(d.player?.getCurrentTime?.()||0).toFixed(1)}))});
-  return {start,begin,play,resume,update,state,get index(){return index;},get count(){return count;}};
+  return {start,begin,play,resume,update,state,get playing(){return live&&decks.some(deck=>deck.mix>0&&deck.player?.getPlayerState?.()===1);},get index(){return index;},get count(){return count;}};
 }

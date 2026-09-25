@@ -271,10 +271,10 @@ phases break up straight bands. Static uncorrelated dither replaces the regular
 diagonal screen pattern without removing the scene's soft grain.
 
 The waiting companion is now 36% taller for a face height closer to the first-
-person camera. Press E beside either table hat to put both hats on: teal for
-him and rose for the player avatar. They leave the table, stay attached during
-walking/jumping, and the player hat inherits first-person avatar visibility.
-Use `?inspect&view=hats&thirdPerson` to inspect both hats without changing the
+person camera. Press E beside the teal table hat to put it on him; only he
+wears a party hat (the rose one was removed). It leaves the table and stays
+attached during walking/jumping.
+Use `?inspect&view=hats&thirdPerson` to inspect his hat without changing the
 normal first-person default. Hat and candle state remain session-only.
 
 `distant-island.js` adds a quiet low island beneath the moon's compass bearing,
@@ -300,8 +300,8 @@ scales and rotations, retaining the same subdued blue-green atmospheric haze.
 The companion waves once as you approach within 14 metres, rearming after you
 walk away beyond 18 metres. Nearby, E offers hand holding when another object
 is not taking priority; H can hold hands or let go while interacting with the
-cake or gifts. He follows at roughly 1.65 metres while matching your pace, independently of
-camera direction. His hand rests around waist height; an elongated player
+cake or gifts. He follows at roughly 1.5 metres while matching your pace, independently of
+camera direction. It is always his right hand in her left, whichever way they face. His hand rests around waist height; an elongated player
 forearm reaches from the body to meet it in world space, so looking down toward him reveals the clasp.
 The retained third-person avatar also reaches for his hand. Release restores ordinary
 following distance. Candle celebration releases the hands, and shoreline/cake

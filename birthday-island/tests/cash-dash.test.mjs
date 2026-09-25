@@ -33,6 +33,7 @@ test('fifty five-euro bundles total 250 and occupy distinct safe inland sites',(
   for(const site of CASH_SITES){
     assert.ok(Math.hypot(site.x/67,site.z/54)<.89);
     assert.equal(CASH_SITES[site.index],site);
-    for(const other of CASH_SITES)if(other!==site)assert.ok(Math.hypot(site.x-other.x,site.z-other.z)>=4);
+    for(const other of CASH_SITES)if(other!==site)assert.ok(Math.hypot(site.x-other.x,site.z-other.z)>=1);
   }
+  for(let i=0;i<50;i+=5)for(const site of CASH_SITES.slice(i,i+5))assert.ok(Math.hypot(site.x-CASH_SITES[i].x,site.z-CASH_SITES[i].z)<=1.051);
 });

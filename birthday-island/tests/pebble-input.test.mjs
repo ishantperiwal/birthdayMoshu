@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
 import {throwPower} from '../skipping-physics.js';
 const source=await readFile(new URL('../stone-skipping.js',import.meta.url),'utf8');
-const chargeFunctions=source.slice(source.indexOf('  function startCharge'),source.indexOf('  function distanceAt'));
+const chargeFunctions=source.slice(source.indexOf('  function startCharge'),source.indexOf('  function aim('));
 const handlers=source.slice(source.indexOf('    pointerDown(e,player)'),source.indexOf('    update(dt,player,elapsed)'));
 function fixture(){
   const env={throwPower,throws:[],distance:2,looking:true};

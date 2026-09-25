@@ -1,4 +1,4 @@
-import {EXPRESSIONS} from './expressions.js?v=kiss-4';
+import {EXPRESSIONS} from './expressions.js?v=generated-decals-1';
 
 export const WHEEL_ACTIONS=Object.freeze([
   {id:'wave',label:'Say hi',emoji:'👋',kind:'gesture'},

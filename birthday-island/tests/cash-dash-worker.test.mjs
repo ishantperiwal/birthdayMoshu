@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {CASH_SITES} from '../cash-dash-state.js';
 const url=new URL('../server/worker.js',import.meta.url);
 let source=await readFile(url,'utf8');
 source=source.replace("import {DurableObject} from 'cloudflare:workers';",'class DurableObject {}');
@@ -11,7 +12,7 @@ test('worker accepts Ishi start in companion mode and validates Moshi pickup pro
   const now=Date.now(),ishi={user:'ISHIEE',lastSeen:now,lastPose:now},moshi={user:'MOSHIEE',lastSeen:now,lastPose:now};
   const i={serializeAttachment(){}},m={serializeAttachment(){}};
   room.sockets=new Map([[i,ishi],[m,moshi]]);
-  room.data={world:{candles:true},poses:{MOSHIEE:{position:[-5,2,-4],lying:false}}};
+  room.data={world:{candles:true},poses:{MOSHIEE:{position:[CASH_SITES[0].x,2,CASH_SITES[0].z],lying:false}}};
   room.save=()=>{};room.broadcast=message=>messages.push(message);
   room.snapshot=()=>({world:room.data.world});
   const send=(ws,event)=>room.webSocketMessage(ws,JSON.stringify({type:'event',event}));

@@ -154,19 +154,28 @@ export function buildPaintedClouds(scene,uniforms,palette){
         uAmbient:uniforms.uAmbient,uLightColor:uniforms.uLightColor,uFogColor:uniforms.uFogColor,
         uClear:{value:1},uFlip:{value:random()<.5?1:-1},
         uOpacity:{value:wispy?.42+random()*.18:.78+random()*.20},uHaze:{value:haze}},
-      vertexShader:`uniform float uFlip;varying vec2 vUv;void main(){vUv=vec2((uv.x-.5)*uFlip+.5,uv.y);vec4 centre=modelViewMatrix*vec4(0.,0.,0.,1.);
-        centre.xy+=position.xy*vec2(length(modelMatrix[0].xyz),length(modelMatrix[1].xyz));gl_Position=projectionMatrix*centre;}`,
+      vertexShader:`uniform float uFlip;varying vec2 vUv;varying mat3 vCloudFrame;
+        void main(){
+          vUv=vec2((uv.x-.5)*uFlip+.5,uv.y);
+          vec3 centre=(modelMatrix*vec4(0.,0.,0.,1.)).xyz;
+          vec3 facing=normalize(cameraPosition-centre);
+          vec3 right=cross(vec3(0.,1.,0.),facing);
+          if(dot(right,right)<.00001)right=vec3(1.,0.,0.);
+          right=normalize(right);
+          vec3 up=normalize(cross(facing,right));
+          vCloudFrame=mat3(mat3(viewMatrix)*right,mat3(viewMatrix)*up,mat3(viewMatrix)*facing);
+          vec3 point=centre+right*position.x*length(modelMatrix[0].xyz)+up*position.y*length(modelMatrix[1].xyz);
+          gl_Position=projectionMatrix*viewMatrix*vec4(point,1.);
+        }`,
       fragmentShader:`uniform sampler2D uMap;uniform float uAmbient,uOpacity,uHaze,uClear,uFlip;
-        uniform vec3 uLightColor,uFogColor,uSunView;varying vec2 vUv;
+        uniform vec3 uLightColor,uFogColor,uSunView;varying vec2 vUv;varying mat3 vCloudFrame;
         void main(){
           vec4 p=texture2D(uMap,vUv);
           if(p.a<.004)discard;
-          // The billboard is screen-aligned, so the view-space sun direction is
-          // already in the same frame as the baked normal. Clouds therefore take
-          // their light from wherever the sun actually is, and turn as it sets.
+          // Rotate painted normals with the world-upright cloud, including head roll.
           vec2 nxy=p.rg*2.0-1.0;nxy.x*=uFlip;
           vec3 n=vec3(nxy,sqrt(max(1.0-dot(nxy,nxy),0.0)));
-          float lam=dot(n,normalize(uSunView))*.5+.5;
+          float lam=dot(normalize(vCloudFrame*n),normalize(uSunView))*.5+.5;
           // Wrapped rather than Lambert: cloud is translucent, so the unlit side
           // never goes black, but the terminator still has to be readable.
           float form=mix(lam,1.0,.22);
@@ -193,10 +202,13 @@ export function buildPaintedClouds(scene,uniforms,palette){
     const id=`cloud-${String(i+1).padStart(2,'0')}`,drift=.0006+random()*.00035;
     // Consume the whole seeded slot before removing it, preserving every other cloud.
     if(id==='cloud-01'){cloud.geometry.dispose();mat.dispose();continue;}
-    scene.add(cloud);clouds.push({id,cloud,angle:a,radius:r,halfAngle:w/r*.55,drift});
+    scene.add(cloud);clouds.push({id,cloud,angle:a,radius:r,halfAngle:w/r*.55,drift,baseY:cloud.position.y,baseOpacity:mat.uniforms.uOpacity.value});
   }
   const v=new THREE.Vector3(),eye=new THREE.Vector3();
-  return {contextTargets(){return clouds.map(c=>({id:c.id,position:c.cloud.position,visibility:c.cloud.material.uniforms.uClear.value*c.cloud.material.uniforms.uOpacity.value}));},update(time,camera,sunDir){
+  let gazeBlend=0,lastCloudTime=null;
+  return {contextTargets(){return clouds.map(c=>({id:c.id,position:c.cloud.position,visibility:c.cloud.material.uniforms.uClear.value*c.cloud.material.uniforms.uOpacity.value}));},update(time,camera,sunDir,stargazing=false){
+    const dt=lastCloudTime===null?0:Math.max(0,Math.min(.1,time-lastCloudTime));lastCloudTime=time;
+    gazeBlend+=(Number(stargazing)-gazeBlend)*(1-Math.exp(-dt*1.4));
     if(camera&&sunDir){
       camera.updateWorldMatrix(true,false);
       sunView.value.copy(sunDir).transformDirection(camera.matrixWorldInverse).normalize();
@@ -207,6 +219,10 @@ export function buildPaintedClouds(scene,uniforms,palette){
       const angle=c.angle+time*c.drift;
       c.cloud.position.x=Math.cos(angle)*c.radius;
       c.cloud.position.z=Math.sin(angle)*c.radius;
+      const softened=c.id==='cloud-21'||c.id==='cloud-22';
+      const lift=softened?.10:c.id==='cloud-20'?.07:0;
+      c.cloud.position.y=c.baseY+c.radius*lift*gazeBlend;
+      c.cloud.material.uniforms.uOpacity.value=c.baseOpacity*(1-(softened?.4:0)*gazeBlend);
       if(camera&&sunDir){
         v.copy(c.cloud.position).sub(eye).normalize();
         const separation=Math.acos(THREE.MathUtils.clamp(v.dot(sunDir),-1,1));

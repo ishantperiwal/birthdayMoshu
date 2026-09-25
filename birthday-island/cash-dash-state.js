@@ -4,7 +4,7 @@ export const CASH_DASH_MS=60000, CASH_COUNTDOWN_MS=3000, CASH_VALUE=5;
 export const formatCash=value=>COIN_MODE?Math.round(value/CASH_VALUE).toLocaleString('en-IE'):'€'+Math.round(value).toLocaleString('en-IE');
 // Several routes rather than one mandatory trail: garden, central paths,
 // eastern meadow, and the safe landward side of the shoreline.
-export const CASH_SITES=Object.freeze([
+const ORIGINAL_CASH_SITES=[
   [-5,-4],[-3,0],[-1,4],[0,8],[1,12],[1,16],[0,20],[-2,24],[-3,28],[-5,33],
   [6,7],[12,8],[18,9],[24,10],[30,12],[36,15],[42,19],[43,25],[37,30],[30,35],
   [20,37],[10,39],[-2,40],[-14,38],[-24,33],[-33,27],[-41,20],[-46,11],[-48,1],[-46,-9],
@@ -13,7 +13,15 @@ export const CASH_SITES=Object.freeze([
   // central pickups. Keep the same fifty bundles and total prize.
   [-16,-8],[-28,-7],[-35,6],[-22,14],[-13,25],
   [11,-11],[24,-12],[32,0],[21,23],[10,28]
-].map(([x,z],index)=>Object.freeze({x,z,index})));
+];
+// Ten compact groups along distinct routes. Stable IDs are shared by the Worker.
+export const CASH_SITES=Object.freeze([2,6,12,16,20,25,30,35,43,46].flatMap((site,cluster)=>{
+  const [x,z]=ORIGINAL_CASH_SITES[site];
+  return Array.from({length:5},(_,slot)=>{
+    const angle=(slot-1)*Math.PI/2+cluster*.43,radius=slot===0?0:1.05;
+    return Object.freeze({x:x+Math.cos(angle)*radius,z:z+Math.sin(angle)*radius,index:cluster*5+slot});
+  });
+}));
 export function dashPhase(dash,now){
   if(!dash)return 'idle';
   if(now<dash.startAt)return 'countdown';

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
 const source=await readFile(new URL('../main.js',import.meta.url),'utf8');
-const helpers=source.slice(source.indexOf('function handsLinked()'),source.indexOf('function updateHoldingHands('));
+const helpers=source.slice(source.indexOf('function handsLinked()'),source.indexOf('const povClaspPosition='));
 const keys=source.split('\n').filter(l=>l.includes("if(e.code==='KeyE'&&nearest")||l.includes("if(e.code==='KeyH'&&!e.repeat")).join('\n');
 function fixture(){
   let handCalls=0,otherCalls=0;

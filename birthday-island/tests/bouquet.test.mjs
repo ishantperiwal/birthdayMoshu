@@ -37,3 +37,11 @@ test('received bouquet lowers before disappearing and legacy snapshots normalize
   assert.equal(receivedBouquetPose(1,false).visible,false);
   assert.equal(receivedBouquetPose(1.2,false).active,false);
 });
+
+test('seen from outside she holds the received bouquet lower than in her own view',()=>{
+  const own=receivedBouquetPose(2,true),outside=receivedBouquetPose(2,true,true);
+  assert.ok(outside.x<own.x-.5);assert.ok(outside.x>.4);
+  // Both start from the same outstretched receiving hand.
+  assert.equal(receivedBouquetPose(0,true,true).x,receivedBouquetPose(0,true).x);
+  assert.ok(receivedBouquetPose(.7,false,true).x<receivedBouquetPose(0,false,true).x);
+});

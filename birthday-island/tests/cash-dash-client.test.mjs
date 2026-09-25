@@ -10,7 +10,7 @@ class Object3D{constructor(){this.position=new Vector3();this.rotation={set(){}}
 class InstancedMesh{constructor(){this.instanceMatrix={setUsage(){}};}setMatrixAt(){}}
 const THREE={Vector3,Quaternion,Object3D,InstancedMesh,MeshBasicMaterial:class{},BoxGeometry:class{},Color:class{}};`)
   .replace(/import \{cashBundleGeometry\} from '\.\/cash-bundle\.js[^']*';/,'const cashBundleGeometry=()=>({});')
-  .replace("'./cash-dash-state.js'",JSON.stringify(new URL('./cash-dash-state.js',url).href));
+  .replace(/from '(\.[^']+)'/g,(all,path)=>`from '${new URL(path,url).href}'`);
 const {buildCashDash}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 test('local dash starts after candles, collects without blocking, and stops exactly at timeout',()=>{
   const originalNow=Date.now,restore=[],credits=[],meshes=[];let time=1000,blown=false,sounds=0,starts=0;
@@ -32,11 +32,11 @@ test('local dash starts after candles, collects without blocking, and stops exac
     time=7000;dash.update();assert.equal(timer.children[1].textContent,'2');
     time=8000;dash.update();assert.equal(timer.children[1].textContent,'1');
     Object.assign(collector,CASH_SITES[0]);time=8999;dash.update();assert.equal(credits.length,0);
-    time=9000;dash.update();assert.equal(credits[0].total,10);assert.equal(credits[0].amount,10);assert.equal(credits[0].packages,2);assert.equal(sounds,1);
+    time=9000;dash.update();assert.equal(credits[0].total,40);assert.equal(credits[0].amount,40);assert.equal(credits[0].packages,8);assert.equal(sounds,1);
     dash.update();assert.equal(credits.length,1);
-    Object.assign(collector,CASH_SITES[1]);time=9200;dash.update();assert.equal(credits[1].total,20);assert.equal(sounds,2);
-    Object.assign(collector,CASH_SITES[2]);time=9250;dash.update();assert.equal(credits.length,2,'rapid pickups coalesce instead of stacking sounds');
-    time=9300;dash.update();assert.equal(credits[2].total,30);assert.equal(credits[2].amount,10);assert.equal(sounds,3);
+    Object.assign(collector,CASH_SITES[5]);time=9200;dash.update();assert.equal(credits[1].total,65);assert.equal(sounds,2);
+    Object.assign(collector,CASH_SITES[10]);time=9250;dash.update();assert.equal(credits.length,2,'rapid pickups coalesce instead of stacking sounds');
+    time=9300;dash.update();assert.equal(credits[2].total,90);assert.equal(credits[2].amount,25);assert.equal(sounds,3);
     time=59000;dash.update();assert.equal(timer.attributes['data-urgent'],'true');assert.equal(timer.children[1].textContent,'10s');
     assert.equal(timer.children[1].style.transform,'scale(1)','reduced motion skips the beat');
     Object.assign(collector,CASH_SITES[3]);time=69000;dash.update();assert.equal(credits.length,3);assert.equal(meshes[0].visible,false);

@@ -13,9 +13,12 @@ export function bouquetState(value){
 
 // Receive with an outstretched hand, then lift the open flowers toward her.
 // Putting away lowers the attached bouquet below the view before hiding it.
-export function receivedBouquetPose(age,show){
+// Her own view lifts them toward her face; seen by anyone else (relaxed) she
+// cradles them lower, the hand angled in front of her chest.
+export function receivedBouquetPose(age,show,relaxed=false){
   const t=smooth(age/(show?1.05:1.15));
-  return {x:show?1.35+.35*t:1.7*(1-t),z:show?-.12-.36*t:-.48*(1-t),
+  const x=relaxed?.8:1.7,z=relaxed?-.4:-.48;
+  return {x:show?1.35+(x-1.35)*t:x*(1-t),z:show?-.12+(z+.12)*t:z*(1-t),
     tilt:show?-.65+.25*t:-.4-.35*t,
     visible:show||age<.95,active:show||age<1.15};
 }

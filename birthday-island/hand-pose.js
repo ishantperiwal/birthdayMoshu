@@ -3,7 +3,7 @@ import {addPuffSleeve} from './puff-sleeve.js?v=closer-lace-3';
 import * as THREE from 'three';
 
 // Straight sleeve, short wrist and circular toy hand; no per-frame geometry.
-export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder=[.28,1.36,-.06],side=1,floating=false,sleeveLength=null,shortSleeves=false,bareArms=false,puffSleeves=false,armThickness=1,handScale=1}={}){
+export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder=[.28,1.36,-.06],side=1,floating=false,floatingOriginX=0,sleeveLength=null,shortSleeves=false,bareArms=false,puffSleeves=false,armThickness=1,handScale=1}={}){
   const root=new THREE.Group();parent.add(root);root.visible=false;
   const cloth=new THREE.MeshStandardMaterial({color,roughness:.30,emissive:color,emissiveIntensity:.11});
   const skin=new THREE.MeshStandardMaterial({color:skinColor,roughness:.30,emissive:skinColor,emissiveIntensity:.11});
@@ -19,14 +19,16 @@ export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder
   const start=new THREE.Vector3(...shoulder),end=new THREE.Vector3(),bend=new THREE.Vector3(),rest=new THREE.Vector3();
   const up=new THREE.Vector3(0,1,0),direction=new THREE.Vector3(),wrist=new THREE.Vector3();
   const down=new THREE.Vector3(0,-1,0);
+  let originY=0,originZ=0;
+  const floatingBase=new THREE.Vector3();let floatingBaseReady=false;
   const parentRotation=new THREE.Quaternion(),aim=new THREE.Vector3(0,-1,0);
   function segment(mesh,a,b){direction.subVectors(b,a);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.scale.y=direction.length();mesh.quaternion.setFromUnitVectors(up,direction.normalize());}
-  return {root,aim,update(worldTarget,amount,worldRotation=null,worldAxis=null){
-    root.visible=amount>.001;if(!root.visible)return;
+  return {root,aim,setOrigin(x,y=0,z=0){floatingOriginX=x;originY=y;originZ=z;},update(worldTarget,amount,worldRotation=null,worldAxis=null,freeReach=false){
+    root.visible=amount>.001;if(!root.visible){floatingBaseReady=false;return;}
     parent.updateWorldMatrix(true,false);
     end.copy(worldTarget);parent.worldToLocal(end);
     rest.set(start.x+side*.035,start.y-.40,start.z);end.lerp(rest,1-amount);
-    if(sleeveLength!==null){
+    if(sleeveLength!==null&&!freeReach){
       // Blend the arm's direction, not its length. Linear hand travel cuts
       // across the reach arc and used to squash the sleeve during release.
       direction.subVectors(end,start).normalize();
@@ -41,11 +43,25 @@ export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder
         direction.copy(worldAxis).applyQuaternion(parentRotation.invert());
         start.copy(end).addScaledVector(direction,Math.max(.35,Math.hypot(end.x,end.z)-.12));
       }else start.set(direction.x*.12-direction.z*.14,1.10,direction.z*.12+direction.x*.14);
+      if(shortSleeves){
+        if(!floatingBaseReady){floatingBase.copy(start);floatingBaseReady=true;}
+        start.copy(floatingBase);
+      }
+      start.x+=floatingOriginX;
+      start.y+=originY;start.z+=originZ;
     }
+    if(worldRotation){parent.getWorldQuaternion(parentRotation);hand.quaternion.copy(parentRotation).invert().multiply(worldRotation);}
+    else hand.rotation.set(0,0,0);
     // Meet the outside of the ring, leaving its opening clear. The sleeve
     // carries the reach; only a short, fixed-length wrist is exposed.
     direction.subVectors(start,end).normalize();
-    wrist.copy(end).addScaledVector(direction,.112);
+    if(floating&&shortSleeves&&worldRotation){
+      // A fixed socket in hand-local coordinates: origin edits bend the arm,
+      // never slide its attachment around the ring or through its opening.
+      direction.set(0,-1,0).applyQuaternion(hand.quaternion);
+    }
+    // Her forearm stops at the outer rim, rather than extending into the hole.
+    wrist.copy(end).addScaledVector(direction,floating&&shortSleeves?.12*handScale:.112);
     bend.copy(wrist).addScaledVector(direction,.025);
     if(shortSleeves)bend.copy(start).lerp(wrist,.52);
     segment(upper,start,bend);segment(lower,bend,wrist);elbow.visible=false;
@@ -56,7 +72,5 @@ export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder
     }
     aim.subVectors(end,start).normalize();
     hand.position.copy(end);
-    if(worldRotation){parent.getWorldQuaternion(parentRotation);hand.quaternion.copy(parentRotation).invert().multiply(worldRotation);}
-    else hand.rotation.set(0,0,0);
   }};
 }

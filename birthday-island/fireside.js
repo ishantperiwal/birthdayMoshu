@@ -172,6 +172,19 @@ export function buildFireside({scene,terrainHeight,x,z,musicUrl=''}) {
   for(const y of [.205,.425])aerialPart(new THREE.CylinderGeometry(.014,.014,.018,10),antennaMetal,y);
   aerialPart(new THREE.SphereGeometry(.011,10,6),antennaMetal,.628);
 
+  // Three pooled notes share one small hand-drawn texture.
+  const noteCanvas=document.createElement('canvas');noteCanvas.width=noteCanvas.height=64;
+  const pen=noteCanvas.getContext('2d');pen.fillStyle='#fff0cc';
+  pen.beginPath();pen.ellipse(19,46,10,7,-.35,0,Math.PI*2);pen.fill();pen.fillRect(25,12,5,34);
+  pen.beginPath();pen.moveTo(25,12);pen.bezierCurveTo(48,15,48,27,35,30);pen.bezierCurveTo(41,21,34,21,25,20);pen.closePath();pen.fill();
+  const noteTexture=new THREE.CanvasTexture(noteCanvas);noteTexture.colorSpace=THREE.SRGBColorSpace;
+  const musicNotes=Array.from({length:3},()=>{
+    const note=new THREE.Sprite(new THREE.SpriteMaterial({map:noteTexture,color:0xffe4af,transparent:true,depthWrite:false,opacity:0}));
+    note.visible=false;root.add(note);return note;
+  });
+  const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+  let musicBlend=0,lastMusicTime=0;
+
   // Six softly feathered puffs, reused forever, with a faint windward drift.
   const canvas=document.createElement('canvas');canvas.width=canvas.height=64;
   const ctx=canvas.getContext('2d'),gradient=ctx.createRadialGradient(32,32,0,32,32,31);
@@ -183,7 +196,18 @@ export function buildFireside({scene,terrainHeight,x,z,musicUrl=''}) {
     const puff=new THREE.Sprite(mat);root.add(puff);smoke.push(puff);
   }
   const audio=musicUrl?new Audio(musicUrl):null;if(audio)audio.loop=true;
-  return {root,radio,audio,stumpBase:new THREE.Vector3(x+stumpX,root.position.y+stumpY,z+stumpZ),update(time,night){fireMat.uniforms.time.value=time;light.intensity=(1.6+night*2.7)*(1+.06*Math.sin(time*5)+.035*Math.sin(time*8.3));
+  return {root,radio,audio,stumpBase:new THREE.Vector3(x+stumpX,root.position.y+stumpY,z+stumpZ),update(time,night,musicPlaying=false){fireMat.uniforms.time.value=time;light.intensity=(1.6+night*2.7)*(1+.06*Math.sin(time*5)+.035*Math.sin(time*8.3));
+    const musicDt=Math.min(.1,Math.max(0,time-lastMusicTime));lastMusicTime=time;
+    musicBlend+=(Number(musicPlaying&&!reduceMotion.matches)-musicBlend)*(1-Math.exp(-musicDt*4));
+    const pulse=Math.sin(time*4.4)*.025*musicBlend;
+    radio.scale.set(1-pulse*.5,1+pulse,1-pulse*.5);
+    musicNotes.forEach((note,i)=>{
+      const age=(time/3.9+i/3)%1;
+      note.visible=musicBlend>.01;
+      note.position.set(stumpX+Math.sin(age*5.4+i*2)*(.10+age*.18),stumpY+stumpHeight+.45+age*1.15,stumpZ+.12+Math.cos(age*4+i)*.09);
+      note.scale.setScalar(.18+age*.025);note.material.rotation=Math.sin(age*4+i)*.22;
+      note.material.opacity=Math.sin(Math.PI*age)**2*.65*musicBlend;
+    });
     smoke.forEach((puff,i)=>{
       const age=(time+i*1.15)%6.9,t=age/6.9;
       puff.position.set(.10+age*.09+Math.sin(age*1.1+i)*.06,1.0+age*.35,-age*.035+Math.cos(age*.8+i)*.055);

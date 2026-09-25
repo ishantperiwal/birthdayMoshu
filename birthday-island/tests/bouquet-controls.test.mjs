@@ -29,7 +29,7 @@ function fixture(options={}){
   const controls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight:()=>0,isOnline:false,isMale:false,
     getNetwork:()=>null,isPlaying:()=>true,isBusy:()=>false,clearKeys(){},toast(){},...options});
   const key=code=>controls.keyDown({code,repeat:false,preventDefault(){}});
-  return {controls,avatar,companion,key,putAway:()=>elements.find(e=>e.textContent==='Put away').click(),endPreview:()=>elements.find(e=>e.textContent==='End preview').click()};
+  return {controls,avatar,companion,key,putAway:()=>elements.find(e=>e.textContent==='Put away · X').click(),endPreview:()=>elements.find(e=>e.textContent==='End preview · Esc').click()};
 }
 test('local role preview respects bouquet ownership without entering test POV mode',()=>{
   const him=fixture({roleUI:true,isMale:true});
@@ -62,6 +62,13 @@ test('receiving from his preview unlocks walking when switching back to her view
   const f=fixture();f.key('KeyB');f.key('KeyV');f.controls.update(2.1);f.key('KeyR');
   assert.equal(f.controls.hisView,true);assert.equal(f.controls.received,true);
   f.key('KeyV');assert.equal(f.controls.previewing,false);assert.equal(f.controls.received,true);
+});
+
+test('X puts received flowers away like the button, and only while that button shows',()=>{
+  const f=fixture({roleUI:true,isMale:false});f.controls.update(0);
+  assert.equal(f.key('KeyX'),false);
+  f.companion.anchor.position.z=-2;f.controls.sync(true);f.controls.update(2);f.key('KeyR');
+  f.controls.update(2);assert.equal(f.key('KeyX'),true);assert.equal(f.avatar.state,'stored');
 });
 
 test('End preview keeps received flowers and resumes normal movement',()=>{

@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createTargetGame,generateTarget,finishesInside,predictFinish} from '../pebble-targets.js';
+import {SKIP_LANE} from '../skipping-physics.js';
 const main=await readFile(new URL('../main.js',import.meta.url),'utf8');
 const island=main.slice(main.indexOf('function islandHeight('),main.indexOf('// Keep the birthday clearing'));
 const terrain=main.slice(main.indexOf('function terrainHeight('),main.indexOf('function celebrationPathX('));
@@ -14,6 +15,8 @@ test('three rounds generate open-water hoops from the actual shore across wave p
   for(let round=1;round<=3;round++)for(let i=0;i<30;i++){
     const target=generateTarget(origin,round,i*9,ground,random);
     assert.ok(target,`round ${round} time ${i*9}`);
+    assert.ok(Math.abs((target.x-origin.x)*SKIP_LANE.z-(target.z-origin.z)*SKIP_LANE.x)<.001,'targets follow the requested heading');
+    assert.ok(Math.hypot(target.x-origin.x,target.z-origin.z)<=36,'targets remain close');
     for(let j=0;j<32;j++)assert.ok(ground(target.x+Math.cos(j*Math.PI/16)*target.radius,target.z+Math.sin(j*Math.PI/16)*target.radius)<-1.1);
   }
 });

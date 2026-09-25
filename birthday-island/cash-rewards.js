@@ -6,8 +6,11 @@ export function buildCashRewards({onTick=()=>{}}={}){
   const card=document.querySelector('.treasure-card'),value=document.querySelector('#gift-value'),icon=card.querySelector('.cash-icon');
   const layer=document.createElement('div');layer.className='cash-flight-layer';layer.setAttribute('aria-hidden','true');document.body.append(layer);
   const status=document.createElement('div');status.className='cash-sr-only';status.setAttribute('role','status');document.body.append(status);
+  const pickup=document.createElement('div');pickup.className='cash-pickup-cue';pickup.setAttribute('aria-hidden','true');document.body.append(pickup);
+  let pickupAnimation=null,celebration=null;
+  const caption=card.querySelector('.cash-caption'),originalCaption=caption?.textContent;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
-  const flights=createCashFlightPool();
+  const flights=createCashFlightPool(16,450);
   // One shared mesh/material with fixed capacity; pickups allocate no GPU resources.
   const geometry=cashBundleGeometry();
   const material=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false});
@@ -62,6 +65,7 @@ export function buildCashRewards({onTick=()=>{}}={}){
   function place(i,x,y,size,rx,ry,rz){dummy.position.set(x,y,0);dummy.rotation.set(rx,ry,rz);dummy.quaternion.multiply(portraitTurn);dummy.scale.setScalar(size);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);}
   function draw(now){
     advanceCount(now);
+    if(celebration)refreshTarget();
     dummy.rotation.order='ZXY';
     place(0,target.x,target.y,48,.12,reduced.matches?.35:now*.00065,-.24);
     for(let i=1;i<=flights.capacity;i++)place(i,0,0,0,0,0,0);
@@ -81,14 +85,29 @@ export function buildCashRewards({onTick=()=>{}}={}){
     // The credited total is authoritative at once; the shown number follows
     // as each bundle lands. A restore starts a new round and drops old flights.
     credited=Math.max(credited,reward.total);refreshTarget();
+    pickup.textContent='+'+money(reward.amount);
+    pickup.style.left=Math.max(50,Math.min(innerWidth-50,reward.x))+'px';
+    pickup.style.top=Math.max(150,Math.min(innerHeight-80,reward.y))+'px';
+    pickupAnimation?.cancel();
+    pickupAnimation=pickup.animate([{opacity:1,transform:'translate(-50%,-50%)'},{opacity:1,offset:.65,transform:reduced.matches?'translate(-50%,-50%)':'translate(-50%,-90%)'},{opacity:0,transform:reduced.matches?'translate(-50%,-50%)':'translate(-50%,-120%)'}],{duration:850});
     if(reduced.matches){shown=landed=credited;update(credited);resolve?.();return;}
     const forRound=round;
     flights.add({...reward,x:Math.max(45,Math.min(innerWidth-45,reward.x)),y:Math.max(140,Math.min(innerHeight-60,reward.y))},performance.now(),()=>{arrive(reward.amount,forRound);resolve?.();});
   }
   return {
     collectInstant:reward=>collect(reward),
+    celebrate(amount){
+      flights.clear();count=null;shown=landed=credited=amount;update(amount);
+      celebration?.cancel();
+      const r=card.getBoundingClientRect(),scale=Math.min(1.8,(innerWidth-32)/r.width);
+      const center='translate('+(innerWidth/2-(r.left+r.width/2))+'px,'+(innerHeight/2-(r.top+r.height/2))+'px) scale('+scale+')';
+      card.style.transformOrigin='center';
+      if(caption)caption.textContent='You collected';
+      celebration=card.animate(reduced.matches?[{transform:center},{transform:center}]:[{transform:'none'},{transform:center,offset:.14},{transform:center,offset:.82},{transform:'none'}],{duration:4400,easing:'cubic-bezier(.16,1,.3,1)'});
+      celebration.onfinish=()=>{celebration=null;card.style.transformOrigin='';if(caption)caption.textContent=originalCaption;refreshTarget();};
+    },
     update(){if(document.body.classList.contains('playing'))draw(performance.now());},
-    restore(amount){round++;flights.clear();count=null;shown=landed=credited=amount;update(amount);},
+    restore(amount){celebration?.cancel();celebration=null;card.style.transformOrigin='';if(caption)caption.textContent=originalCaption;pickupAnimation?.cancel();round++;flights.clear();count=null;shown=landed=credited=amount;update(amount);},
     collect:reward=>new Promise(resolve=>collect(reward,resolve))
   };
 }

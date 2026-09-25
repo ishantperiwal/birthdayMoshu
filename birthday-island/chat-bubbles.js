@@ -71,7 +71,7 @@ export function buildChatBubbles({scene,camera,getAnchor,onSound,onMessage}){
       const n=reduced.matches||b.emoji?b.text.length:Math.min(b.text.length,Math.floor(age/28));
       if(n!==b.last)paint(b,n);
       anchor.getWorldPosition(b.sprite.position);const distance=eye.distanceTo(b.sprite.position);
-      b.sprite.position.y+=(Math.abs(anchor.rotation.x)>1?1.1:b.emoji?2.10:2.65)+b.sprite.scale.y/2;
+      b.sprite.position.y+=(Math.abs(anchor.rotation.x)>1?1.1:2.02)+b.sprite.scale.y/2;
       const proximity=1-THREE.MathUtils.smoothstep(distance,9,13);
       b.sprite.visible=proximity>0;
       b.sprite.material.opacity=proximity*THREE.MathUtils.smoothstep(age,0,180)*(1-THREE.MathUtils.smoothstep(age,end,end+650));

@@ -10,6 +10,8 @@ export function cleanPose(p){
 }
 export function initialWorld(){return {mood:'night',gifts:[],candles:false,hats:false,holding:false,handRequest:null,bouquet:false,radio:0};}
 export function reduceWorld(world,event,user,now=Date.now()){
+  if(event.type==='bench'&&USERS.includes(user)&&typeof event.sitting==='boolean')return {...world,bench:event.sitting,holding:false,handRequest:null};
+  if(event.type==='hoop-prize')return user==='MOSHIEE'&&!world.hoopPrize?{...world,hoopPrize:50}:null;
   if(event.type==='cash-start'||event.type==='cash-pickup')return reduceCashDash(world,event,user,now);
   const next={...world};
   if(event.type==='expression'){

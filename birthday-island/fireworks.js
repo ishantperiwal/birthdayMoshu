@@ -7,6 +7,15 @@ export function buildFireworks(scene,glowTexture,onBurst,onLaunch,onFinale){
   const colors=[0xff91b3,0xffd785,0x91cfff,0xc4a1ff,0x9ce6c0];
   const flashLight=new THREE.PointLight(0xffd7b1,0,34,2);scene.add(flashLight);
   const flashPosition=new THREE.Vector3();
+  // Keep these programs resident after welcome warmup and between volleys.
+  const burstMaterial=new THREE.PointsMaterial({vertexColors:true,size:.58,map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
+  const rocketMaterial=burstMaterial.clone();rocketMaterial.size=.27;
+  for(const material of [burstMaterial,rocketMaterial]){
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(3),3));
+    geometry.setAttribute('color',new THREE.BufferAttribute(new Float32Array(3),3));
+    const primer=new THREE.Points(geometry,material);primer.visible=false;scene.add(primer);
+  }
   function burst(origin,variant){
     const count=variant===1?140:190,trail=8,positions=new Float32Array(count*trail*3),rgb=new Float32Array(positions.length),velocities=[];
     const tint=new THREE.Color(colors[variant%colors.length]),gold=new THREE.Color(0xffdfaa);
@@ -18,20 +27,21 @@ export function buildFireworks(scene,glowTexture,onBurst,onLaunch,onFinale){
       v.multiplyScalar(speed);velocities.push({v,life:2.8+Math.random()*1.2,phase:Math.random()*6.28,tint:i%7===0?gold:tint});
     }
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setAttribute('color',new THREE.BufferAttribute(rgb,3));
-    const mat=new THREE.PointsMaterial({vertexColors:true,size:.58,map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
+    const mat=burstMaterial;
     const points=new THREE.Points(geo,mat);points.frustumCulled=false;scene.add(points);
     active.push({origin,points,velocities,trail,age:0,variant});
     flash=1;flashLight.color.copy(tint).lerp(new THREE.Color(0xffe6c8),.55);flashLight.position.copy(flashPosition);onBurst(origin,variant);
   }
   function rocket(target,variant,finale=false){
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(36*3),3));geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(36*3),3));
-    const mat=new THREE.PointsMaterial({vertexColors:true,size:.27,map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
+    const mat=rocketMaterial;
     const points=new THREE.Points(geo,mat);points.frustumCulled=false;scene.add(points);
-    active.push({rocket:true,points,target,variant,finale,age:0,life:1.55});onLaunch?.(target,variant,1.55);
+    active.push({rocket:true,points,target,variant,finale,age:0,life:1.55});onLaunch?.(target,variant,1.55,finale);
   }
-  const dispose=b=>{scene.remove(b.points);b.points.geometry.dispose();b.points.material.dispose();};
+  const dispose=b=>{scene.remove(b.points);b.points.geometry.dispose();};
   return {
     get flash(){return flash;},
+    get active(){return queue.length>0||active.length>0;},
     launch(player,heading,amount=7,{finale=false}={}){
       if(queue.length+active.length>16)return;
       amount=THREE.MathUtils.clamp(Math.round(amount),6,7);

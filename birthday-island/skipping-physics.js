@@ -1,8 +1,10 @@
 export const SHORE={x:47,z:26};
+// Shore feedback viewpoint, facing toward cloud 03.
+export const SKIP_LANE={x:-Math.sin(-2.2056754217722556),z:-Math.cos(-2.2056754217722556),halfWidth:5.6};
 export function throwPower(seconds){return (1-Math.cos(Math.max(0,seconds)*Math.PI/1.35))*.5;}
 export function throwPlan(power){
   const p=Math.max(0,Math.min(1,power)),quality=Math.exp(-(((p-.55)/.25)**2));
-  return {speed:14+p*20,quality};
+  return {speed:10+p*13,quality};
 }
 export function waterHeight(x,z,t){
   return Math.sin((x*.860+z*.510)*.082+t*.58)*.34
@@ -28,7 +30,20 @@ export function advanceThrow(f,dt,time,terrainHeight){
       const from=Math.max(0,old.y-oldSurface),to=surface-p.y,alpha=from/(from+to||1);
       p.x=old.x+(p.x-old.x)*alpha;p.z=old.z+(p.z-old.z)*alpha;
       const water=waterHeight(p.x,p.z,t),ground=terrainHeight(p.x,p.z);p.y=Math.max(water,ground)+.08;
-      if(ground>=water){f.done=true;f.landed=true;f.finish='land';break;}
+      if(ground>=water){
+        const e=.12,nx=(terrainHeight(p.x-e,p.z)-terrainHeight(p.x+e,p.z))/(2*e),nz=(terrainHeight(p.x,p.z-e)-terrainHeight(p.x,p.z+e))/(2*e);
+        const length=Math.hypot(nx,1,nz),normal={x:nx/length,y:1/length,z:nz/length};
+        const incoming=v.x*normal.x+v.y*normal.y+v.z*normal.z;
+        f.groundBounces??=0;
+        if(incoming<-.55&&Math.hypot(v.x,v.y,v.z)>2&&f.groundBounces<3){
+          f.groundBounces++;
+          v.x=(v.x-1.38*incoming*normal.x)*.70;
+          v.y=(v.y-1.38*incoming*normal.y)*.70;
+          v.z=(v.z-1.38*incoming*normal.z)*.70;
+          p.y+=.025;continue;
+        }
+        f.done=true;f.landed=true;f.finish='land';break;
+      }
       events.push({x:p.x,z:p.z,index:f.contacts++});
       const horizontal=Math.hypot(v.x,v.z),shallow=-v.y/Math.max(horizontal,.001)<.68;
       if(shallow&&horizontal>2.8&&f.skips<12){

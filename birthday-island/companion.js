@@ -1,16 +1,19 @@
 import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=two-hands-1';
+import { buildCharacter } from './character.js?v=face-decals-2';
 
 // His original following speed, and a leg rhythm that matches the actual
 // ground speed so strides never look rushed or skate.
 const FOLLOW_SPEED=8.8;
+// Holding hands keeps them close enough that neither arm has to stretch.
+export const HOLD_SPACING=1.5;
 export const legPace=(speed,running)=>running?Math.max(.6,Math.min(1.1,speed/8.5)):Math.max(.4,Math.min(1.1,speed/5));
 export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false,resolveMove=(x,z,dx,dz)=>({x:x+dx,z:z+dz})}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
   const character=buildCharacter(anchor,female?{}:DATE_OUTFIT);
   character.root.scale.setScalar(1.06);
   let stoneThrow=null,expressiveAge=Infinity,networkMoving=false;
+  let clickPoint=null,clickPointUntil=0;
   let holding=false,holdReady=false,hasCelebrated=false,waveUntil=0,waveArmed=true;
   const previousPlayer=new THREE.Vector3();
   let hasPreviousPlayer=false;
@@ -34,6 +37,14 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
   }
   anchor.position.y=ground(anchor.position.x,anchor.position.z);anchor.rotation.y=Math.PI;
   return {anchor,
+    setSeatedHeadVisible:value=>character.setSeatedHeadVisible(value),
+    pointBriefly(direction){
+      if(holding||stoneThrow||character.bouquetActive||Math.abs(anchor.rotation.x)>1)return;
+      clickPoint={yaw:Math.atan2(-direction.x,-direction.z),pitch:Math.asin(THREE.MathUtils.clamp(direction.y,-1,1)),pointing:true};clickPointUntil=time+2.2;
+    },
+    poseSitting:on=>character.poseSitting(on),
+    poseBench:on=>character.poseBench(on),
+    resetRestingPose(){networkMoving=false;speed=0;expressiveAge=Infinity;character.resetRestingPose();},
     setExpression:(value,duration)=>character.setExpression(value,duration),
     setBouquet:(value,snap=false)=>character.setBouquet(value,snap),
     updateBouquet:(dt,suppressed=false)=>character.updateBouquet(dt,suppressed),
@@ -69,7 +80,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     },
     get holding(){return holding;},get holdReady(){return holdReady;},
     toggleHolding(){if(state==='celebrating')return false;holding=!holding;holdReady=false;speed=0;if(!holding)state='following';return holding;},
-    poseHand:(target,amount,rotation,arm)=>character.poseHand(target,amount,rotation,arm),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0,manualLook=null){
+    poseHand:(target,amount,rotation,arm,freeReach=false)=>character.poseHand(target,amount,rotation,arm,freeReach),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0,manualLook=null){
     time+=dt;expressiveAge+=dt;attention.manualPoint=false;
     let dx=player.x-anchor.position.x,dz=player.z-anchor.position.z,distance=Math.hypot(dx,dz),moving=false,hop=0,cheer=0;
     if(state==='celebrating'){
@@ -80,7 +91,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     }
     if((state==='following'||holding)&&!stoneThrow){
       // Held hands shorten the following leash, never attach him to camera yaw.
-      const spacing=holding?1.65:3.1;
+      const spacing=holding?HOLD_SPACING:3.1;
       const radialPace=holding&&hasPreviousPlayer&&distance>.001
         ?Math.max(0,((player.x-previousPlayer.x)*dx+(player.z-previousPlayer.z)*dz)/(distance*Math.max(dt,.001))):0;
       const desired=holding?Math.min(10,Math.max(0,radialPace+(distance-spacing)*4))
@@ -107,7 +118,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
           }
         }
       }
-      holdReady=holding&&Math.hypot(player.x-anchor.position.x,player.z-anchor.position.z)<2.05;
+      if(!holding)holdReady=false;
     }
     hasPreviousPlayer=true;
     previousPlayer.copy(player);
@@ -127,12 +138,20 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       if(time<fireworkUntil){look.copy(fireworkTarget);interest='firework';attention.point=false;}
       if(time>=nextGlance){glanceYaw=(Math.random()<.5?-1:1)*(.25+Math.random()*.35);glanceUntil=time+1.2+Math.random()*.8;nextGlance=time+5+Math.random()*5;}
     }
+    // While linked, fireworks are a head-only glance; the clasp owns the arm.
+    if(holding&&time<fireworkUntil){look.copy(fireworkTarget);interest='firework';}
     const lx=look.x-anchor.position.x,lz=look.z-anchor.position.z;
     const lookHeading=Math.atan2(-lx,-lz);
     if((distance<14||state!=='waiting'||holding)&&!(manualLook&&!moving&&!holding)){
-      const target=moving?Math.atan2(-dx,-dz):lookHeading;
+      const target=moving?Math.atan2(-dx,-dz):holding?Math.atan2(anchor.position.x-player.x,anchor.position.z-player.z):lookHeading;
       const delta=Math.atan2(Math.sin(target-anchor.rotation.y),Math.cos(target-anchor.rotation.y));
-      anchor.rotation.y+=delta*(1-Math.exp(-dt*(moving?5:1.5)));
+      anchor.rotation.y+=delta*(1-Math.exp(-dt*(holding?10:moving?5:1.5)));
+    }
+    if(holding&&!holdReady){
+      // Wait for a face-to-face approach before revealing the connected hands.
+      const facing=Math.atan2(anchor.position.x-player.x,anchor.position.z-player.z);
+      const error=Math.atan2(Math.sin(facing-anchor.rotation.y),Math.cos(facing-anchor.rotation.y));
+      holdReady=Math.hypot(player.x-anchor.position.x,player.z-anchor.position.z)<HOLD_SPACING+.4&&Math.abs(error)<.10;
     }
     attention.yaw=THREE.MathUtils.clamp(Math.atan2(Math.sin(lookHeading-anchor.rotation.y),Math.cos(lookHeading-anchor.rotation.y)),-.9,.9);
     attention.pitch=THREE.MathUtils.clamp(Math.atan2(look.y-(anchor.position.y+1.65),Math.hypot(lx,lz)),-.38,.72);
@@ -145,7 +164,9 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       const delta=Math.atan2(Math.sin(heading-anchor.rotation.y),Math.cos(heading-anchor.rotation.y));anchor.rotation.y+=delta*(1-Math.exp(-dt*14));
     }
     if(manualLook&&!stoneThrow)applyManualLook(dt,manualLook,moving);
-    if(expressiveAge<1.8){hop+=Math.abs(Math.sin(expressiveAge/1.8*Math.PI*2))*.35;cheer=Math.max(cheer,THREE.MathUtils.smoothstep(expressiveAge,0,.20)*(1-THREE.MathUtils.smoothstep(expressiveAge,1.5,1.8)));}
+    if(clickPoint&&time<clickPointUntil&&!holding&&!stoneThrow&&!character.bouquetActive)applyManualLook(dt,clickPoint,moving);
+    if(expressiveAge<1.8&&!holding){hop+=Math.abs(Math.sin(expressiveAge/1.8*Math.PI*2))*.35;cheer=Math.max(cheer,THREE.MathUtils.smoothstep(expressiveAge,0,.20)*(1-THREE.MathUtils.smoothstep(expressiveAge,1.5,1.8)));}
+    if(holding){attention.point=false;attention.manualPoint=false;attention.wave=false;cheer=0;}
     networkMoving=moving;
     const running=speed>5.2;
     character.update(dt,moving,running,cheer,attention,legPace(speed,running));

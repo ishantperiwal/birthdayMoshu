@@ -8,7 +8,9 @@ export const auroraGLSL = `
     vec2 across=vec2(-away.y,away.x);
     float forward=dot(d.xz,away);
     if(forward<=0.0)return vec3(0.0);
-    float a=atan(dot(d.xz,across),forward);
+    // Keep the curtain centered, with a 20% smaller footprint in the sky.
+    float a=atan(dot(d.xz,across),forward)/.8;
+    float elevation=.31+(d.y-.31)/.8;
     float envelope=1.0-smoothstep(.22,.55,abs(a));
     float t=uAuroraTime*.16;
     vec3 light=vec3(0.0);
@@ -18,7 +20,7 @@ export const auroraGLSL = `
       float folds=sin(x*4.2+t+layer)*.037+sin(x*9.0-t*.7+layer)*.014
                  +sin(x*18.0+t*.45)*.005;
       float base=.23+layer*.075+folds+.045*cos(x*1.8);
-      float h=d.y-base;
+      float h=elevation-base;
       float lengthwise=.72+.28*sin(x*3.3-t*.6+layer);
       float height=.040+lengthwise*.045;
       float curtain=smoothstep(-.020,.013,h)*(1.0-smoothstep(.02,height,h));

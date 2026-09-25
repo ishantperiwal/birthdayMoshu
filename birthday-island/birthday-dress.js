@@ -47,10 +47,12 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
       // Shallow, gently curving folds grow out of the fitted waist. Both
       // skirt tiers and their embroidery share this continuous surface.
       const folds=.013*t**1.35*(.8*Math.cos(10*a+.35*Math.sin(Math.PI*t))+.2*Math.cos(5*a-.4));
-      const radius=BIRTHDAY_WAIST_RADIUS+(.470-BIRTHDAY_WAIST_RADIUS)*(1-(1-t)**1.7)+folds+offset;
+      // Fuller princess silhouette: rounded volume below the fitted waist,
+      // easing into a broad hem. Trim and embroidery follow the same surface.
+      const radius=BIRTHDAY_WAIST_RADIUS+(.580-BIRTHDAY_WAIST_RADIUS)*(1-(1-t)**2.1)+folds+offset;
       return new THREE.Vector3(s*radius,waistY-.34*t,-c*radius);
     }
-    return new THREE.Vector3(Math.sign(s)*Math.abs(s)**roundness*(.219+.185*flare+pleat+offset),
+    return new THREE.Vector3(Math.sign(s)*Math.abs(s)**roundness*(.219+.235*flare+pleat+offset),
       .80-.34*t+.004*t*t*Math.sin(3*a),
       -Math.sign(c)*Math.abs(c)**roundness*((stargazing?.153:.219)+(c<0?(stargazing?.087:.021):(stargazing?.137:.071))*flare+pleat+offset));
   }
@@ -201,9 +203,7 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
     }
     oval(gold,0,0,-.004,.006,.006,.004,group);
   }
-  for(const arm of stargazing?arms:[]){
-    add(new THREE.CylinderGeometry(stargazing?.099:.084,stargazing?.099:.084,.02,24),ivory,0,-.154,0,arm,'ivory half-sleeve cuff');
-  }
+  // Both walking and resting models use the complete lace-trimmed puff sleeves.
   for(const leg of legs){
     add(roundedToyBox(.23,.016,.042,.008),trim,0,-.54,-.075,leg,'ballet shoe strap');
     oval(gold,0,-.532,-.081,.011,.006,.012,leg);

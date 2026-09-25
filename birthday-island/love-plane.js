@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
 // One small scenic flypast; no lights, shadows, particle systems or physics.
-export function buildLovePlane(scene,{loop=false}={}){
-  const root=new THREE.Group();scene.add(root);
+export function buildLovePlane(scene,{loop=false,showBanner=true}={}){
+  const root=new THREE.Group();root.visible=false;scene.add(root);
   const blue=new THREE.MeshStandardMaterial({color:0x6986ad,roughness:.42,metalness:.08,emissive:0x263f68,emissiveIntensity:.25});
   const cream=new THREE.MeshStandardMaterial({color:0xf4f1e9,roughness:.46,emissive:0x8e9aaa,emissiveIntensity:.2});
   const dark=new THREE.MeshStandardMaterial({color:0x293d49,roughness:.3});
@@ -42,23 +42,32 @@ export function buildLovePlane(scene,{loop=false}={}){
     new THREE.Vector3(-3.9,0,0),new THREE.Vector3(-10.5,2.6,0),
     new THREE.Vector3(-3.9,0,0),new THREE.Vector3(-10.5,-3.4,0)]);
   root.add(new THREE.LineSegments(ropeGeometry,new THREE.LineBasicMaterial({color:0xb7aaa0})));
+  banner.visible=showBanner;
+  root.children.filter(child=>child.isLineSegments).forEach(child=>child.visible=showBanner);
+  const fadeMaterials=new Set();
+  root.traverse(object=>{if(object.material)fadeMaterials.add(object.material);});
+  for(const mat of fadeMaterials)mat.transparent=true;
+  const fade=value=>{for(const mat of fadeMaterials)mat.opacity=value;};
   // The plane flies only once, for the birthday flypast: a single pass just
   // under the sky message, broadside to the viewer. The old regular loop is
   // kept for inspection views only.
   let special=null,lastTime=0,restingCycle=-1;
   const cycleOf=time=>Math.floor((time+86)/220);
-  function flyPast(center,eye,{below=11,closer=10,speed=13,from=-135,to=150}={}){
+  function flyPast(center,eye,{below=11,closer=0,speed=13,from=-135,to=150,lead=0}={}){
     const toward=new THREE.Vector3(eye.x-center.x,0,eye.z-center.z).normalize();
     const along=new THREE.Vector3(toward.z,0,-toward.x);
-    special={base:center.clone().addScaledVector(toward,closer).setY(center.y-below),along,start:lastTime,speed,from,to};
+    // Starting earlier extends the approach without advancing the central crossing.
+    special={base:center.clone().addScaledVector(toward,closer).setY(center.y-below),along,start:lastTime,speed,from:from-speed*lead,to};
+    fade(0);
   }
-  return {flyPast,get passing(){return special?root.position:null;},update(time,night){
+  return {root,flyPast,get passing(){return special?root.position:null;},update(time,night){
     lastTime=time;
     if(special){
       const distance=special.from+(time-special.start)*special.speed;
       if(distance>special.to){special=null;restingCycle=cycleOf(time);}
       else{
         root.visible=true;
+        fade(THREE.MathUtils.smoothstep(time-special.start,0,3)*THREE.MathUtils.smoothstep(special.to-distance,0,special.speed*3));
         root.position.copy(special.base).addScaledVector(special.along,distance);root.position.y+=Math.sin(time*.15)*.6;
         root.rotation.y=Math.atan2(-special.along.z,special.along.x);
       }
@@ -69,10 +78,12 @@ export function buildLovePlane(scene,{loop=false}={}){
       const phase=(time+86)%220;
       root.visible=loop&&phase<180&&cycleOf(time)!==restingCycle;
       if(!root.visible)return;
+      fade(THREE.MathUtils.smoothstep(phase,0,3)*THREE.MathUtils.smoothstep(180-phase,0,3));
       root.position.set(-800+phase*9,49+Math.sin(time*.15)*.6,-155);root.rotation.y=0;
     }
     root.rotation.x=Math.sin(time*.22)*.025;
     prop.rotation.x=time*30;
+    if(!showBanner)return;
     material.color.setScalar(1-night*.08);
     const p=geometry.attributes.position;
     for(let i=0;i<p.count;i++){

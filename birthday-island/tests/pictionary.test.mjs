@@ -1,0 +1,42 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {changeGame,gameView} from '../server/pictionary-state.js';
+import {readFile} from 'node:fs/promises';
+test('secret stays private until a submitted correct guess, then turns swap',()=>{
+ const game=changeGame(null,{action:'start'},'ISHIEE',()=>0);
+ assert.equal(gameView(game,'MOSHIEE').word,null);
+ assert.equal(gameView(game,'ISHIEE').word,'birthday cake');
+ const typed=changeGame(game,{action:'type',round:1,text:'Birthday Cake!'},'MOSHIEE');
+ assert.equal(typed.solved,false);
+ const solved=changeGame(typed,{action:'guess',round:1,text:'Birthday Cake!'},'MOSHIEE');
+ assert.equal(solved.solved,true);assert.equal(gameView(solved,'MOSHIEE').word,'birthday cake');
+ assert.equal(changeGame(solved,{action:'next',round:1},'MOSHIEE',()=>0).drawer,'MOSHIEE');
+});
+test('worker privately delivers prompts and only relays current drawer ink',async()=>{
+ const url=new URL('../server/worker.js',import.meta.url);
+ let source=(await readFile(url,'utf8')).replace("import {DurableObject} from 'cloudflare:workers';",'class DurableObject {}');
+ source=source.replace(/from '([^']+)'/g,(all,path)=>path.startsWith('.')?`from '${new URL(path,url).href}'`:all);
+ const {IslandRoom}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+ const room=Object.create(IslandRoom.prototype),i={serializeAttachment(){}},m={serializeAttachment(){}},messages=[];
+ room.sockets=new Map([[i,{user:'ISHIEE',lastSeen:Date.now()}],[m,{user:'MOSHIEE',lastSeen:Date.now()}]]);
+ room.data={world:{},poses:{}};room.save=()=>{};room.send=(ws,message)=>messages.push({ws,message});
+ const send=(ws,event)=>room.webSocketMessage(ws,JSON.stringify({type:'event',event}));
+ await send(i,{type:'pictionary',action:'start'});
+ const round=room.data.pictionary.round;
+ assert.ok(messages.find(x=>x.ws===i).message.event.state.word);
+ assert.equal(messages.find(x=>x.ws===m).message.event.state.word,null);
+ messages.length=0;
+ await send(m,{type:'ink',round,points:[0,100,0,1,100,1]});assert.equal(messages.length,0);
+ await send(i,{type:'ink',round:round-1,points:[0,100,0,1,100,1]});assert.equal(messages.length,0);
+ await send(i,{type:'ink',round,points:[0,100,0,1,100,1]});assert.equal(messages.length,1);
+ assert.equal(messages[0].ws,m);assert.equal(room.data.pictionaryInk.length,6);
+});
+test('stale actions, own guesses and guessing-player skips are rejected',()=>{
+ const game=changeGame(null,{action:'start'},'MOSHIEE',()=>0);
+ assert.equal(changeGame(game,{action:'guess',round:1,text:game.word},'MOSHIEE'),undefined);
+ assert.equal(changeGame(game,{action:'skip',round:1},'ISHIEE'),undefined);
+ assert.equal(changeGame(game,{action:'swap',round:0},'ISHIEE'),undefined);
+ const next=changeGame(game,{action:'swap',round:1},'ISHIEE',()=>0);
+ assert.equal(next.drawer,'ISHIEE');assert.notEqual(next.word,game.word);
+ assert.equal(changeGame(next,{action:'end',round:2},'ISHIEE'),null);
+});

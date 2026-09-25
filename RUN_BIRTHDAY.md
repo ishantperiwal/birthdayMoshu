@@ -50,9 +50,9 @@ sky/fireworks controls require the updated Worker to be deployed.
 
 ## Controls
 
-Hold the **right mouse button** to open the gesture wheel. Move toward **Say hi, Happy, Surprised, Sad, Celebrate, or Normal**, then release to perform the highlighted action. Release in the **None** center, or press Escape, to cancel. The camera stays still while choosing. The wheel controls your current character, including the local **V** perspective switch. Arm gestures require free hands; expressions remain available while carrying items. Online wave and celebration events require the updated multiplayer Worker to be deployed.
+Hold the **right mouse button** to open the gesture wheel. Move toward **Say hi, Kiss, Amazed, Sad, Celebrate, or Normal**, then release to perform the highlighted action. Release in the **None** center, or press Escape, to cancel. The camera stays still while choosing. The wheel controls your current character, including the local **V** perspective switch. Arm gestures require free hands; expressions remain available while carrying items. Online wave and celebration events require the updated multiplayer Worker to be deployed.
 
-Open chat with **/** or the chat button. The bottom row selects **Normal, Happy, Surprised, or Sad** without sending a message or clearing your draft. Each reaction lasts four seconds, then returns to Normal with natural blinking. A circular ring around the selected emoji counts down; clicking it again restarts the reaction. The matching emoji appears briefly above the character and fades like chat. Normal remains indefinitely and does not produce a reaction bubble. Local chat previews the other character. Online, each player controls their own face; shared expiry times keep reconnects and ordinary room snapshots from restarting reactions. This online feature requires the updated multiplayer server and client to be deployed. Existing face artwork is reused by the shader, with no extra face meshes or expression texture downloads.
+Open chat with **/** or the chat button. The bottom row selects **Normal, Kiss, Amazed, or Sad** without sending a message or clearing your draft. Each reaction lasts four seconds, then returns to Normal with natural blinking. A circular ring around the selected emoji counts down; clicking it again restarts the reaction. The matching emoji appears briefly above the character and fades like chat. Normal remains indefinitely and does not produce a reaction bubble. Local chat previews the other character. Online, each player controls their own face; shared expiry times keep reconnects and ordinary room snapshots from restarting reactions. This online feature requires the updated multiplayer server and client to be deployed. His Kiss and Amazed faces use dedicated transparent expression decals; hers and the remaining expressions keep the existing shader treatment.
 
 Hand holding uses **H only**, both to hold and let go. **E** remains for other nearby objects. The hand-holding prompt is hidden while either character has a bouquet or is handling a pebble; new hand holding is blocked until their hands are free.
 
@@ -94,8 +94,8 @@ POV switch is not shown online.
 | P | Show cloud IDs and copy your exact viewpoint (also `/context`) |
 | Esc | Release the mouse |
 
-Walk close to an object and follow the E prompt. Taking a party hat equips both
-characters. Blowing the candles makes your companion celebrate and follow you.
+Walk close to an object and follow the E prompt. The party hat on the table is
+for him only. Blowing the candles makes your companion celebrate and follow you.
 
 For scene feedback, look toward the area and press **P**. Click a cloud label
 to include its ID, or leave them unselected for general location feedback.
@@ -123,8 +123,8 @@ with Lauv's "Steal The Show". It is full volume beside the fire. Beyond about
 17 m it is silent during the birthday tune, then barely audible at 2/100 volume
 after the wish; this is the same playing song, not a second copy. The island
 birthday music dips while you are near the radio. A small
-"On the radio" card appears only nearby. Press **E** at
-the radio for the next song. Songs crossfade, and one that will not play is
+"On the radio" card appears only nearby. Press **E** or **N** at
+the radio for the next song (Ishi's **N** works from anywhere). Songs crossfade, and one that will not play is
 skipped. Edit `RADIO_PLAYLIST` in `birthday-island/radio-player.js` to change
 the songs.
 
@@ -181,15 +181,16 @@ Stone skipping: find the pebble bowl on the eastern shore. Look at the bowl and 
 
 Stargazing: find the woven violet carpet in the western meadow (x=-12, z=12)
 and press **E** to lie down, or use **/stargaze**. You immediately look up at the
-stars, with no menus or alternate views. Move the mouse freely to look around,
-You remain in her POV: look left toward him, or down toward your own pink outfit. Mouse look also works if the browser declines capture.
+stars, with no menus or alternate views. Move the mouse left or right to turn
+your head on the carpet toward him (or away); up/down gives a small nod of about
+15–20°, so the sky always stays upright overhead. Mouse look also works if the browser declines capture.
 Click once to freeze the camera and release the cursor, then click-drag anywhere to write with glitter. Releasing the button ends a stroke but keeps the view still.
 **Esc** exits drawing and resumes looking; **Q** gets up (or **Esc** while looking). **Cmd/Ctrl+Z** undoes a stroke and **C** clears writing locally. Ink segments are shared at their 3D sky positions, so the other player's perspective is naturally slightly different.
 A gentle handheld drift accompanies looking; it pauses while drawing and respects
 reduced-motion preferences. The entire phrase stays visible until three seconds without new ink; it then fades in writing order over roughly 2–5 seconds. New writing resets the pause for the remaining marks, including received multiplayer ink.
 Glitter is soft and gently twinkles; the lettering drifts subtly together, with that drift disabled for reduced-motion preferences.
-Mouse look is limited to about 75° left or right, with a shallow torso view and
-a small upward tilt; it cannot turn underneath your body or flip overhead.
+The head turn is limited to about 75° either side, and his lying view works the
+same way, so neither of you can end up disoriented.
 Shooting stars have long tapered trails and a soft head shine, lasting 2.2–2.8 seconds.
 They appear every 26–48 seconds at night, or 14–26 seconds while stargazing.
 During stargazing, meteor trails are 20% longer and 15% wider, and star twinkling
