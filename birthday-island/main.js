@@ -2086,8 +2086,10 @@ function closeCommand(lock=true){
   if(lock&&playing&&!stargazing.active)setTimeout(()=>requestPointerLock(),100);
 }
 function runCommand(raw){
-  if(isPassenger){closeCommand();return;}
   const cmd=raw.trim().toLowerCase().replace(/^\//,'');
+  // //reset (ISHIEE only): wipe the online room so everything starts over.
+  if(cmd==='reset'&&isIshiee&&network?.connected){network.event({type:'reset'});closeCommand();toast('STARTING OVER…');return;}
+  if(isPassenger){closeCommand();return;}
   if(cmd==='context'){closeCommand(false);sceneContext.open();return;}
   if(cmd==='fireworks'||cmd==='firework'||cmd==='celebrate')launchFireworks(9);
   else if(cmd==='birthday'||cmd==='wish'){finalePendingUntil=elapsed+8;launchFireworks(7);}
@@ -2106,6 +2108,8 @@ $('#command').addEventListener('submit',e=>{
   const text=$('#command-input').value.trim();
   if(commandMode){runCommand(text);return;}
   if(!text)return;
+  // Online, the chat box is the only input: ISHIEE's /reset (or //reset) is never sent as chat.
+  if(isIshiee&&/^\/{1,2}reset$/i.test(text)){runCommand('reset');return;}
   if(performance.now()-lastChatSent<1200){toast('ONE LITTLE MOMENT…');return;}
   if(multiplayerRequested&&!network?.connected){toast('WAITING TO RECONNECT');return;}
   lastChatSent=performance.now();
@@ -2119,7 +2123,8 @@ window.addEventListener('keydown',e=>{
   if(sceneContext.active){if(e.code==='Escape'){e.preventDefault();sceneContext.close();}return;}
   if($('#command').classList.contains('open')){
     if(e.code==='Escape'){e.preventDefault();closeCommand();}
-    if(e.code==='Slash'&&!e.repeat&&!commandMode&&!$('#command-input').value){e.preventDefault();openCommand(true);}
+    // Online there is no command mode, so a second / is simply typed (e.g. //reset).
+    if(e.code==='Slash'&&!e.repeat&&!commandMode&&!roleUI&&!$('#command-input').value){e.preventDefault();openCommand(true);}
     return;
   }
   if($('.note-modal.open')||rewardBusy)return;
@@ -2677,6 +2682,8 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
     onEvent(message){
       applyingNetwork=true;
       const e=message.event;
+      // The room was reset: reload into the fresh start (candles, gifts and all).
+      if(e.type==='reset'){location.reload();return;}
       if(e.type==='chat')chatBubbles.show(message.actor,e.text);
       if(e.type==='gesture'&&message.actor!==islandUser)applyGesture(message.actor,e.value);
       if(e.type==='cheer'&&companionMode&&!isIshiee)companion.triggerCheer();

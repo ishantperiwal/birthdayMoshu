@@ -25,16 +25,22 @@ export default {
   }
 };
 
+// Once both players have been gone this long, the next visit starts over.
+const EMPTY_RESET_MS=60000;
+const freshRoom=()=>({world:initialWorld(),poses:{},away:{},saved:0,startedAt:Date.now()});
 export class IslandRoom extends DurableObject {
   constructor(ctx,env){
     super(ctx,env);
     ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS room (id INTEGER PRIMARY KEY, data TEXT NOT NULL)');
-    this.data=JSON.parse(ctx.storage.sql.exec('SELECT data FROM room WHERE id=1').toArray()[0]?.data||'null')||{world:initialWorld(),poses:{},away:{},saved:0,startedAt:Date.now()};
+    this.data=JSON.parse(ctx.storage.sql.exec('SELECT data FROM room WHERE id=1').toArray()[0]?.data||'null')||freshRoom();
     this.data.startedAt??=Date.now();
     this.sockets=new Map(ctx.getWebSockets().map(ws=>[ws,ws.deserializeAttachment()]).filter(([,a])=>a&&USERS.includes(a.user)));
     for(const a of this.sockets.values()){if(a.pose&&(!companionMode||a.user==='MOSHIEE'))this.data.poses[a.user]=a.pose;}
     if(this.npc())for(const a of this.sockets.values())if(a.npc)this.data.poses.ISHIEE=a.npc;
   }
+  // Every session starts over: a fresh world, no saved positions, a new clock.
+  resetRoom(){this.data=freshRoom();for(const [ws,a] of this.sockets){a.pose=null;delete a.npc;ws.serializeAttachment(a);}this.save();}
+  emptySince(){return Math.max(this.data.saved||0,...Object.values(this.data.away||{}));}
   save(){this.data.saved=Date.now();this.ctx.storage.sql.exec('INSERT OR REPLACE INTO room VALUES (1, ?)',JSON.stringify(this.data));}
   live(user){return [...this.sockets.values()].some(a=>a.user===user&&Date.now()-a.lastSeen<15000);}
   npc(){if(companionMode)return true;return ![...this.sockets.values()].some(a=>a.user==='ISHIEE')&&Date.now()-(this.data.away.ISHIEE||0)>=GRACE_MS;}
@@ -47,6 +53,8 @@ export class IslandRoom extends DurableObject {
     this.ctx.acceptWebSocket(server);
     if(this.live(user)){this.send(server,{type:'error',message:`${user} is already on the island in another tab. Close that tab and retry.`});server.close(4009,'Character occupied');return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'island'}});}
     for(const [ws,a] of this.sockets)if(a.user===user){this.sockets.delete(ws);ws.close(4000,'Reconnected');}
+    // Joining an island both players left a while ago begins a fresh session.
+    if(!this.sockets.size&&Date.now()-this.emptySince()>=EMPTY_RESET_MS)this.resetRoom();
     const attachment={user,lastSeen:Date.now(),lastPose:0,lastEvent:0,pose:this.data.poses[user]||null};
     server.serializeAttachment(attachment);this.sockets.set(server,attachment);
     delete this.data.away[user];
@@ -127,6 +135,11 @@ export class IslandRoom extends DurableObject {
         }
         ws.serializeAttachment(a);return;
       }
+      // ISHIEE may wipe the room back to the very beginning while setting up.
+      if(e.type==='reset'){
+        if(a.user==='ISHIEE'){this.resetRoom();this.broadcast({type:'event',actor:a.user,event:{type:'reset'}});}
+        ws.serializeAttachment(a);return;
+      }
       if(e.type==='chat'){
         const text=cleanChat(e.text);
         if(text&&now-(a.lastChat||0)>=1200){a.lastChat=now;this.broadcast({type:'event',actor:a.user,event:{type:'chat',text}});}
@@ -173,5 +186,10 @@ export class IslandRoom extends DurableObject {
     for(const [ws,a] of [...this.sockets])if(now-a.lastSeen>=15000){ws.close(4000,'Connection timed out');await this.disconnect(ws);}
     this.broadcast(this.snapshot());
     if(this.sockets.size)await this.ctx.storage.setAlarm(Date.now()+5000);
+    else{
+      // Nobody is left: start over once the grace period has passed.
+      const due=this.emptySince()+EMPTY_RESET_MS;
+      if(now>=due)this.resetRoom();else await this.ctx.storage.setAlarm(due);
+    }
   }
 }

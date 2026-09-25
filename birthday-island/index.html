@@ -57,8 +57,10 @@
     // Runs the moment the page opens, before any game code has loaded.
     window.welcomeTimer=(()=>{
       const params=new URLSearchParams(location.search);
-      const mayOverride=params.has('inspect')||params.get('user')==='ISHIEE';
-      const setting=mayOverride&&params.has('timer')?params.get('timer'):WELCOME_TIMER;
+      // ISHIEE sets everything up, so his link never waits (unless ?timer= is given).
+      const ishiee=['ishiee','ishie'].includes((params.get('user')||'').toLowerCase());
+      const mayOverride=params.has('inspect')||ishiee;
+      const setting=mayOverride&&params.has('timer')?params.get('timer'):ishiee?0:WELCOME_TIMER;
       function dublinTime(text){
         // An Irish wall-clock time as an instant, including summer time.
         const [date,time='00:00']=text.split('T'),[y,m,d]=date.split('-').map(Number),[h,mi,sec=0]=time.split(':').map(Number);
@@ -190,6 +192,6 @@
   </section>
 
   <div id="error"></div>
-  <script type="module" src="./main.js?v=coin-1"></script>
+  <script type="module" src="./main.js?v=reset-2"></script>
 </body>
 </html>
