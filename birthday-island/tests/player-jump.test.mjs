@@ -25,10 +25,13 @@ test('landing follows terrain and cancelling removes residual launch velocity',(
 
 test('both cheering hands stay above and in front of the shoulders',async()=>{
   const source=await readFile(new URL('../character.js',import.meta.url),'utf8');
-  const body=source.match(/arms\.forEach\(\(arm,i\)=>\{(arm\.rotation\.x=[\s\S]*?)\}\);root\.position/)[1];
-  const pose=new Function('arm','i','stride','blend','cheer',body);
-  for(const i of [0,1])for(const stride of [0,1,3,5]){
-    const arm={rotation:{}};pose(arm,i,stride,1,1);
+  // The walking/cheering swing (not the gesture pose, which also sets arm.rotation.x).
+  const body=source.match(/arms\.forEach\(\(arm,i\)=>\{(arm\.rotation\.x=[^{}]*stride[^{}]*)\}\);root\.position/)[1];
+  const pose=new Function('arm','i','stride','blend','cheer','armRestTilt','THREE',body);
+  const THREE={MathUtils:{lerp:(a,b,t)=>a+(b-a)*t}};
+  // Her puff sleeves rest at .26, his suit sleeves at .12.
+  for(const tilt of [.26,.12])for(const i of [0,1])for(const stride of [0,1,3,5]){
+    const arm={rotation:{}};pose(arm,i,stride,1,1,tilt,THREE);
     const {x,z}=arm.rotation;
     // Arms start downward; local forward is -Z (Three.js XYZ Euler order).
     assert.ok(-Math.cos(z)*Math.cos(x)>.6);

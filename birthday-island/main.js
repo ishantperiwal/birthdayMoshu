@@ -30,7 +30,7 @@ import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=puff-10';
 import {buildBouquetControls} from './bouquet-controls.js?v=role-ui-6';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion } from './companion.js?v=bow-tie-2';
+import { buildCompanion } from './companion.js?v=tiara-back-1';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
@@ -41,7 +41,7 @@ import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=heart-messag
 import {buildStageConfetti} from './stage-confetti.js?v=round-wider-4';
 import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter } from './character.js?v=bow-tie-2';
+import { buildCharacter } from './character.js?v=tiara-back-1';
 import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';

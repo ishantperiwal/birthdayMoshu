@@ -37,7 +37,8 @@ export function addBirthdayTiara(parent){
   }
   const tiara=new THREE.Group();tiara.name='birthday tiara';parent.add(tiara);
   // Shrink around the front band so its fit on the hair stays seated.
-  tiara.scale.setScalar(.85);tiara.position.set(0,1.79*.15,-.275*.15);
+  // Then set it back .035 so the band rests on the hair behind the hairline.
+  tiara.scale.setScalar(.85);tiara.position.set(0,1.79*.15,-.275*.15+.035);
   combine(metal,new THREE.MeshStandardMaterial({color:0xe5eaf2,metalness:.72,roughness:.16,emissive:0xcbd9f0,emissiveIntensity:.22}),'polished silver tiara');
   combine(stones,new THREE.MeshPhysicalMaterial({color:0xffeff8,metalness:.15,roughness:.08,clearcoat:1,clearcoatRoughness:.04,emissive:0xffe5f2,emissiveIntensity:.48,flatShading:true}),'faceted blush crystals');
   return tiara;

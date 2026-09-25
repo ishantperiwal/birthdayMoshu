@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
-// Subtle taper, retaining the toy cylinder with a softer lower rim.
+// A straight toy cylinder with a softer lower rim.
 const halfHeight=.195,bottomRim=.055,topRim=.035;
 const lower=-halfHeight+bottomRim,upper=halfHeight-topRim;
-// Twelve percent narrower than the original .224 lower-face radius.
-const lowerRadius=.224*.88,upperRadius=.245;
+// No taper: the face stays upright. Width matches the hair and tiara fit.
+const lowerRadius=.245,upperRadius=.245;
 
 function radiusAt(y){
   if(y<lower)return lowerRadius-bottomRim+Math.sqrt(Math.max(0,bottomRim**2-(y-lower)**2));

@@ -7,8 +7,8 @@ import {expressionRemaining,cleanExpression} from '../expressions.js';
 const workerURL=new URL('../server/worker.js',import.meta.url);
 let source=await readFile(workerURL,'utf8');
 source=source.replace("import {DurableObject} from 'cloudflare:workers';",'class DurableObject {constructor(ctx){this.ctx=ctx;}}');
-source=source.replaceAll("'../control-mode.js'",JSON.stringify(new URL('../control-mode.js',workerURL).href));
-source=source.replaceAll("'./protocol.js'",JSON.stringify(new URL('./protocol.js',workerURL).href));
+// A data: module cannot resolve relative paths, so point every local import at its file.
+source=source.replace(/from '(\.\.?\/[^']+)'/g,(_,path)=>'from '+JSON.stringify(new URL(path,workerURL).href));
 const {IslandRoom}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 function roomFixture(){
   let stored=null;
@@ -58,8 +58,9 @@ test('expression events reject invalid values and cannot impersonate a partner',
   assert.equal(female.messages.at(-1).actor,'ISHIEE');
   await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'expression',value:'surprised'}}));
   assert.equal(room.data.world.expressions.ISHIEE,'sad');
-  await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'mood',value:'day'}}));
-  assert.equal(room.data.world.mood,'night');
+  // Sky mood and fireworks are his host controls now; hats stay hers to trigger.
+  await room.webSocketMessage(male.ws,JSON.stringify({type:'event',event:{type:'hats'}}));
+  assert.equal(room.data.world.hats,false);
 });
 test('stored expressions expire and a fresh click can restart the same expression',async()=>{
   const {room,ctx,male}=roomFixture();

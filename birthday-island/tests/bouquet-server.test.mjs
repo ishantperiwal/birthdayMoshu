@@ -6,8 +6,8 @@ import {readFile} from 'node:fs/promises';
 const workerURL=new URL('../server/worker.js',import.meta.url);
 let source=await readFile(workerURL,'utf8');
 source=source.replace("import {DurableObject} from 'cloudflare:workers';",'class DurableObject {constructor(ctx){this.ctx=ctx;}}');
-source=source.replaceAll("'../control-mode.js'",JSON.stringify(new URL('../control-mode.js',workerURL).href));
-source=source.replaceAll("'./protocol.js'",JSON.stringify(new URL('./protocol.js',workerURL).href));
+// A data: module cannot resolve relative paths, so point every local import at its file.
+source=source.replace(/from '(\.\.?\/[^']+)'/g,(_,path)=>'from '+JSON.stringify(new URL(path,workerURL).href));
 const {IslandRoom}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 function roomFixture(){
   let stored=null;
@@ -36,10 +36,10 @@ test('his bouquet action broadcasts to both viewers and survives a room restart'
 });
 test('bouquet permission does not grant general world controls or accept spoofing',async()=>{
   const {room,male,female}=roomFixture();
-  for(const [client,event] of [[female,{type:'bouquet',shown:true}],[male,{type:'bouquet',shown:'true'}],[male,{type:'mood',value:'day'}]]){
+  for(const [client,event] of [[female,{type:'bouquet',shown:true}],[male,{type:'bouquet',shown:'true'}],[male,{type:'hats'}]]){
     await room.webSocketMessage(client.ws,JSON.stringify({type:'event',event}));
   }
-  assert.equal(room.data.world.bouquet,false);assert.equal(room.data.world.mood,'night');
+  assert.equal(room.data.world.bouquet,false);assert.equal(room.data.world.hats,false);
   assert.equal(female.messages.length,0);
 });
 

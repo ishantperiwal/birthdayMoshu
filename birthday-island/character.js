@@ -5,7 +5,7 @@ import { roundedSleeve } from './rounded-sleeve.js';
 import { roundedToyBox } from './rounded-toy-box.js';
 import {birthdayBodice,birthdayNecklineSkin} from './dress-bodice.js?v=sweetheart-2';
 import {dressTextures} from './dress-textures.js';
-import {softHeadGeometry,softFaceGeometry} from './soft-head.js?v=taper-12-4';
+import {softHeadGeometry,softFaceGeometry} from './soft-head.js?v=straight-1';
 import { buildHandPose } from './hand-pose.js?v=puff-10';
 import {addPuffSleeve} from './puff-sleeve.js?v=closer-lace-3';
 import {buildBouquetGesture} from './bouquet.js?v=holder-spread-6';
@@ -13,7 +13,7 @@ import { hairMesh } from './assets/reference-hair-relaxed.js?v=1';
 import * as THREE from 'three';
 import {legoHandGeometry} from './lego-hand.js';
 import {addFaceBlink} from './face-blink.js?v=kiss-4';
-import {addBirthdayTiara} from './birthday-tiara.js';
+import {addBirthdayTiara} from './birthday-tiara.js?v=set-back-1';
 import {addBirthdayChoker} from './birthday-choker.js?v=chain-2';
 import {createSkirtMotion} from './skirt-motion.js?v=visible-follow-2';
 
