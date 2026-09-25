@@ -1,6 +1,6 @@
 import {buildChatBubbles} from './chat-bubbles.js?v=chat-log-6';
 import {buildChatLog} from './chat-log.js';
-import {clampWalkPitch} from './look-limits.js?v=down-46';
+import {clampWalkPitch,MIN_HOLD_PITCH} from './look-limits.js?v=hold-1';
 import {createPreviewFollower} from './preview-follower.js?v=follow-orig';
 import {buildGestureWheel} from './gesture-wheel.js';
 import {buildExpressionControls} from './expression-controls.js?v=minimal-chat-5';
@@ -11,7 +11,7 @@ import {CASH_SITES,formatCash} from './cash-dash-state.js?v=coin-1';
 import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
 import {BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=back-seam-12';
 import {companionMode} from './control-mode.js?v=companion-1';
-import {createRemoteMotion} from './remote-motion.js?v=1';
+import {createRemoteMotion} from './remote-motion.js?v=catch-up-1';
 const remoteMotion=createRemoteMotion();
 const ownMotion=createRemoteMotion({delay:180}),lookMotion=createRemoteMotion({delay:140});
 let ownPose=null,passengerLying=false,passengerPointing=false,pointBlend=0;
@@ -28,7 +28,7 @@ import { buildLovePlane } from './love-plane.js?v=night-blue-5';
 import { insectVisibility, insectRank } from './insect-density.js';
 import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=arms-1';
-import {buildBouquetControls} from './bouquet-controls.js?v=down-46';
+import {buildBouquetControls} from './bouquet-controls.js?v=hold-1';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
 import { buildCompanion, legPace } from './companion.js?v=follow-orig';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
@@ -1822,6 +1822,10 @@ const claspRotation=new THREE.Quaternion(),partnerLinkRotation=new THREE.Quatern
 const partnerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2),playerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
 const claspAxis=new THREE.Vector3(),claspShoulder=new THREE.Vector3(),ringNormal=new THREE.Vector3(0,0,1);
 let handAmount=0;
+const claspBody=new THREE.Object3D(),reverseAxis=new THREE.Vector3();
+// Holding hands narrows how far down either view can look, so the linked arms stay natural.
+const holdingHands=()=>handAmount>.5;
+function easeHoldingLook(dt){if(holdingHands()&&!CONFIG.thirdPerson&&cameraPivot.rotation.x<MIN_HOLD_PITCH)cameraPivot.rotation.x+=(MIN_HOLD_PITCH-cameraPivot.rotation.x)*(1-Math.exp(-dt*6));}
 const handInteraction={type:'companion',object:companion.anchor,reach:3.7,prompt:'hold hands',action:()=>{
   if(!handsLinked()&&!canHoldHands())return;
   if(multiplayerRequested&&(isIshiee||!network?.autopilot)){
@@ -1837,12 +1841,12 @@ function canHoldHands(){
     !bouquetControls.shown&&!bouquetControls.received&&
     (handsLinked()||companion.anchor.position.distanceTo(playerRig.position)<handInteraction.reach);
 }
-function updateHoldingHands(dt){
-  handAmount+=((companion.holding&&companion.holdReady?1:0)-handAmount)*(1-Math.exp(-dt*6));
-  // The clasp belongs to his lowered hand, not to the player's view direction.
-  companion.anchor.updateWorldMatrix(true,false);
-  partnerHand.set(-.38,1.05,-.50);companion.anchor.localToWorld(partnerHand);
-  claspShoulder.set(-.36*1.06,1.14*1.06,0);companion.anchor.localToWorld(claspShoulder);
+// The clasp belongs to his lowered left hand, not to anyone's view direction.
+// `him` is his body: the companion in her view, his own pose in his view.
+function placeClasp(him){
+  him.updateWorldMatrix(true,false);
+  partnerHand.set(-.38,1.05,-.50);him.localToWorld(partnerHand);
+  claspShoulder.set(-.36*1.06,1.14*1.06,0);him.localToWorld(claspShoulder);
   claspAxis.subVectors(partnerHand,claspShoulder).normalize();
   partnerHand.copy(claspShoulder).addScaledVector(claspAxis,(.38+.112+.025)*1.06);
   // Both link planes contain the arm axis, with a quarter turn between them.
@@ -1850,8 +1854,26 @@ function updateHoldingHands(dt){
   partnerLinkRotation.copy(claspRotation).multiply(partnerLinkTurn);
   playerLinkRotation.copy(claspRotation).multiply(playerLinkTurn);
   joinedHands.copy(partnerHand).addScaledVector(claspAxis,.09);
-  firstPersonHand.update(joinedHands,CONFIG.thirdPerson?0:handAmount,playerLinkRotation,claspAxis);
-  avatar.poseHand(joinedHands,CONFIG.thirdPerson?handAmount:0,playerLinkRotation);
+}
+function updateHoldingHands(dt){
+  handAmount+=((companion.holding&&companion.holdReady?1:0)-handAmount)*(1-Math.exp(-dt*6));
+  if(isIshiee){
+    // He is the local player (ISHIEE preview): build the clasp from his own
+    // body; his arm reaches his hand and her model's arm reaches in to hold it.
+    claspBody.position.copy(playerRig.position);claspBody.rotation.set(0,avatarHeading,0);
+    placeClasp(claspBody);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
+    firstPersonHand.update(partnerHand,CONFIG.thirdPerson?0:handAmount,partnerLinkRotation,reverseAxis);
+    avatar.poseHand(partnerHand,CONFIG.thirdPerson?handAmount:0,partnerLinkRotation);
+    companion.poseHand(joinedHands,handAmount,playerLinkRotation);
+    handInteraction.prompt=companion.holding?'let go of her hand':'hold hands';
+    return;
+  }
+  placeClasp(companion.anchor);easeHoldingLook(dt);
+  // Seen from his eyes (local His POV), her real arm reaches in; her floating
+  // first-person arm belongs to her own camera only.
+  const herBodyArm=CONFIG.thirdPerson||bouquetControls.hisView;
+  firstPersonHand.update(joinedHands,herBodyArm?0:handAmount,playerLinkRotation,claspAxis);
+  avatar.poseHand(joinedHands,herBodyArm?handAmount:0,playerLinkRotation);
   companion.poseHand(partnerHand,handAmount,partnerLinkRotation);
   handInteraction.prompt=companion.holding?'let go of his hand':'hold hands';
 }
@@ -2192,7 +2214,7 @@ window.addEventListener('mousemove',e=>{
   if(bouquetControls.hisView){bouquetControls.look(e.movementX,e.movementY);return;}
   playerRig.rotation.y-=e.movementX*.0022;
   const pitch=cameraPivot.rotation.x-e.movementY*.0018;
-  cameraPivot.rotation.x=CONFIG.thirdPerson?clamp(pitch,-1.15,.35):clampWalkPitch(pitch);
+  cameraPivot.rotation.x=CONFIG.thirdPerson?clamp(pitch,-1.15,.35):clampWalkPitch(pitch,holdingHands());
 });
 
 let toastTimer;
@@ -2763,8 +2785,12 @@ function updatePassenger(dt,now){
   avatar.root.visible=false;
   const linked=!!(pose?.holding&&pose?.holdReady&&!pose?.lying&&network?.remoteLive);
   handAmount+=(Number(linked)-handAmount)*(1-Math.exp(-dt*6));
-  joinedHands.copy(playerRig.position).lerp(companion.anchor.position,.5);joinedHands.y+=1;
-  firstPersonHand.update(joinedHands,handAmount);
+  // The same clasp as in her view, built from his body: his arm reaches his
+  // lowered left hand and her arm reaches in to interlock with it.
+  if(pose){claspBody.position.fromArray(pose.position);claspBody.rotation.set(0,pose.yaw,0);}
+  placeClasp(claspBody);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
+  firstPersonHand.update(partnerHand,handAmount,partnerLinkRotation,reverseAxis);
+  companion.poseHand(joinedHands,handAmount,playerLinkRotation);
   pointBlend+=(Number(passengerPointing&&!passengerLying&&!bouquetControls.shown)-pointBlend)*(1-Math.exp(-dt*10));
   camera.getWorldDirection(pointTarget);pointTarget.multiplyScalar(1.4).add(playerRig.position);pointTarget.y+=1.36;
   pointingHand.update(pointTarget,pointBlend);

@@ -1,14 +1,23 @@
 // Play remote snapshots a little behind real time, so movement follows a
 // continuous timeline instead of repeatedly chasing the newest packet.
 export function createRemoteMotion({delay=140,teleportDistance=8}={}){
-  let frames=[],offset=null,fallback=null;
+  let frames=[],offset=null,fallback=null,fastest=[],catching=false;
   const copy=p=>({...p,position:[...p.position]});
-  function reset(p=null){frames=[];offset=null;fallback=p?copy(p):null;}
+  function reset(p=null){frames=[];offset=null;fastest=[];catching=false;fallback=p?copy(p):null;}
   function push(p,receivedAt){
     const source=Number.isFinite(p.time)?p.time:receivedAt;
     const last=frames.at(-1);
     if(last&&(source<last.source||receivedAt-last.receivedAt>1000||p.lying!==last.pose.lying||Math.hypot(...p.position.map((v,i)=>v-last.pose.position[i]))>teleportDistance))reset(p);
-    if(offset===null)offset=receivedAt-source;
+    const seen=receivedAt-source;
+    if(offset===null)offset=seen;
+    // The first packet can arrive late (for example while the page is still
+    // loading); never let that delay stick. Ordinary jitter is left alone, but
+    // once playback lags the fastest recent packet by >120 ms it eases back
+    // until it is within 40 ms again.
+    fastest.push(seen);if(fastest.length>30)fastest.shift();
+    const best=Math.min(...fastest);
+    if(offset-best>120)catching=true;
+    if(catching){const catchUp=Math.min(25,offset-best-40);if(catchUp<=0)catching=false;else{offset-=catchUp;for(const f of frames)f.at-=catchUp;}}
     if(frames.at(-1)?.source===source)return;
     frames.push({source,at:source+offset,receivedAt,pose:copy(p)});
     if(frames.length>32)frames.shift();

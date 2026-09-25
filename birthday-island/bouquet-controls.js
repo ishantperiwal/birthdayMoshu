@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {bouquetState} from './bouquet-motion.js';
-import {clampWalkPitch} from './look-limits.js?v=down-46';
+import {clampWalkPitch} from './look-limits.js?v=hold-1';
 
 export function buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,hisEyeHeight=1.70,isOnline,isMale,roleUI=false,getNetwork,isPlaying,isBusy,clearKeys,toast}){
   const roleAware=isOnline||roleUI;
@@ -86,7 +86,7 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
     apply(false,true);preview=null;hisView=false;pov.textContent='His POV · V';clearKeys();
   }
   return {
-    look(dx,dy){if(hisView){companion.anchor.rotation.y-=dx*.0022;hisPitch=clampWalkPitch(hisPitch-dy*.0018);}},
+    look(dx,dy){if(hisView){companion.anchor.rotation.y-=dx*.0022;hisPitch=clampWalkPitch(hisPitch-dy*.0018,companion.holding);}},
     get previewing(){return !!preview;},get hisView(){return hisView;},get shown(){return isMale?state==='offered':state==='received';},
     get received(){return state==='received';},
     sync(value,snap=false){apply(value,snap);},

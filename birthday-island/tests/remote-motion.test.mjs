@@ -31,3 +31,12 @@ test('reset discards old human motion before autopilot or reconnect',()=>{
  m.reset(pose(1000,3));assert.equal(m.sample(1000).position[0],3);
  m.reset();assert.equal(m.sample(2000),null);
 });
+test('a late first packet does not leave playback permanently behind',()=>{
+ const m=createRemoteMotion();
+ // The first packet arrives 1.2 s late; the rest arrive promptly.
+ m.push(pose(0,0),1200);
+ for(let i=1;i<=120;i++)m.push(pose(i*66,i*.33),i*66+10);
+ const now=120*66+10,p=m.sample(now);
+ // Within a few frames of the configured 140 ms delay, not 1.2 s behind.
+ assert.ok(Math.abs(p.position[0]-(now-10-140)/66*.33)<.5,`lagging at ${p.position[0]}`);
+});
