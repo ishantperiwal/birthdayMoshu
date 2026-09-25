@@ -19,7 +19,7 @@ let remoteWasOnline=false;
 import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested,roleUI} from './multiplayer.js?v=role-preview-2';
 if(roleUI){document.body.classList.add('role-ui');document.body.dataset.role=isIshiee?'ishie':'moshie';}
 let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
-import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=ink-share-1';
+import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=ink-view-2';
 import { buildStoneSkipping } from './stone-skipping.js?v=three-rounds-2';
 import { SHORE } from './skipping-physics.js?v=more-skips-7';
 import { moveAroundRocks } from './rock-collision.js?v=props-players-1';
@@ -30,7 +30,7 @@ import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=arms-1';
 import {buildBouquetControls} from './bouquet-controls.js?v=hold-1';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion, legPace } from './companion.js?v=side-by-side-2';
+import { buildCompanion, legPace } from './companion.js?v=head-look-1';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
@@ -1903,7 +1903,7 @@ function queueInk(points){if(!network)return;inkQueue.push(...points);inkTimer??
 const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,
   // Stargazing waits until the candles are blown and the cash dash is over.
   canStart:()=>!candlesLit&&!!cashDash?.finished,onBlocked:()=>toast(candlesLit?'BLOW OUT THE CANDLES FIRST':`FINISH THE ${DASH_NAME.toUpperCase()} FIRST`),
-  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:queueInk,onLeave:()=>requestPointerLock()});
+  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:queueInk,onViewerStop:()=>requestPointerLock(),onLeave:()=>requestPointerLock()});
 let playing=false;
 const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,hisEyeHeight:CONFIG.hisEyeHeight,
   isOnline:multiplayerRequested,isMale:isIshiee,roleUI,getNetwork:()=>network,isPlaying:()=>playing,
@@ -2675,7 +2675,10 @@ $('#gift-value').textContent=formatCash(0);
 setMood(CONFIG.startingMood);
 
 
-function poseOf(object,moving=false){return {time:performance.now(),position:object.position.toArray(),yaw:object.rotation.y,pitch:cameraPivot.rotation.x,moving,running:!!(keys.ShiftLeft||keys.ShiftRight),lying:Math.abs(object.rotation.x)>1};}
+function poseOf(object,moving=false){
+  // While she stargazes, her pose carries her look so his view can turn her head.
+  const gaze=object===playerRig&&stargazing.active?stargazing.look:null;
+  return {time:performance.now(),position:object.position.toArray(),yaw:object.rotation.y,pitch:gaze?gaze.pitch:cameraPivot.rotation.x,...(gaze?{headYaw:gaze.yaw}:{}),moving,running:!!(keys.ShiftLeft||keys.ShiftRight),lying:Math.abs(object.rotation.x)>1};}
 function updateMultiplayer(dt,now){
   if(isPassenger){updatePassenger(dt,now);return;}
   const auto=!!network?.autopilot;

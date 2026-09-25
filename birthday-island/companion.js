@@ -57,7 +57,9 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       if(dt>0)networkSpeed+=(Math.hypot(anchor.position.x-before.x,anchor.position.z-before.z)/dt-networkSpeed)*(1-Math.exp(-dt*6));
       anchor.rotation.x=p.lying?Math.PI/2:0;
       anchor.rotation.y+=Math.atan2(Math.sin(p.yaw-anchor.rotation.y),Math.cos(p.yaw-anchor.rotation.y))*alpha;
-      character.update(dt,p.moving&&!p.lying,p.running,0,{yaw:0,pitch:p.pitch,tilt:0,point:false,wave:false,direction:new THREE.Vector3(0,0,-1)},legPace(networkSpeed,p.running));
+      // Lying down, her look arrives as a stargazing yaw/pitch (1.22 is straight up).
+      const headYaw=p.lying?p.headYaw||0:0,headPitch=p.lying?p.pitch-1.22:p.pitch;
+      character.update(dt,p.moving&&!p.lying,p.running,0,{yaw:headYaw,pitch:headPitch,tilt:0,point:false,wave:false,direction:new THREE.Vector3(0,0,-1)},legPace(networkSpeed,p.running));
     },
     resumeAutopilot(){if(hasCelebrated)state="following";anchor.rotation.x=0;holding=false;holdReady=false;stoneThrow=null;speed=0;hasPreviousPlayer=false;},
     get bodyScale(){return character.root.scale.x;},setFirstPerson:value=>character.setFirstPerson(value),

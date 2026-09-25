@@ -31,3 +31,8 @@ test('radio advances once per song, from the current song only',()=>{
   assert.equal(reduceWorld(world,{type:'radio',from:1,to:99},'ISHIEE'),null);
   assert.equal(reduceWorld({...world,radio:undefined},{type:'radio',from:0,to:2},'ISHIEE').radio,2);
 });
+test('her stargazing head turn travels with her pose, clamped',()=>{
+  assert.equal(cleanPose({position:[0,0,0],yaw:0,pitch:1.2,lying:true,headYaw:.6}).headYaw,.6);
+  assert.equal(cleanPose({position:[0,0,0],yaw:0,pitch:0,headYaw:9}).headYaw,1.4);
+  assert.equal('headYaw' in cleanPose({position:[0,0,0],yaw:0,pitch:0}),false);
+});

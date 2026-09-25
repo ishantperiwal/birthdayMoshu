@@ -6,7 +6,7 @@ export function cleanPose(p){
   if(!p||!Array.isArray(p.position)||p.position.length!==3||!p.position.every(Number.isFinite))return null;
   if(Math.abs(p.position[0])>70||Math.abs(p.position[2])>60||p.position[1]<-10||p.position[1]>20)return null;
   if(!Number.isFinite(p.yaw)||!Number.isFinite(p.pitch))return null;
-  return {...(Number.isFinite(p.time)&&p.time>=0?{time:p.time}:{}),position:p.position,yaw:p.yaw%(Math.PI*2),pitch:Math.max(-1.5,Math.min(1.5,p.pitch)),moving:!!p.moving,running:!!p.running,lying:!!p.lying,holding:!!p.holding,holdReady:!!p.holdReady};
+  return {...(Number.isFinite(p.time)&&p.time>=0?{time:p.time}:{}),...(Number.isFinite(p.headYaw)?{headYaw:Math.max(-1.4,Math.min(1.4,p.headYaw))}:{}),position:p.position,yaw:p.yaw%(Math.PI*2),pitch:Math.max(-1.5,Math.min(1.5,p.pitch)),moving:!!p.moving,running:!!p.running,lying:!!p.lying,holding:!!p.holding,holdReady:!!p.holdReady};
 }
 export function initialWorld(){return {mood:'night',gifts:[],candles:false,hats:false,holding:false,handRequest:null,bouquet:false,radio:0};}
 export function reduceWorld(world,event,user,now=Date.now()){

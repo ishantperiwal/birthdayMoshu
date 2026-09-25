@@ -300,3 +300,10 @@ body button,body select { border:0!important; }
 #welcome.gone.instant { transition:none; display:none; } /* Stops its clouds and stars costing anything after entry. */
 #scene-fade { position:fixed; inset:0; z-index:200; background:#02030a; opacity:0; pointer-events:none; transition:opacity 1.4s ease; }
 #scene-fade.dark { opacity:1; transition:opacity .7s ease; }
+
+/* Top-centre guide while drawing in the stars; click it or press Esc to look around again. */
+.stargaze-draw-hint { position:fixed; z-index:160; top:22px; left:50%; transform:translateX(-50%); padding:9px 18px; border:1px solid rgba(255,244,214,.22); border-radius:999px;
+  background:rgba(20,24,52,.72); backdrop-filter:blur(10px); color:#fff3dc; font:600 11px/1 ui-sans-serif,system-ui; letter-spacing:.08em; cursor:pointer; }
+.stargaze-draw-hint[hidden] { display:none; }
+.stargaze-draw-hint b { display:inline-grid; place-items:center; min-width:30px; height:20px; margin:0 3px; padding:0 5px; border-radius:6px; background:#fff3dc; color:#23284f; font-size:10px; }
+.stargaze-draw-hint:hover { background:rgba(40,46,92,.85); }

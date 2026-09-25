@@ -30,7 +30,8 @@ function fixture(reduced=true){
     toArray(a=[],i=0){a[i]=this.x;a[i+1]=this.y;a[i+2]=this.z;return a;}
   }
   const listen=(name,fn)=>listeners[name]=fn;
-  const document={addEventListener:listen,body:{classList:{contains:()=>false,remove(){},add(){}}},
+  const document={addEventListener:listen,body:{style:{},append(){},classList:{contains:()=>false,remove(){},add(){}}},
+    createElement:()=>({style:{},hidden:true,addEventListener(){}}),
     exitPointerLock(){this.pointerLockElement=null;listeners.pointerlockchange();}};
   const ui={style:{},requestPointerLock(){document.pointerLockElement=ui;listeners.pointerlockchange();}};
   const attributes={position:{},inkBirth:{}};
