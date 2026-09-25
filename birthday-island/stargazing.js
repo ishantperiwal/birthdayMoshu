@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {DASH_NAME} from './coin-mode.js';
 
 export const STARGAZING_SPOTS=[{x:-12,z:12}];
 
@@ -207,7 +208,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     if(document.pointerLockElement===ui){hasGazeLock=true;return;}
     if(hasGazeLock){hasGazeLock=false;finish();if((active||entering)&&!drawMode&&!document.body.classList.contains('is-scene-context'))leave();}
   });
-  for(const site of sites)interactive.push({object:site.spot,reach:4.5,get prompt(){return canStart()?'lie down together · stargaze':'stargazing opens after the cake and the cash dash';},action:()=>enter(site)});
+  for(const site of sites)interactive.push({object:site.spot,reach:4.5,get prompt(){return canStart()?'lie down together · stargaze':`stargazing opens after the cake and the ${DASH_NAME}`;},action:()=>enter(site)});
   ink.visible=false;
   return {receiveInk(points){
     if(count+2>max)return;

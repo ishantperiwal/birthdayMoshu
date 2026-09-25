@@ -1,3 +1,4 @@
+import {COIN_MODE} from './coin-mode.js';
 export const MONEY_TIERS={
   small:{amount:500,scale:.48,color:0x378971,label:'SMALL GIFT'},
   medium:{amount:1500,scale:.66,color:0x385f99,label:'MEDIUM GIFT'},
@@ -5,4 +6,4 @@ export const MONEY_TIERS={
 };
 // Deliberately not spawned or counted until their hiding places are chosen.
 export const LEGENDARY_RESERVE={budget:4000,gifts:[{amount:2000,tier:'legendary',pos:null},{amount:2000,tier:'legendary',pos:null}]};
-export const rupees=value=>'₹'+value.toLocaleString('en-IN');
+export const rupees=value=>COIN_MODE?`${Math.round(value/5).toLocaleString('en-IN')} coins`:'₹'+value.toLocaleString('en-IN');

@@ -1,12 +1,12 @@
 import {dressDateSuit} from './date-suit.js?v=8';
-import {dressBirthday,BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=back-seam-12';
+import {dressBirthday,BIRTHDAY_ROSE,BIRTHDAY_SKIN,BIRTHDAY_EXTRA_HEIGHT} from './birthday-dress.js?v=taller-1';
 import { legoHairMesh } from './assets/lego-hair.js?v=1';
 import { roundedSleeve } from './rounded-sleeve.js';
 import { roundedToyBox } from './rounded-toy-box.js';
 import {birthdayBodice,birthdayNecklineSkin} from './dress-bodice.js?v=sweetheart-2';
 import {dressTextures} from './dress-textures.js';
 import {softHeadGeometry,softFaceGeometry} from './soft-head.js?v=straight-1';
-import { buildHandPose } from './hand-pose.js?v=puff-10';
+import { buildHandPose } from './hand-pose.js?v=arms-1';
 import {addPuffSleeve} from './puff-sleeve.js?v=closer-lace-3';
 import {buildBouquetGesture} from './bouquet.js?v=holder-spread-6';
 import { hairMesh } from './assets/reference-hair-relaxed.js?v=1';
@@ -17,10 +17,14 @@ import {addBirthdayTiara} from './birthday-tiara.js?v=set-back-1';
 import {addBirthdayChoker} from './birthday-choker.js?v=chain-2';
 import {createSkirtMotion} from './skirt-motion.js?v=visible-follow-2';
 
+// Her head's width and depth relative to its height (1 is the original cylinder).
+// Her arms: extra length and a thickness factor, shared with the holding-hands arm.
+export const HER_ARM_EXTRA=.04,HER_ARM_THICKNESS=.9;
+const HEAD_SLIM=.92;
 export function buildCharacter(parent,options={}){
   const birthday=!options.shortHair&&!options.suit;
   const stargazingFit=birthday&&!!options.stargazingFit;
-  const legExtra=options.shortHair?.065:birthday&&!stargazingFit?.085:0,torsoExtra=options.shortHair?.025:0;
+  const legExtra=options.shortHair?.065:birthday&&!stargazingFit?.085+BIRTHDAY_EXTRA_HEIGHT:0,torsoExtra=options.shortHair?.025:0;
   const upperLift=legExtra+torsoExtra;
   const topColor=options.top??(birthday?BIRTHDAY_ROSE:0xeb94ad);
   const root=new THREE.Group();root.scale.setScalar(.78);parent.add(root);
@@ -57,14 +61,15 @@ export function buildCharacter(parent,options={}){
     const arm=new THREE.Group();arm.position.set(side*shoulderWidth,1.14,0);arm.rotation.z=side*armRestTilt;root.add(arm);arms.push(arm);
     // Extend the suit arm from the shoulder, preserving the cuff-to-hand fit.
     if(puffSleeves){
-      add(roundedSleeve(.067,.063,.38,.018,.033),skin,0,-.15,0,arm);
+      // Her bare arms: a little longer and slimmer than the original .067/.38.
+      add(roundedSleeve(.067*HER_ARM_THICKNESS,.063*HER_ARM_THICKNESS,.38+HER_ARM_EXTRA,.018,.033),skin,0,-.15-HER_ARM_EXTRA/2,0,arm);
       addPuffSleeve(arm,pink);
     }
     else{
       add(roundedSleeve(.105,.095,options.suit?.40:birthday?.19:.35),pink,0,options.suit?-.175:birthday?-.07:-.15,0,arm);
       if(birthday)add(roundedSleeve(.079,.079,.19,.009),skin,0,-.245,0,arm);
     }
-    const hand=add(legoHandGeometry(),skin,0,options.suit?-.49:-.39,0,arm);hand.rotation.z=-Math.PI*.3;
+    const hand=add(legoHandGeometry(),skin,0,options.suit?-.49:puffSleeves?-.39-HER_ARM_EXTRA:-.39,0,arm);hand.rotation.z=-Math.PI*.3;
     if(birthday&&!stargazingFit)hand.scale.setScalar(.92);
   }
   if(options.suit)dressDateSuit(root,arms);
@@ -75,7 +80,11 @@ export function buildCharacter(parent,options={}){
     for(const leg of legs)for(const detail of leg.children.slice(2))detail.position.y-=legExtra;
   }
   const neckRadius=options.shortHair?.095:.11;
-  const neck=add(new THREE.CylinderGeometry(neckRadius,neckRadius,.1,32),skin,0,1.25,0);
+  // His neck reaches further up inside the head, so its top edge stays hidden
+  // when he looks up. Only the top grows; the base and collar stay put.
+  const neckReach=options.shortHair?.08:0;
+  const neckShape=new THREE.CylinderGeometry(neckRadius,neckRadius,.1+neckReach,32);neckShape.translate(0,neckReach/2,0);
+  const neck=add(neckShape,skin,0,1.25,0);
   if(birthday&&!stargazingFit)addBirthdayChoker(neck);
   if(stargazingFit||options.suit){
     // Separate cloth ring around the neck, slightly overlapping the bodice.
@@ -149,6 +158,10 @@ export function buildCharacter(parent,options={}){
     head.position.y=neckBase+(head.position.y-neckBase)*proportion;
     neck.scale.setScalar(proportion);
     neck.position.y=neckBase+(neck.position.y-neckBase)*proportion;
+    // Slimmer head: narrow the face cylinder, hair, tiara and neck in width and
+    // depth only, so the head keeps its height.
+    head.scale.x*=HEAD_SLIM;head.scale.z*=HEAD_SLIM;
+    neck.scale.x*=HEAD_SLIM;neck.scale.z*=HEAD_SLIM;
   }
   else head.position.y-=.012;
   if(birthday){
@@ -170,8 +183,8 @@ export function buildCharacter(parent,options={}){
   const down=new THREE.Vector3(0,-1,0),pointDirection=new THREE.Vector3(),pointRotation=new THREE.Quaternion();
   let stride=0,blend=0,pointBlend=0,waveBlend=0,previousHandAmount=0,releasingHand=false;
   const heldArm=options.shortHair?0:1;
-  const handPose=buildHandPose(root,{color:topColor,skinColor,shoulder:[heldArm?shoulderWidth:-shoulderWidth,1.14+upperLift,0],side:heldArm?1:-1,sleeveLength:options.shortHair?.38:null,shortSleeves:birthday,puffSleeves,handScale:birthday&&!stargazingFit?.92:1});
-  const throwStone=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat(0xd1dbe5));throwStone.scale.set(.075,.035,.055);throwStone.position.set(.025,options.suit?-.49:-.39,-.02);throwStone.visible=false;arms[1].add(throwStone);
+  const handPose=buildHandPose(root,{color:topColor,skinColor,shoulder:[heldArm?shoulderWidth:-shoulderWidth,1.14+upperLift,0],side:heldArm?1:-1,sleeveLength:options.shortHair?.38:null,shortSleeves:birthday,puffSleeves,armThickness:puffSleeves?HER_ARM_THICKNESS:1,handScale:birthday&&!stargazingFit?.92:1});
+  const throwStone=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),mat(0xd1dbe5));throwStone.scale.set(.075,.035,.055);throwStone.position.set(.025,options.suit?-.49:puffSleeves?-.39-HER_ARM_EXTRA:-.39,-.02);throwStone.visible=false;arms[1].add(throwStone);
   const bouquet=buildBouquetGesture(arms[1],{receiver:!options.shortHair});
   let bouquetView=null;
   let restingModel=null,walkingVisibility=null;
@@ -242,7 +255,7 @@ export function buildCharacter(parent,options={}){
     handPose.root.visible=useHoldingModel;
     arms[heldArm].visible=!useHoldingModel;
     if(amount>.001&&!useHoldingModel)arms[heldArm].quaternion.setFromUnitVectors(down,handPose.aim);
-  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);hat.scale.setScalar(1.3);},update(dt,moving,running,cheer=0,attention=null){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*THREE.MathUtils.lerp(armRestTilt,.37,cheer);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
+  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);const round=options.shortHair?1:HEAD_SLIM;hat.scale.set(1.3/round,1.3,1.3/round);},update(dt,moving,running,cheer=0,attention=null,pace=1){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9)*pace;legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*THREE.MathUtils.lerp(armRestTilt,.37,cheer);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
     waveBlend+=((attention?.wave&&cheer<.1?1:0)-waveBlend)*(1-Math.exp(-dt*7));
     if(waveBlend>.001&&cheer<.1){
       arms[1].rotation.x=THREE.MathUtils.lerp(arms[1].rotation.x,-.35,waveBlend);

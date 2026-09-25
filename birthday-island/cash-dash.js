@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import {cashBundleGeometry} from './cash-bundle.js?v=gold-wrap-3';
-import {CASH_SITES,CASH_VALUE,formatCash,dashPhase,reduceCashDash} from './cash-dash-state.js';
+import {cashBundleGeometry} from './cash-bundle.js?v=coin-1';
+import {COIN_MODE,DASH_NAME} from './coin-mode.js';
+import {CASH_SITES,CASH_VALUE,formatCash,dashPhase,reduceCashDash} from './cash-dash-state.js?v=coin-1';
 
 export function buildCashDash({scene,camera,ground,resolveSite,rewards,online,male,roleUI=false,getNetwork,isPlaying,candlesBlown,getCollector,onPickup,onStart}){
   const sites=CASH_SITES.map(site=>({...site,...resolveSite(site.x,site.z)}));
@@ -16,7 +17,7 @@ export function buildCashDash({scene,camera,ground,resolveSite,rewards,online,ma
   const timer=document.createElement('div');timer.className='cash-dash-timer';timer.hidden=true;
   const label=document.createElement('span'),clock=document.createElement('b');timer.append(label,clock);document.body.append(timer);
   const announcement=document.createElement('div');announcement.className='cash-sr-only';announcement.setAttribute('role','status');document.body.append(announcement);
-  const button=document.createElement('button');button.className='cash-dash-start';button.textContent='Start cash dash';button.hidden=true;card.append(button);
+  const button=document.createElement('button');button.className='cash-dash-start';button.textContent=`Start ${DASH_NAME}`;button.hidden=true;card.append(button);
   let dash=null,autoAt=null,serverAnchor=0,localAnchor=0,previousPhase='idle',lastCount=0,feedback=null,lastFeedback=-Infinity;
   const now=()=>online&&serverAnchor?serverAnchor+performance.now()-localAnchor:Date.now();
   function accept(next,{silent=false}={}){
@@ -65,7 +66,7 @@ export function buildCashDash({scene,camera,ground,resolveSite,rewards,online,ma
       button.disabled=!candlesBlown()||online&&(!getNetwork()?.connected||!getNetwork()?.remoteLive);
       button.title=!candlesBlown()?'Available after the candles are blown out':online&&!getNetwork()?.remoteLive?'Waiting for Moshi to join':'';
       if(roleUI)document.body.classList.toggle('cash-revealed',!!dash);
-      button.textContent=online||roleUI?'Start cash dash':'Try cash dash again';
+      button.textContent=online||roleUI?`Start ${DASH_NAME}`:`Try ${DASH_NAME} again`;
       timer.hidden=phase!=='countdown'&&phase!=='running';
       timer.setAttribute('data-phase',phase);
       const remaining=dash?Math.max(0,dash.endAt-time):0;
@@ -80,7 +81,7 @@ export function buildCashDash({scene,camera,ground,resolveSite,rewards,online,ma
       if(phase==='countdown'){label.textContent='Get ready';clock.textContent=String(Math.ceil((dash.startAt-time)/1000));}
       else if(phase==='running'){label.textContent='';clock.textContent=Math.ceil((dash.endAt-time)/1000)+'s';}
       if(phase!==previousPhase){
-        announcement.textContent=phase==='countdown'?'Cash dash starts in three seconds.':phase==='running'?'Go! Walk into cash bundles. Sixty seconds.':phase==='finished'?`Cash dash complete. ${formatCash(collected.size*CASH_VALUE)} collected.`:'';
+        announcement.textContent=phase==='countdown'?`${COIN_MODE?'Coin':'Cash'} dash starts in three seconds.`:phase==='running'?`Go! Walk into ${COIN_MODE?'coins':'cash bundles'}. Sixty seconds.`:phase==='finished'?`${COIN_MODE?'Coin':'Cash'} dash complete. ${formatCash(collected.size*CASH_VALUE)}${COIN_MODE?' coins':''} collected.`:'';
         previousPhase=phase;
       }
       mesh.visible=glow.visible=phase==='countdown'||phase==='running';

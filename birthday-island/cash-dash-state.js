@@ -1,5 +1,7 @@
+import {COIN_MODE} from './coin-mode.js';
 export const CASH_DASH_MS=60000, CASH_COUNTDOWN_MS=3000, CASH_VALUE=5;
-export const formatCash=value=>'€'+Math.round(value).toLocaleString('en-IE');
+// In coin mode the total reads as a plain coin count (one coin per bundle).
+export const formatCash=value=>COIN_MODE?Math.round(value/CASH_VALUE).toLocaleString('en-IE'):'€'+Math.round(value).toLocaleString('en-IE');
 // Several routes rather than one mandatory trail: garden, central paths,
 // eastern meadow, and the safe landward side of the shoreline.
 export const CASH_SITES=Object.freeze([

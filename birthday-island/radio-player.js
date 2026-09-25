@@ -43,7 +43,8 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
   document.body.appendChild(card);
   const screens=[...card.querySelectorAll('.radio-deck')],title=card.querySelector('b'),artist=card.querySelector('.radio-meta span');
   const decks=screens.map(()=>({player:null,ready:false,index:-1,mix:0,target:0,volume:-1,paused:true,requested:false}));
-  let active=0,index=null,proximity=0,started=false,starting=false,failures=0,checkClock=0;
+  // started: players exist (created early, during the welcome). live: she has entered, so songs play.
+  let active=0,index=null,proximity=0,started=false,starting=false,live=false,failures=0,checkClock=0;
 
   function show(){
     screens.forEach((s,i)=>s.classList.toggle('active',i===active));
@@ -59,8 +60,8 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
   function play(i){
     if(!Number.isInteger(i)||!count)return;
     i=((i%count)+count)%count;
-    if(i===index&&(!started||decks[active].index===i))return;
-    index=i;if(!started)return;
+    if(i===index&&(!started||!live||decks[active].index===i))return;
+    index=i;if(!started||!live)return;
     const current=decks[active];
     if(current.index<0){load(current,i);current.target=1;}
     else{
@@ -94,10 +95,12 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
       });
     })));
     started=true;starting=false;
-    if(index!==null){const pending=index;index=null;play(pending);}
+    if(live&&index!==null){const pending=index;index=null;play(pending);}
   }
 
   // Browsers that held back playback get another try on the next click.
+  // Called on entry: the pre-made players start the current song at once.
+  function begin(){live=true;if(!started){start();return;}if(index!==null){const pending=index;index=null;play(pending);}}
   function resume(){const deck=decks[active];if(started&&deck.index>=0&&deck.target>0)deck.player.playVideo?.();}
 
   function update(dt,near,background=0){
@@ -122,5 +125,5 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
 
   // Read-only snapshot for inspection and browser tests.
   const state=()=>({index,active,started,decks:decks.map(d=>({index:d.index,mix:+d.mix.toFixed(2),volume:d.volume,state:d.player?.getPlayerState?.()??null,time:+(d.player?.getCurrentTime?.()||0).toFixed(1)}))});
-  return {start,play,resume,update,state,get index(){return index;},get count(){return count;}};
+  return {start,begin,play,resume,update,state,get index(){return index;},get count(){return count;}};
 }

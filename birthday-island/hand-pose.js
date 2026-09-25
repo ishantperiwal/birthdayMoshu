@@ -3,15 +3,15 @@ import {addPuffSleeve} from './puff-sleeve.js?v=closer-lace-3';
 import * as THREE from 'three';
 
 // Straight sleeve, short wrist and circular toy hand; no per-frame geometry.
-export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder=[.28,1.36,-.06],side=1,floating=false,sleeveLength=null,shortSleeves=false,bareArms=false,puffSleeves=false,handScale=1}={}){
+export function buildHandPose(parent,{color=0xeb94ad,skinColor=0xf6cc77,shoulder=[.28,1.36,-.06],side=1,floating=false,sleeveLength=null,shortSleeves=false,bareArms=false,puffSleeves=false,armThickness=1,handScale=1}={}){
   const root=new THREE.Group();parent.add(root);root.visible=false;
   const cloth=new THREE.MeshStandardMaterial({color,roughness:.30,emissive:color,emissiveIntensity:.11});
   const skin=new THREE.MeshStandardMaterial({color:skinColor,roughness:.30,emissive:skinColor,emissiveIntensity:.11});
   const skinUpper=bareArms||puffSleeves;
-  const upper=new THREE.Mesh(roundedSleeve(skinUpper?.067:shortSleeves?.081:.095,skinUpper?.067:shortSleeves?.089:.105,1,.012,.035),skinUpper?skin:cloth);
+  const upper=new THREE.Mesh(roundedSleeve((skinUpper?.067:shortSleeves?.081:.095)*armThickness,(skinUpper?.067:shortSleeves?.089:.105)*armThickness,1,.012,.035),skinUpper?skin:cloth);
   const puff=puffSleeves?addPuffSleeve(root,cloth):null;
   if(puffSleeves)cloth.roughness=.68;
-  const lower=new THREE.Mesh(new THREE.CylinderGeometry(shortSleeves?.067:.065,shortSleeves?.067:.075,1,16),skin);
+  const lower=new THREE.Mesh(new THREE.CylinderGeometry((shortSleeves?.067:.065)*armThickness,(shortSleeves?.067:.075)*armThickness,1,16),skin);
   const elbow=new THREE.Mesh(new THREE.SphereGeometry(.078,12,8),cloth);
   const hand=new THREE.Mesh(new THREE.TorusGeometry(.087,.037,8,20),skin);
   hand.scale.setScalar(handScale);

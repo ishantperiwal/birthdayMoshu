@@ -20,9 +20,12 @@ function smoothSkirtJoin(geometry){
 }
 
 // Occasion details use the existing body rig, including the first-person pose.
+// Extra height for her standing model, added to her legs and the skirt drop
+// together so she stands taller and the hem still reaches the floor.
+export const BIRTHDAY_EXTRA_HEIGHT=.05;
 export function dressBirthday(root,arms,legs,cloth,stargazing=false){
   const waistY=stargazing?.80:BIRTHDAY_WAIST_Y;
-  const skirtDrop=waistY+.067;
+  const skirtDrop=waistY+.067+(stargazing?0:BIRTHDAY_EXTRA_HEIGHT);
   const make=(color,roughness=.65)=>new THREE.MeshStandardMaterial({color,roughness,emissive:color,emissiveIntensity:.045});
   const ivory=make(0xffecd6),ribbon=make(stargazing?0xd58da6:0xc8859c,.42),trim=make(0xeeb3c6,.42),gold=make(0xcba56c,.46);
   cloth.roughness=.68;cloth.emissiveIntensity=.065;

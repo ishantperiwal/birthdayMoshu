@@ -3,33 +3,33 @@ import * as THREE from 'three';
 // One small scenic flypast; no lights, shadows, particle systems or physics.
 export function buildLovePlane(scene,{loop=false}={}){
   const root=new THREE.Group();scene.add(root);
-  const red=new THREE.MeshStandardMaterial({color:0xb74743,roughness:.38,emissive:0x702921,emissiveIntensity:.22});
-  const cream=new THREE.MeshStandardMaterial({color:0xffe4ac,roughness:.5,emissive:0x8b7246,emissiveIntensity:.2});
+  const blue=new THREE.MeshStandardMaterial({color:0x6986ad,roughness:.42,metalness:.08,emissive:0x263f68,emissiveIntensity:.25});
+  const cream=new THREE.MeshStandardMaterial({color:0xf4f1e9,roughness:.46,emissive:0x8e9aaa,emissiveIntensity:.2});
   const dark=new THREE.MeshStandardMaterial({color:0x293d49,roughness:.3});
   function mesh(geometry,material,x,y,z){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);root.add(m);return m;}
-  mesh(new THREE.SphereGeometry(1,16,10),red,0,0,0).scale.set(4.1,.8,.85);
-  mesh(new THREE.BoxGeometry(2,.17,10.5),cream,-.15,.05,0);
-  mesh(new THREE.BoxGeometry(1.7,.14,4.2),cream,-3.1,.28,0);
-  const fin=mesh(new THREE.SphereGeometry(1,10,6),red,-3.1,.95,0);fin.scale.set(.9,1.25,.12);
+  mesh(new THREE.SphereGeometry(1,16,10),cream,0,0,0).scale.set(4.1,.8,.85);
+  mesh(new THREE.BoxGeometry(2,.17,10.5),blue,-.15,.05,0);
+  mesh(new THREE.BoxGeometry(1.7,.14,4.2),blue,-3.1,.28,0);
+  const fin=mesh(new THREE.SphereGeometry(1,10,6),blue,-3.1,.95,0);fin.scale.set(.9,1.25,.12);
   mesh(new THREE.SphereGeometry(1,12,8),dark,.65,.68,0).scale.set(1.05,.48,.62);
   const prop=new THREE.Group();prop.position.x=4.05;root.add(prop);
   const hub=new THREE.Mesh(new THREE.SphereGeometry(.25,8,6),cream);prop.add(hub);
   const blade=new THREE.Mesh(new THREE.BoxGeometry(.12,3,.18),dark);prop.add(blade);
 
-  // A plain white banner: "I ♥ you" in the sky message's handwriting, with a
+  // A plain white banner: "I ♥ you" in relaxed handwritten lettering, with a
   // drawn heart for "love". Redrawn once the script font has loaded.
   const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=256;
-  const ctx=canvas.getContext('2d'),font='700 205px "Dancing Script", "Segoe Script", cursive';
+  const ctx=canvas.getContext('2d'),font='600 205px "Caveat", "Segoe Print", cursive';
   function drawBanner(){
     ctx.fillStyle='#fbfaf7';ctx.fillRect(0,0,1024,256);
-    ctx.fillStyle='#a3344f';ctx.textBaseline='middle';ctx.textAlign='left';ctx.font=font;
+    ctx.fillStyle='#314d78';ctx.textBaseline='middle';ctx.textAlign='left';ctx.font=font;
     const heart=66,gap=36,widthI=ctx.measureText('I').width,widthYou=ctx.measureText('you').width;
     let cursor=512-(widthI+gap*2+heart*2.4+widthYou)/2;
     ctx.fillText('I',cursor,124);cursor+=widthI+gap+heart*1.2;
     ctx.fillStyle='#c93d5c';ctx.beginPath();ctx.moveTo(cursor,126+heart*.95);
     ctx.bezierCurveTo(cursor+heart*1.35,126+heart*.1,cursor+heart*.95,126-heart*1.1,cursor,126-heart*.42);
     ctx.bezierCurveTo(cursor-heart*.95,126-heart*1.1,cursor-heart*1.35,126+heart*.1,cursor,126+heart*.95);ctx.fill();
-    ctx.fillStyle='#a3344f';ctx.fillText('you',cursor+heart*1.2+gap,118);
+    ctx.fillStyle='#314d78';ctx.fillText('you',cursor+heart*1.2+gap,118);
   }
   drawBanner();
   document.fonts?.load(font).then(()=>{drawBanner();texture.needsUpdate=true;}).catch(()=>{});

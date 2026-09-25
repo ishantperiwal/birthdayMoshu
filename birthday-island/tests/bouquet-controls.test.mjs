@@ -15,7 +15,7 @@ const source=(await readFile(url,'utf8'))
     distanceTo(v){return Math.hypot(this.x-v.x,this.y-v.y,this.z-v.z);}
   } const THREE={Vector3}; export {Vector3};`)
   .replace("'./bouquet-motion.js'",JSON.stringify(new URL('../bouquet-motion.js',import.meta.url).href))
-  .replace("'./look-limits.js'",JSON.stringify(new URL('../look-limits.js',import.meta.url).href));
+  .replace(/'\.\/look-limits\.js[^']*'/,JSON.stringify(new URL('../look-limits.js',import.meta.url).href));
 const {buildBouquetControls,Vector3}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 function fixture(options={}){
   const elements=[];

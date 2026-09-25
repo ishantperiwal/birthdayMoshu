@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#17263b">
-  <title>Our Little Island</title>
-  <link rel="stylesheet" href="./style.css?v=role-ui-13">
+  <title>For you ♡</title>
+  <link rel="stylesheet" href="./style.css?v=prewarm-1">
+  <link rel="preload" as="image" href="./assets/moon-lroc.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Dancing+Script:wght@700&family=Caveat:wght@600&display=swap">
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js" } }
   </script>
@@ -17,18 +18,119 @@
 <body>
   <main id="world" aria-label="A walkable celebration island"></main>
 
+  <!-- The welcome screen is plain HTML and CSS, so it appears before anything
+       else loads. Its words are placeholders to rewrite; they avoid naming the island. -->
   <section id="welcome" class="overlay">
-    <div class="welcome-card">
-      <div class="welcome-heart" aria-hidden="true">♡</div>
-      <h1>Our Little Island</h1>
-      <p class="subtitle">Just you, me &amp; a little magic.</p>
-      <button id="enter" type="button" disabled>Come on in <span aria-hidden="true">↗</span></button>
+    <div class="welcome-sky" aria-hidden="true">
+      <div class="welcome-stars"></div><div class="welcome-stars far"></div>
+      <div class="welcome-moon"></div>
+      <!-- Big, faded numerals set behind the clouds. -->
+      <div id="countdown" class="welcome-countdown"><small>it opens in</small><b id="countdown-value">&nbsp;</b></div>
+      <div class="welcome-clouds back"></div>
+    </div>
+    <!-- A few larger clouds drift in front of the words; the button stays above them. -->
+    <div class="welcome-clouds front" aria-hidden="true"></div>
+    <div class="welcome-card counting">
+      <h1>Somewhere soft is waiting</h1>
+      <p class="welcome-script">Can't wait to see you. Muuuaaahhhh!!!</p>
+      <!-- A fixed slot for the button, so nothing shifts when it appears. -->
+      <div class="welcome-action">
+        <button id="enter" type="button" disabled>Come in <span class="enter-heart" aria-hidden="true">♥</span></button>
+      </div>
       <div class="welcome-loading" role="status">
         <div class="loading" aria-hidden="true"><span id="load-bar"></span></div>
-        <div id="load-copy">saving a little sunset…</div>
+        <div id="load-copy">keeping a secret…</div>
       </div>
     </div>
   </section>
+  <div id="scene-fade" aria-hidden="true"></div>
+  <script>
+    // ---------------------------------------------------------------------
+    // WELCOME TIMER — when "Come in" becomes available.
+    //   A number:  seconds after the page opens (10 for now).
+    //   A string:  an Irish wall-clock time, e.g. '2026-10-02T00:00'
+    //              (midnight in Europe/Dublin, whatever her device's zone).
+    // ISHIEE's own link, or an inspection view, may override it with ?timer=0.
+    // ---------------------------------------------------------------------
+    const WELCOME_TIMER=10;
+
+    // Runs the moment the page opens, before any game code has loaded.
+    window.welcomeTimer=(()=>{
+      const params=new URLSearchParams(location.search);
+      const mayOverride=params.has('inspect')||params.get('user')==='ISHIEE';
+      const setting=mayOverride&&params.has('timer')?params.get('timer'):WELCOME_TIMER;
+      function dublinTime(text){
+        // An Irish wall-clock time as an instant, including summer time.
+        const [date,time='00:00']=text.split('T'),[y,m,d]=date.split('-').map(Number),[h,mi,sec=0]=time.split(':').map(Number);
+        const wanted=Date.UTC(y,m-1,d,h,mi,sec),format=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Dublin',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        let guess=wanted;
+        for(let i=0;i<2;i++){const p=Object.fromEntries(format.formatToParts(guess).map(x=>[x.type,x.value]));guess-=Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-wanted;}
+        return guess;
+      }
+      const relative=/^\d+(\.\d+)?$/.test(String(setting));
+      const opensAt=relative?performance.timeOrigin+Number(setting)*1000:dublinTime(String(setting));
+      // A real date must not depend on her device clock: compare it with the
+      // server's clock (the page's Date header) and correct a clear offset.
+      let offset=0;
+      if(!relative)fetch(location.href,{method:'HEAD',cache:'no-store'}).then(r=>{
+        const server=Date.parse(r.headers.get('Date')||'');
+        if(Number.isFinite(server)&&Math.abs(server-Date.now())>3000)offset=server-Date.now();
+      }).catch(()=>{});
+      const now=()=>Date.now()+offset,remaining=()=>Math.max(0,opensAt-now());
+      const two=n=>String(n).padStart(2,'0');
+      function text(ms){
+        const total=Math.ceil(ms/1000),days=Math.floor(total/86400),h=Math.floor(total%86400/3600),m=Math.floor(total%3600/60),s=total%60;
+        return days?`${days}d ${two(h)}:${two(m)}:${two(s)}`:h?`${h}:${two(m)}:${two(s)}`:`${two(m)}:${two(s)}`;
+      }
+      const card=document.querySelector('.welcome-card'),countdown=document.querySelector('#countdown'),value=document.querySelector('#countdown-value');
+      function tick(){
+        const left=remaining();
+        if(left>0){value.textContent=text(left);return;}
+        // Countdown over: fade it away; the loader may now show if still needed.
+        countdown.classList.add('over');card.classList.remove('counting');clearInterval(timer);
+      }
+      const timer=setInterval(tick,250);tick();
+      return {remaining,get over(){return remaining()<=0;}};
+    })();
+
+    // Reveal the words only once their font is ready, so they never swap visibly.
+    Promise.race([document.fonts?.load('300 40px "Fraunces"'),new Promise(r=>setTimeout(r,2500))])
+      .catch(()=>{}).finally(()=>document.querySelector('#welcome')?.classList.add('fonts-ready'));
+  </script>
+  <script>
+    // Paint moonlit cumulus clouds for the welcome sky. Inline and dependency-free
+    // so they appear with the page, before anything else has loaded.
+    (()=>{
+      const layers={back:document.querySelector('.welcome-clouds.back'),front:document.querySelector('.welcome-clouds.front')};
+      if(!layers.back||!layers.front)return;
+      const dpr=Math.min(devicePixelRatio||1,2);
+      function paint(w,h,seed){
+        let s=seed;const rnd=()=>(s=s*16807%2147483647)/2147483647;
+        const c=document.createElement('canvas');c.width=w*dpr;c.height=h*dpr;c.style.width=w+'px';c.style.height=h+'px';
+        const g=c.getContext('2d');g.scale(dpr,dpr);
+        const base=h*.74,puffs=[],n=11+Math.floor(rnd()*6);
+        for(let i=0;i<n;i++){const t=i/(n-1),r=h*(.16+.3*Math.sin(Math.PI*t)*(.7+rnd()*.5));puffs.push([w*(.1+.8*t)+(rnd()-.5)*w*.05,base-r*.5-rnd()*h*.06,r]);}
+        for(let i=0;i<6;i++){const r=h*(.16+rnd()*.17);puffs.push([w*(.28+rnd()*.44),base-h*(.3+rnd()*.14),r]);}
+        // Shadowed bodies first, then moonlit tops from the upper right.
+        for(const [x,y,r] of puffs){const q=g.createRadialGradient(x,y+r*.3,r*.25,x,y,r);q.addColorStop(0,'rgba(76,76,156,.7)');q.addColorStop(1,'rgba(70,70,150,0)');g.fillStyle=q;g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fill();}
+        for(const [x,y,r] of puffs){const q=g.createRadialGradient(x+r*.22,y-r*.3,r*.35,x,y,r);q.addColorStop(0,'rgba(214,218,255,.5)');q.addColorStop(.55,'rgba(166,170,234,.2)');q.addColorStop(1,'rgba(166,170,234,0)');g.fillStyle=q;g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fill();}
+        // Let the underside dissolve instead of ending in a hard line.
+        g.globalCompositeOperation='destination-out';
+        const fade=g.createLinearGradient(0,base-h*.08,0,h);fade.addColorStop(0,'rgba(0,0,0,0)');fade.addColorStop(1,'rgba(0,0,0,1)');g.fillStyle=fade;g.fillRect(0,0,w,h);
+        return c;
+      }
+      const vw=Math.max(innerWidth,360);
+      // [layer, width as share of the screen, top %, opacity, seconds to cross, head start]
+      [['back',.34,50,.85,110,.15],['back',.46,70,.9,140,.62],['back',.24,34,.55,170,.4],['back',.52,84,.95,120,.88],['back',.2,22,.4,200,.05],
+       ['front',.5,40,.52,150,.3],['front',.42,50,.48,180,.62],['front',.46,44,.45,210,.95],['front',.6,76,.6,165,.02]]
+        .forEach(([layer,share,top,opacity,seconds,start],i)=>{
+          const w=Math.round(vw*share),h=Math.round(w*.38),cloud=paint(w,h,9301+i*7919);
+          cloud.className='welcome-cloud';cloud.style.top=`calc(${top}% - ${h/2}px)`;cloud.style.opacity=opacity;
+          cloud.style.animationDuration=`${seconds}s`;cloud.style.animationDelay=`${-seconds*start}s`;
+          layers[layer].append(cloud);
+        });
+    })();
+  </script>
 
   <header id="topbar" class="hidden-ui">
     <div class="brand">
@@ -36,7 +138,7 @@
       <div><b>OUR LITTLE ISLAND</b><small>made with love, across the miles</small></div>
     </div>
     <div class="treasure-card" aria-label="Collected cash">
-      <div class="cash-heading"><span class="cash-icon" aria-hidden="true"></span><b id="gift-value">€0</b></div>
+      <div class="cash-heading"><span class="cash-icon" aria-hidden="true"></span><b id="gift-value">&nbsp;</b></div>
     </div>
   </header>
 
@@ -61,8 +163,8 @@
 
   <form id="command" autocomplete="off">
     <label for="command-input">ISLAND COMMAND</label>
-    <div><span>/</span><input id="command-input" placeholder="try: fireworks, night, sunset, day" spellcheck="false"></div>
-    <small>fireworks · day · sunset · night · gifts · stargaze · help</small>
+    <div><span>/</span><input id="command-input" placeholder="try: fireworks, night, day" spellcheck="false"></div>
+    <small>fireworks · day · night · gifts · stargaze · help</small>
   </form>
 
   <section id="gift-note" class="note-modal" aria-modal="true" role="dialog">
@@ -88,6 +190,6 @@
   </section>
 
   <div id="error"></div>
-  <script type="module" src="./main.js?v=tiara-back-1"></script>
+  <script type="module" src="./main.js?v=coin-1"></script>
 </body>
 </html>

@@ -1,13 +1,13 @@
 import {buildChatBubbles} from './chat-bubbles.js?v=chat-log-6';
 import {buildChatLog} from './chat-log.js';
-import {clampWalkPitch} from './look-limits.js';
-import {createPreviewFollower} from './preview-follower.js';
+import {clampWalkPitch} from './look-limits.js?v=down-46';
+import {createPreviewFollower} from './preview-follower.js?v=follow-orig';
 import {buildGestureWheel} from './gesture-wheel.js';
 import {buildExpressionControls} from './expression-controls.js?v=minimal-chat-5';
 import {EXPRESSIONS,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=kiss-4';
-import { buildCashRewards } from './cash-rewards.js?v=big-flight-1';
-import {buildCashDash} from './cash-dash.js?v=gate-stars-1';
-import {CASH_SITES} from './cash-dash-state.js';
+import { buildCashRewards } from './cash-rewards.js?v=coin-1';
+import {buildCashDash} from './cash-dash.js?v=coin-1';
+import {CASH_SITES,formatCash} from './cash-dash-state.js?v=coin-1';
 import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
 import {BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=back-seam-12';
 import {companionMode} from './control-mode.js?v=companion-1';
@@ -19,29 +19,29 @@ let remoteWasOnline=false;
 import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested,roleUI} from './multiplayer.js?v=role-preview-2';
 if(roleUI){document.body.classList.add('role-ui');document.body.dataset.role=isIshiee?'ishie':'moshie';}
 let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
-import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=gate-stars-1';
+import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=coin-1';
 import { buildStoneSkipping } from './stone-skipping.js?v=three-rounds-2';
 import { SHORE } from './skipping-physics.js?v=more-skips-7';
 import { moveAroundRocks } from './rock-collision.js?v=props-players-1';
 import { createPlayerJump } from './player-jump.js';
-import { buildLovePlane } from './love-plane.js?v=4';
+import { buildLovePlane } from './love-plane.js?v=night-blue-5';
 import { insectVisibility, insectRank } from './insect-density.js';
 import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
-import { buildHandPose } from './hand-pose.js?v=puff-10';
-import {buildBouquetControls} from './bouquet-controls.js?v=role-ui-6';
+import { buildHandPose } from './hand-pose.js?v=arms-1';
+import {buildBouquetControls} from './bouquet-controls.js?v=down-46';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion } from './companion.js?v=tiara-back-1';
+import { buildCompanion, legPace } from './companion.js?v=follow-orig';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
 import {buildJumpingFish} from './jumping-fish.js?v=water-ripples-2';
-import { MONEY_TIERS, LEGENDARY_RESERVE, rupees } from './money-gifts.js?v=no-plaques-5';
+import { MONEY_TIERS, LEGENDARY_RESERVE, rupees } from './money-gifts.js?v=coin-1';
 import { STAGE_HEIGHT, STAGE_RADIUS } from './celebration-stage.js';
 import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=heart-message-1';
 import {buildStageConfetti} from './stage-confetti.js?v=round-wider-4';
 import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter } from './character.js?v=tiara-back-1';
+import { buildCharacter, HER_ARM_THICKNESS } from './character.js?v=slow-follow-1';
 import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';
@@ -53,9 +53,13 @@ import { buildSceneContext } from './scene-context.js?v=2';
 import { buildFireworks } from './fireworks.js?v=festival-5';
 import { buildSkyMessage } from './sky-message.js?v=2';
 import { createSoundscape } from './soundscape.js?v=cash-sound-1';
-import { createRadio } from './radio-player.js?v=quiet-bed-2';
+import { createRadio } from './radio-player.js?v=prewarm-1';
+import { COIN_MODE, DASH_NAME } from './coin-mode.js';
 import { buildMeadowLife } from './meadow-life.js?v=colorful-caps-1';
 import { buildCandleSmoke } from './candle-smoke.js';
+// Count every texture the island requests, so the welcome screen can wait for them.
+const assetLoad={loaded:0,total:0};
+THREE.DefaultLoadingManager.onStart=THREE.DefaultLoadingManager.onProgress=(url,loaded,total)=>{assetLoad.loaded=loaded;assetLoad.total=total;};
 
 /*
   OUR LITTLE ISLAND
@@ -70,11 +74,14 @@ const CONFIG = {
   herName: '',
   fromName: '',
   eyeHeight: 1.86,
+  hisEyeHeight: 1.70, // ISHIEE's eyes in every mode (online companion view, manual walking, local His POV): level with her brows.
   flowerGrassTints: false, // Preserved flower-linked moss/sage palette; opt back in here.
   thirdPerson: false, // Set true to restore the character and follow camera.
   walkSpeed: 5.0,
   giftReach: 3.2,
   radioMusicUrl: '', // Add a local audio file URL when the music is ready.
+  // The welcome countdown is set by WELCOME_TIMER at the top of index.html's welcome script.
+  sunset: false, // Night scenes only for now: hides every way to switch to the sunset sky.
   skyMessage: ['Happy Birthday', 'Moshie Pie!!'], // Written in the sky by the candle fireworks (two lines).
   musicVolume: 1, // Happy Birthday until the wish, then a barely audible radio bed. 0 disables background music.
   startingMood: 'night', // Night preview while refining the celebration lighting.
@@ -1349,7 +1356,7 @@ function buildBench() {
   const jarFoot=g.localToWorld(new THREE.Vector3(1.95,0,-.3));
   const jarOffset=terrainHeight(jarFoot.x,jarFoot.z)-g.position.y;
   for(const part of g.children.slice(jarPartsStart))part.position.y+=jarOffset;
-  interactive.push({
+  if(CONFIG.sunset)interactive.push({
     type: 'bench', object: g, reach: 4.2,
     prompt: 'sit on our bench and watch the sunset',
     action: () => { setMood('sunset'); toast('THE HORIZON SAVED FOR THE TWO OF US'); audio.chime([523.25, 659.25, 783.99]); }
@@ -1524,7 +1531,7 @@ function blowCandles({confetti=true}={}) {
 const gifts = [];
 const giftFinish = buildGiftFinish(renderer);
 let foundCount = 0, collectedAmount=0;
-const cashRewards=buildCashRewards(CASH_SITES.length);
+const cashRewards=buildCashRewards({onTick:(step,steps)=>{if(step<steps)audio.cashTick(step/steps);}});
 let rewardBusy=false;
 function makeGift(data, index) {
   const g = new THREE.Group();
@@ -1766,6 +1773,8 @@ const audio={
     osc.connect(gain).connect(this.master);osc.start(t);osc.stop(t+duration+.05);
   },
   chime(notes){notes.forEach((n,i)=>this.tone(n,i*.12,1.4,.045,'sine'));},
+  // A soft, rising tick for each step of the counter (the landing ding covers the last).
+  cashTick(progress){this.tone(1320+progress*520,0,.05,.009,'sine');},
   gift(n){if(this.muted||!this.ctx)return;if(this.scape)this.scape.collect(n);else this.chime([392+n*6,523.25+n*4,659.25+n*3]);},
   // The birthday tune fades out after the wish; updateRadio brings in the
   // real playlist softly once the first celebration sounds have settled.
@@ -1796,7 +1805,9 @@ const audio={
 const playerRig=new THREE.Group();
 const cameraPivot=new THREE.Group();
 playerRig.add(cameraPivot);cameraPivot.add(camera);scene.add(playerRig);
-cameraPivot.position.y=CONFIG.thirdPerson?1.25:CONFIG.eyeHeight;
+// Each player sees from their own character's eyes.
+const ownEyeHeight=isIshiee?CONFIG.hisEyeHeight:CONFIG.eyeHeight;
+cameraPivot.position.y=CONFIG.thirdPerson?1.25:ownEyeHeight;
 camera.position.set(0,0,CONFIG.thirdPerson?4.6:0);
 const avatar=buildCharacter(playerRig,isIshiee?DATE_OUTFIT:{});
 if(roleUI)avatar.root.scale.setScalar(1.06);
@@ -1805,7 +1816,7 @@ const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_H
   resolveMove:(x,z,dx,dz,player)=>moveAroundRocks(x,z,dx,dz,[...rockColliders,{x:player.x,z:player.z,radius:.30}],onIsland,.32)});
 const pointingHand=isPassenger?buildHandPose(playerRig,{color:SUIT_COLOR,shoulder:[.36,1.36,-.06],sleeveLength:.48}):null;
 const pointTarget=new THREE.Vector3();
-const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE,skinColor:isIshiee?0xf6cc77:BIRTHDAY_SKIN,shortSleeves:!isIshiee,puffSleeves:!isIshiee,handScale:isIshiee?1:.92});
+const firstPersonHand=buildHandPose(playerRig,{floating:true,color:isIshiee?SUIT_COLOR:BIRTHDAY_ROSE,skinColor:isIshiee?0xf6cc77:BIRTHDAY_SKIN,shortSleeves:!isIshiee,puffSleeves:!isIshiee,armThickness:isIshiee?1:HER_ARM_THICKNESS,handScale:isIshiee?1:.92});
 const joinedHands=new THREE.Vector3(),partnerHand=new THREE.Vector3();
 const claspRotation=new THREE.Quaternion(),partnerLinkRotation=new THREE.Quaternion(),playerLinkRotation=new THREE.Quaternion();
 const partnerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2),playerLinkTurn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2);
@@ -1856,10 +1867,10 @@ const keys={};
 const playerJump=createPlayerJump();
 const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,
   // Stargazing waits until the candles are blown and the cash dash is over.
-  canStart:()=>!candlesLit&&!!cashDash?.finished,onBlocked:()=>toast(candlesLit?'BLOW OUT THE CANDLES FIRST':'FINISH THE CASH DASH FIRST'),
+  canStart:()=>!candlesLit&&!!cashDash?.finished,onBlocked:()=>toast(candlesLit?'BLOW OUT THE CANDLES FIRST':`FINISH THE ${DASH_NAME.toUpperCase()} FIRST`),
   canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:points=>network?.event({type:"ink",points}),onLeave:()=>requestPointerLock()});
 let playing=false;
-const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,
+const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,hisEyeHeight:CONFIG.hisEyeHeight,
   isOnline:multiplayerRequested,isMale:isIshiee,roleUI,getNetwork:()=>network,isPlaying:()=>playing,
   isBusy:()=>stargazing.active||passengerLying||companion.throwing||rewardBusy||sceneContext.active||$('#command').classList.contains('open')||!!$('.note-modal.open'),
   clearKeys:()=>{Object.keys(keys).forEach(k=>keys[k]=false);playerJump.reset();},toast});
@@ -1904,7 +1915,7 @@ function updatePreviewFollower(dt){
     playerRig.rotation.y+=delta*(1-Math.exp(-dt*7));
   }
   avatar.root.rotation.set(0,0,0);avatarHeading=playerRig.rotation.y;
-  avatar.update(dt,next.moving,next.running);
+  avatar.update(dt,next.moving,next.running,0,null,legPace(next.moving?CONFIG.walkSpeed*(next.running?1.5:.85):0,next.running));
 }
 function movePlayer(dt){
   if(gestureWheel.active)return;
@@ -1951,7 +1962,7 @@ function movePlayer(dt){
     // The held flowers make camera bob especially noticeable in first person.
     const targetAmount=bobbing?(running?.045:.028)*(avatar.bouquetActive?.5:1):0;
     walkingBobAmount+=(targetAmount-walkingBobAmount)*(1-Math.exp(-dt*9));
-    cameraPivot.position.y=CONFIG.eyeHeight+Math.sin(walkingBobPhase)*walkingBobAmount;
+    cameraPivot.position.y=ownEyeHeight+Math.sin(walkingBobPhase)*walkingBobAmount;
   }
   // Ease onto the ground rather than snapping, so crests and troughs feel like
   // gliding over the land instead of stepping up and down it.
@@ -2002,7 +2013,7 @@ function setMood(name){
   document.querySelectorAll('#moods button').forEach(b=>b.classList.toggle('active',b.dataset.mood===name));
   toast(`${name.toUpperCase()} ON THE ISLAND`);
 }
-document.querySelectorAll('#moods button').forEach(b=>b.addEventListener('click',()=>setMood(b.dataset.mood)));
+document.querySelectorAll('#moods button').forEach(b=>{b.hidden=b.dataset.mood==='sunset'&&!CONFIG.sunset;b.addEventListener('click',()=>setMood(b.dataset.mood));});
 
 const chatLog=buildChatLog();
 const chatBubbles=buildChatBubbles({scene,camera,onMessage:(user,text)=>chatLog.show(user,text),
@@ -2059,7 +2070,7 @@ function openCommand(commands=false){
   expressionControls.setMode(commands);expressionControls.setConnected(!multiplayerRequested||!!network?.connected);
   Object.keys(keys).forEach(k=>keys[k]=false);passengerPointing=false;
   $('#command label').textContent=commands?'ISLAND COMMAND':'A LITTLE MESSAGE';
-  $('#command-input').placeholder=commands?'try: fireworks, night, sunset, day':'say something sweet…';
+  $('#command-input').placeholder=commands?(CONFIG.sunset?'try: fireworks, night, sunset, day':'try: fireworks, night, day'):'say something sweet…';
   $('#command-input').maxLength=140;
   expressionControls.setTarget(bouquetControls.hisView?'MOSHIEE':'ISHIEE');
   $('#command-input').setAttribute('aria-label',commands?'Command':'Message');
@@ -2081,8 +2092,8 @@ function runCommand(raw){
   if(cmd==='fireworks'||cmd==='firework'||cmd==='celebrate')launchFireworks(9);
   else if(cmd==='birthday'||cmd==='wish'){finalePendingUntil=elapsed+8;launchFireworks(7);}
   else if(cmd==='stargaze'){if(!stoneSkipping.active)stargazing.enter();}
-  else if(MOODS[cmd])setMood(cmd);
-  else if(cmd==='gifts'||cmd==='gift')toast('BLOW OUT THE CANDLES TO BEGIN THE CASH DASH');
+  else if(MOODS[cmd]&&(cmd!=='sunset'||CONFIG.sunset))setMood(cmd);
+  else if(cmd==='gifts'||cmd==='gift')toast(`BLOW OUT THE CANDLES TO BEGIN THE ${DASH_NAME.toUpperCase()}`);
   else if(cmd==='blow'||cmd==='candles'){
     const cake=interactive.find(i=>i.type==='cake');cake.object.getWorldPosition(tmp);
     if(tmp.distanceTo(playerRig.position)<cake.reach)blowCandles();else toast('FIND THE CAKE IN THE PARTY GARDEN FIRST');
@@ -2146,7 +2157,7 @@ window.addEventListener('keydown',e=>{
   if(e.code==='KeyH'&&!e.repeat&&(handsLinked()||canHoldHands()))handInteraction.action();
   if(e.code==='KeyM')audio.toggle();
   if((!roleUI||isIshiee)&&e.code==='Digit1')setMood('day');
-  if((!roleUI||isIshiee)&&e.code==='Digit2')setMood('sunset');
+  if((!roleUI||isIshiee)&&CONFIG.sunset&&e.code==='Digit2')setMood('sunset');
   if((!roleUI||isIshiee)&&e.code==='Digit3')setMood('night');
 });
 window.addEventListener('keyup',e=>{if(e.code==='KeyR')passengerPointing=false;stoneSkipping.keyUp(e);keys[e.code]=false;});
@@ -2324,7 +2335,7 @@ let elapsed=0;
 let lastShadowTime=-1;
 let lastFrameTime=-Infinity;
 let resolutionScale=1;
-let frameWindow=0,frameCount=0,qualityCooldown=0;
+let frameWindow=0,frameCount=0,qualityCooldown=0,qualityCeiling=1;
 const gl=renderer.getContext();
 const gpuTimer=gl.getExtension('EXT_disjoint_timer_query_webgl2');
 const gpuQueries=[];
@@ -2360,9 +2371,13 @@ function updateQuality(rawDt){
   const ms=frameWindow*1000/frameCount;
   qualityCooldown=Math.max(0,qualityCooldown-frameWindow);
   if(elapsed>6&&qualityCooldown===0){
-    const overloaded=gpuTimer?gpuMs>18:document.hasFocus()&&ms>23&&cpuMs>10;
+    // Without a GPU timer (possible on a Mac), slow frames alone mean the GPU is
+    // behind: draw calls cost the CPU little there, so they cannot be the signal.
+    const overloaded=gpuTimer?gpuMs>18:document.hasFocus()&&ms>23;
     const headroom=gpuTimer?gpuMs>0&&gpuMs<11:ms<17;
-    const next=overloaded?Math.max(.7,resolutionScale-.1):headroom?Math.min(1,resolutionScale+.05):resolutionScale;
+    // A level that proved too heavy is not tried again, so quality never flip-flops.
+    if(overloaded)qualityCeiling=Math.max(.7,resolutionScale-.05);
+    const next=overloaded?Math.max(.7,resolutionScale-.1):headroom?Math.min(qualityCeiling,resolutionScale+.05):resolutionScale;
     if(next!==resolutionScale){resolutionScale=next;resizeTargets();qualityCooldown=6;}
   }
   if(diagnostic)diagnostic.textContent=`${Math.round(1000/ms)} fps · ${ms.toFixed(1)} ms/frame${gpuMs?` · GPU ${gpuMs.toFixed(1)} ms`:""}\n${sceneTarget.width} × ${sceneTarget.height} · ${grassBladeCount.toLocaleString()} grass blades\n${renderer.info.render.calls} draws · ${renderer.info.render.triangles.toLocaleString()} triangles\n${currentMood} · ${playerRig.position.x.toFixed(1)}, ${playerRig.position.z.toFixed(1)}`;
@@ -2378,6 +2393,10 @@ if(inspect){
     antisun:[-9.7,17.4,3.76,.62]};
   const v=views[inspectParams.get('view')];
   if(v){playerRig.position.set(v[0],terrainHeight(v[0],v[1]),v[1]);playerRig.rotation.y=v[2];cameraPivot.rotation.x=v[3];}
+  if(inspectParams.get('view')==='plane'&&inspectParams.has('planeStill')){
+    // Close color/type inspection under the actual island sky and lighting.
+    scene.attach(camera);camera.position.set(-18,56,-98);camera.lookAt(-14,49,-155);
+  }
   if(inspectParams.has('fireworkStill')){fireworks.launch(playerRig.position,playerRig.rotation.y,7);for(let i=0;i<240;i++)fireworks.update(1/60);}
   if(inspectParams.has('skipPartner')){companion.celebrate();companion.update(2.2,playerRig.position);companion.anchor.position.set(49,terrainHeight(49,20),20);}
 }
@@ -2547,7 +2566,7 @@ renderer.setAnimationLoop(animate);
 // Headless capture environments never run requestAnimationFrame, so inspection
 // needs a way to step the scene by hand.
 if(inspect)window.__step=()=>animate(performance.now(),true);
-if(inspect){window.__finale=()=>{finalePendingUntil=elapsed+8;launchFireworks(7);};window.__radio=radio;window.__radioNext=()=>requestSong(radio.index??0,((radio.index??0)+1)%radio.count);}
+if(inspect){window.__cash=cashRewards;window.__net=()=>network;window.__camY=()=>{const v=new THREE.Vector3();camera.getWorldPosition(v);return {camera:+v.y.toFixed(3),ground:+terrainHeight(v.x,v.z).toFixed(3)};};window.__finale=()=>{finalePendingUntil=elapsed+8;launchFireworks(7);};window.__radio=radio;window.__radioNext=()=>requestSong(radio.index??0,((radio.index??0)+1)%radio.count);}
 
 window.addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
@@ -2558,24 +2577,60 @@ window.addEventListener('resize',()=>{
 /* Welcome                                                                    */
 /* -------------------------------------------------------------------------- */
 
-const loadingStages=['drawing the shoreline…','growing wildflowers…','wrapping little gifts…','saving the sunset…','the island is ready'];
-let stage=0;
-const loadingTimer=setInterval(()=>{
-  stage++;
-  $('#load-bar').style.width=`${Math.min(stage/loadingStages.length*100,100)}%`;
-  $('#load-copy').textContent=loadingStages[Math.min(stage,loadingStages.length-1)];
-  if(stage>=loadingStages.length){clearInterval(loadingTimer);$('#enter').disabled=!networkReady;$('#enter').classList.add('ready');$('.welcome-card').classList.add('loaded');}
-},260);
+// "Come in" appears only when every texture and font has loaded, the scene's
+// shaders are compiled, the connection is ready and the countdown has ended.
+const loadingLines=['keeping a secret…','folding the clouds…','teaching the stars your name…','saving you the softest light…','almost there…'];
+let fontsReady=false,gpuReady=false,entryReady=false,shownProgress=0;
+Promise.race([
+  Promise.all(['300 40px "Fraunces"','700 20px "Dancing Script"'].map(font=>document.fonts?.load(font))),
+  new Promise(resolve=>setTimeout(resolve,8000)) // Offline fonts must never lock her out.
+]).catch(()=>{}).finally(()=>{fontsReady=true;});
+renderer.compileAsync(scene,camera).catch(()=>{}).finally(()=>{renderer.render(scene,camera);gpuReady=true;});
+// Pre-warm everything entering needs while the welcome still shows, so the click
+// only starts what is already built: the sound engine (silent until her click),
+// the radio's players (no song yet) and every texture, including off-screen ones.
+let prewarmed=false;
+function prewarmEntry(){
+  if(prewarmed)return;prewarmed=true;
+  audio.init();
+  if(!inspect||inspectParams.has('radio'))radio.start();
+  const upload=value=>{if(value?.isTexture)renderer.initTexture(value);};
+  scene.traverse(object=>{
+    for(const material of [object.material].flat()){
+      if(!material)continue;
+      for(const key in material)upload(material[key]);
+      for(const uniform of Object.values(material.uniforms||{}))upload(uniform?.value);
+    }
+  });
+}
+const entryTimer=setInterval(()=>{
+  const textures=assetLoad.total?assetLoad.loaded/assetLoad.total:1;
+  const progress=.3+.4*textures+.12*fontsReady+.18*gpuReady,loaded=progress>=.999;
+  shownProgress+=(progress-shownProgress)*.35;
+  $('#load-bar').style.width=`${Math.min(100,shownProgress*100)}%`;
+  $('#load-copy').textContent=loadingLines[Math.min(loadingLines.length-1,Math.floor(shownProgress*loadingLines.length))];
+  // The inline welcome script owns the countdown, so it runs before this code loads.
+  if(loaded){$('.welcome-card').classList.add('loaded');prewarmEntry();}
+  entryReady=loaded&&(window.welcomeTimer?.over??true);
+  $('#enter').disabled=!entryReady||!networkReady;$('#enter').classList.toggle('ready',entryReady);
+  if(entryReady)clearInterval(entryTimer);
+},200);
 
 $('#enter').addEventListener('click',()=>{
-  if(!networkReady)return;
-  playing=true;document.body.classList.add('playing');$('#welcome').classList.add('gone');audio.init();audio.resume();
-  if(!inspect||inspectParams.has('radio'))radio.start();
+  if(!networkReady||!entryReady)return;
+  document.title='Our Little Island';
+  // Fade to black, swap the welcome for the island, then fade in from black.
+  const fade=$('#scene-fade');fade.classList.add('dark');
+  setTimeout(()=>{$('#welcome').classList.add('gone','instant');fade.classList.remove('dark');},750);
+  playing=true;document.body.classList.add('playing');prewarmEntry();audio.resume();
+  if(!inspect||inspectParams.has('radio'))radio.begin();
   setTimeout(()=>requestPointerLock(),300);
   setTimeout(()=>toast(isPassenger?'LOOK AROUND · HOLD R TO POINT · SPACE TO CHEER':'MAKE A WISH AT THE BIRTHDAY CAKE'),1300);
 });
 
 if(CONFIG.fromName) $('.brand small').textContent=CONFIG.fromName;
+if(COIN_MODE)$('.treasure-card').setAttribute('aria-label','Collected coins');
+$('#gift-value').textContent=formatCash(0);
 setMood(CONFIG.startingMood);
 
 
@@ -2613,7 +2668,7 @@ function updateMultiplayer(dt,now){
 if(multiplayerRequested){
   const note=document.createElement('p');note.className='connection-note';$('.welcome-card').append(note);
   network=connectIsland({
-onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;note.textContent=text;$('#enter').disabled=!ready||stage<loadingStages.length;if(!ready){Object.keys(keys).forEach(k=>keys[k]=false);}},
+onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;note.textContent=text;$('#enter').disabled=!ready||!entryReady;if(!ready){Object.keys(keys).forEach(k=>keys[k]=false);}},
     onPose(user,pose){
       if(isPassenger&&user===islandUser){ownPose=pose;ownMotion.push(pose,performance.now());}
       else if(user!==islandUser){remotePose=pose;remoteMotion.push(pose,performance.now());}
@@ -2659,7 +2714,8 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
         if(s.welcome&&remotePose)companion.setNetworkPose(remotePose,0,true);
       }
       remoteWasOnline=!!s.online[other];
-      if(s.world.mood!==currentMood)setMood(s.world.mood);
+      const worldMood=s.world.mood==='sunset'&&!CONFIG.sunset?'night':s.world.mood;
+      if(worldMood!==currentMood)setMood(worldMood);
       for(const i of s.world.gifts)if(gifts[i]){
         const fresh=!s.welcome&&s.event?.type==='gift'&&s.event.index===i&&playing;
         collectGift(gifts[i],{animate:fresh,showNote:fresh&&s.actor===islandUser});
@@ -2688,7 +2744,7 @@ function updatePassenger(dt,now){
   const pose=ownMotion.sample(now);
   if(pose){
     playerRig.position.fromArray(pose.position);
-    cameraPivot.position.y=pose.lying?.35:CONFIG.eyeHeight;
+    cameraPivot.position.y=pose.lying?.35:CONFIG.hisEyeHeight;
     if(pose.lying)playerRig.position.z+=1.70;
     if(pose.lying&&!passengerLying)cameraPivot.rotation.x=1.22;
     if(!pose.lying&&passengerLying)cameraPivot.rotation.x=-.12;
@@ -2713,5 +2769,5 @@ function updatePassenger(dt,now){
 if(isPassenger){
   document.body.classList.add('companion-view');
   $('#controls').innerHTML='<div><b>Mouse</b> look around <i>·</i> <b>Hold R</b> point <i>·</i> <b>Space</b> cheer / jump</div><div><b>/</b> chat <i>·</i> Following MOSHIEE <i>·</i> <b>M</b> sound <i>·</i> <b>Esc</b> release mouse</div>';
-  $('.welcome-card .subtitle').textContent='Right beside her, wherever she goes.';
+  $('.welcome-script').textContent='Right beside her, wherever she goes.';
 }

@@ -233,3 +233,70 @@ body button,body select { border:0!important; }
 #radio-card b { font-weight: 650; letter-spacing: .02em; }
 #radio-card span { opacity: .7; }
 .is-stargazing #radio-card { display: none !important; }
+
+/* Cash counter delight: tiny sparks that burst from the total as it counts up. */
+.cash-spark { position:absolute; z-index:2; border-radius:50%; pointer-events:none; opacity:0; filter:drop-shadow(0 0 3px currentColor); }
+#gift-value { transform-origin:60% 55%; will-change:transform; }
+
+/* -------------------------------------------------------------------------- */
+/* Welcome: a romantic twilight sky, painted in CSS so it shows instantly.     */
+/* -------------------------------------------------------------------------- */
+#welcome { background: linear-gradient(180deg,#0c1330 0%,#161f4a 34%,#262b68 60%,#3b3985 82%,#524a9c 100%); backdrop-filter:none; -webkit-backdrop-filter:none; overflow:hidden; }
+#welcome::after { background: radial-gradient(ellipse at 50% 42%, transparent 35%, rgba(4,6,24,.55)); }
+.welcome-sky { position:absolute; inset:0; pointer-events:none; }
+.welcome-stars { position:absolute; inset:0 0 35% 0; opacity:.85; animation:welcome-twinkle 5s ease-in-out infinite alternate;
+  background-image:
+    radial-gradient(1.4px 1.4px at 8% 14%,#fff 50%,transparent 52%),radial-gradient(1px 1px at 17% 32%,#fff 50%,transparent 52%),
+    radial-gradient(1.6px 1.6px at 26% 9%,#eef0ff 50%,transparent 52%),radial-gradient(1px 1px at 34% 24%,#fff 50%,transparent 52%),
+    radial-gradient(1.2px 1.2px at 43% 6%,#fff 50%,transparent 52%),radial-gradient(1px 1px at 52% 19%,#fff 50%,transparent 52%),
+    radial-gradient(1.5px 1.5px at 63% 11%,#e8e6ff 50%,transparent 52%),radial-gradient(1px 1px at 71% 29%,#fff 50%,transparent 52%),
+    radial-gradient(1.3px 1.3px at 80% 7%,#fff 50%,transparent 52%),radial-gradient(1px 1px at 89% 21%,#fff 50%,transparent 52%),
+    radial-gradient(1.4px 1.4px at 95% 36%,#eef0ff 50%,transparent 52%),radial-gradient(1px 1px at 4% 41%,#fff 50%,transparent 52%); }
+.welcome-stars.far { opacity:.5; animation-delay:-2.5s; transform:scale(1.35) translate(4%,3%); }
+@keyframes welcome-twinkle { from { opacity:.35; } to { opacity:.9; } }
+/* The island's own moon photograph: the middle half of the map is its near side. */
+.welcome-moon { position:absolute; top:11%; right:16%; width:78px; height:78px; border-radius:50%; overflow:hidden;
+  background:url(./assets/moon-lroc.jpg) center/200% 100%, #d9dcef; filter:saturate(.55) brightness(1.4) contrast(.92);
+  box-shadow:0 0 50px 14px rgba(214,222,255,.26),0 0 140px 50px rgba(160,150,255,.12); }
+.welcome-moon::after { content:""; position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle at 36% 34%,rgba(255,255,255,.18),transparent 45%,rgba(20,24,70,.42) 100%); }
+.welcome-clouds { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.welcome-clouds.front { z-index:2; }
+.welcome-cloud { position:absolute; left:0; filter:blur(.6px); will-change:transform; animation:welcome-drift 120s linear infinite; }
+.welcome-clouds.front .welcome-cloud { filter:blur(1.5px); }
+@keyframes welcome-drift { from { transform:translateX(-65vw); } to { transform:translateX(110vw); } }
+/* No z-index on the card: its words sit under the front clouds, the button above. */
+#welcome .welcome-card { z-index:auto; color:#f1f0ff; text-shadow:0 2px 24px rgba(8,10,40,.5); }
+#welcome h1 { text-wrap:balance; font-family:"Fraunces",Georgia,serif; font-style:normal; font-weight:300; font-variation-settings:"opsz" 144; font-size:clamp(38px,6.6vw,68px); letter-spacing:-.02em; line-height:1.05; }
+.welcome-script { margin:16px 0 0; font:700 clamp(22px,3.4vw,32px)/1.25 "Dancing Script","Segoe Script",cursive; color:#c9c4ff; }
+#welcome .subtitle { margin-top:20px; font:400 clamp(15px,1.8vw,18px)/1.5 "Fraunces",Georgia,serif; opacity:.8; }
+/* The countdown sits in the sky behind the clouds: big, soft and faded. */
+.welcome-countdown { position:absolute; left:0; right:0; top:62%; display:grid; gap:10px; justify-items:center; color:#dcdcff; opacity:.3; transition:opacity 1.6s ease; }
+.welcome-countdown small { font:500 11px/1 ui-sans-serif,system-ui; letter-spacing:.42em; text-transform:uppercase; opacity:.8; }
+.welcome-countdown b { font:300 clamp(84px,15vw,190px)/1 "Fraunces",Georgia,serif; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+#welcome #enter { position:relative; z-index:3; margin-top:36px; padding:17px 34px; font:400 18px/1 "Fraunces",Georgia,serif; letter-spacing:.01em; background:#e9e7ff; color:#232a5c; border-radius:999px; box-shadow:0 10px 36px rgba(8,10,44,.4),0 0 0 6px rgba(200,200,255,.08); transition:opacity .9s, transform .9s, background .3s; transform:translateY(8px); }
+#welcome #enter:not(.ready) { visibility:hidden; }
+#welcome #enter.ready { transform:none; }
+#welcome #enter:hover { background:#f6f5ff; }
+#welcome .welcome-loading { margin-top:26px; }
+#welcome .loading { width:140px; height:1px; background:rgba(220,222,255,.18); }
+#welcome .loading span { background:linear-gradient(90deg,#b9b6ff,#e6e8ff); box-shadow:0 0 8px rgba(200,200,255,.7); }
+#welcome #load-copy { font:400 13px/1.4 "Fraunces",Georgia,serif; opacity:.7; letter-spacing:.02em; }
+@media (prefers-reduced-motion: reduce) { .welcome-cloud,.welcome-stars { animation:none; } }
+
+/* The loader stays hidden while the countdown runs; it shows only if loading outlasts it. */
+.welcome-card.counting .welcome-loading { opacity:0; visibility:hidden; }
+#welcome #enter .enter-heart { display:inline-block; margin-left:10px; color:#d35a86; font-size:17px; transform-origin:center; animation:welcome-heartbeat 1.6s ease-in-out infinite; }
+@keyframes welcome-heartbeat { 0%,60%,100% { transform:scale(1); } 15% { transform:scale(1.22); } 30% { transform:scale(1); } 45% { transform:scale(1.14); } }
+@media (prefers-reduced-motion: reduce) { #welcome #enter .enter-heart { animation:none; } }
+
+/* Fixed slot for the countdown and "Come in", which cross-fade in place. */
+.welcome-action { position:relative; height:84px; margin-top:26px; }
+#welcome:not(.fonts-ready) .welcome-countdown,.welcome-countdown.over { opacity:0; }
+#welcome .welcome-action #enter { position:absolute; left:50%; top:50%; margin:0; translate:-50% -50%; }
+/* The words fade in once their fonts are ready. */
+#welcome .welcome-card { opacity:0; transition:opacity 1.2s ease; }
+#welcome.fonts-ready .welcome-card { opacity:1; }
+/* Entering: fade to black, then the island fades in from black. */
+#welcome.gone.instant { transition:none; display:none; } /* Stops its clouds and stars costing anything after entry. */
+#scene-fade { position:fixed; inset:0; z-index:200; background:#02030a; opacity:0; pointer-events:none; transition:opacity 1.4s ease; }
+#scene-fade.dark { opacity:1; transition:opacity .7s ease; }

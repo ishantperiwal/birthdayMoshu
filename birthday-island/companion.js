@@ -1,7 +1,11 @@
 import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=tiara-back-1';
+import { buildCharacter } from './character.js?v=slow-follow-1';
 
+// His original following speed, and a leg rhythm that matches the actual
+// ground speed so strides never look rushed or skate.
+const FOLLOW_SPEED=8.8;
+export const legPace=(speed,running)=>running?Math.max(.6,Math.min(1.1,speed/8.5)):Math.max(.4,Math.min(1.1,speed/5));
 export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false,resolveMove=(x,z,dx,dz)=>({x:x+dx,z:z+dz})}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
   const character=buildCharacter(anchor,female?{}:DATE_OUTFIT);
@@ -10,7 +14,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
   let holding=false,holdReady=false,hasCelebrated=false,waveUntil=0,waveArmed=true;
   const previousPlayer=new THREE.Vector3();
   let hasPreviousPlayer=false;
-  let state='waiting',cheerAge=0,speed=0,time=0,nextGlance=3,glanceUntil=0,glanceYaw=0,fireworkUntil=0;
+  let networkSpeed=0,state='waiting',cheerAge=0,speed=0,time=0,nextGlance=3,glanceUntil=0,glanceYaw=0,fireworkUntil=0;
   const fireworkTarget=new THREE.Vector3(),look=new THREE.Vector3(),giftPosition=new THREE.Vector3();
   const attention={yaw:0,pitch:0,tilt:0,point:false,wave:false,direction:new THREE.Vector3()};
   function ground(x,z){return terrainHeight(x,z)+stageHeight*(1-THREE.MathUtils.smoothstep(Math.hypot(x+8,z+10),stageRadius-.06,stageRadius+.12));}
@@ -45,10 +49,13 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       if(!p)return;
       // Buffered network samples already interpolate on the render timeline.
       const alpha=snap?1:1-Math.exp(-dt*14);
+      const before=anchor.position.clone();
       anchor.position.lerp(new THREE.Vector3(...p.position),alpha);
+      // Poses only say moving/running, so pace the legs by the ground speed seen here.
+      if(dt>0)networkSpeed+=(Math.hypot(anchor.position.x-before.x,anchor.position.z-before.z)/dt-networkSpeed)*(1-Math.exp(-dt*6));
       anchor.rotation.x=p.lying?Math.PI/2:0;
       anchor.rotation.y+=Math.atan2(Math.sin(p.yaw-anchor.rotation.y),Math.cos(p.yaw-anchor.rotation.y))*alpha;
-      character.update(dt,p.moving&&!p.lying,p.running,0,{yaw:0,pitch:p.pitch,tilt:0,point:false,wave:false,direction:new THREE.Vector3(0,0,-1)});
+      character.update(dt,p.moving&&!p.lying,p.running,0,{yaw:0,pitch:p.pitch,tilt:0,point:false,wave:false,direction:new THREE.Vector3(0,0,-1)},legPace(networkSpeed,p.running));
     },
     resumeAutopilot(){if(hasCelebrated)state="following";anchor.rotation.x=0;holding=false;holdReady=false;stoneThrow=null;speed=0;hasPreviousPlayer=false;},
     get bodyScale(){return character.root.scale.x;},setFirstPerson:value=>character.setFirstPerson(value),
@@ -75,7 +82,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       const radialPace=holding&&hasPreviousPlayer&&distance>.001
         ?Math.max(0,((player.x-previousPlayer.x)*dx+(player.z-previousPlayer.z)*dz)/(distance*Math.max(dt,.001))):0;
       const desired=holding?Math.min(10,Math.max(0,radialPace+(distance-spacing)*4))
-        :(distance>3.3501?Math.min(8.8,(distance-spacing)*2.2):0);
+        :(distance>3.3501?Math.min(FOLLOW_SPEED,(distance-spacing)*2.2):0);
       // Once inside the arrival radius, residual easing must not keep tiny
       // steps (and a full walking cycle) alive after he has reached her.
       speed=holding||desired===0?desired:speed+(desired-speed)*(1-Math.exp(-dt*5));
@@ -138,7 +145,8 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     if(manualLook&&!stoneThrow)applyManualLook(dt,manualLook,moving);
     if(expressiveAge<1.8){hop+=Math.abs(Math.sin(expressiveAge/1.8*Math.PI*2))*.35;cheer=Math.max(cheer,THREE.MathUtils.smoothstep(expressiveAge,0,.20)*(1-THREE.MathUtils.smoothstep(expressiveAge,1.5,1.8)));}
     networkMoving=moving;
-    character.update(dt,moving,speed>5.2,cheer,attention);
+    const running=speed>5.2;
+    character.update(dt,moving,running,cheer,attention,legPace(speed,running));
     if(stoneThrow){
       stoneThrow.age+=dt;character.poseThrow(stoneThrow.age);
       if(stoneThrow.age>=.42&&!stoneThrow.released){stoneThrow.released=true;anchor.updateMatrixWorld(true);const origin=character.throwOrigin(new THREE.Vector3());stoneThrow.onRelease(origin,stoneThrow.direction);}

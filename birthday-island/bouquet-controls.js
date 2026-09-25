@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {bouquetState} from './bouquet-motion.js';
-import {clampWalkPitch} from './look-limits.js';
+import {clampWalkPitch} from './look-limits.js?v=down-46';
 
-export function buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,isOnline,isMale,roleUI=false,getNetwork,isPlaying,isBusy,clearKeys,toast}){
+export function buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,hisEyeHeight=1.70,isOnline,isMale,roleUI=false,getNetwork,isPlaying,isBusy,clearKeys,toast}){
   const roleAware=isOnline||roleUI;
   let state='hidden',preview=null,hisView=false,savedCamera=null,age=3,armView=false,hisPitch=-.27;
   const originalScale=avatar.root.scale.clone();
@@ -124,7 +124,7 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
         avatar.setBouquetView(false);avatar.root.visible=true;avatar.root.scale.setScalar(companion.bodyScale);
         companion.setBouquetView(true);
         companion.anchor.updateWorldMatrix(true,false);
-        camera.position.set(0,1.70,-.08);companion.anchor.localToWorld(camera.position);
+        camera.position.set(0,hisEyeHeight,-.08);companion.anchor.localToWorld(camera.position);
         camera.rotation.set(hisPitch,companion.anchor.rotation.y,0,'YXZ');
       }
     }

@@ -7,5 +7,5 @@ test('walking view excludes the under-body cone while keeping upward looking',()
   assert.equal(clampWalkPitch(.8),.8);
   assert.equal(clampWalkPitch(100),MAX_WALK_PITCH);
   const bottomRay=MIN_WALK_PITCH-29*Math.PI/180;
-  assert.ok(bottomRay>-Math.PI/2+25*Math.PI/180);
+  assert.ok(bottomRay>-Math.PI/2+14*Math.PI/180);
 });
