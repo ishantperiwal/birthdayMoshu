@@ -4,13 +4,15 @@ import { buildCharacter } from './character.js?v=slow-follow-1';
 
 // His original following speed, and a leg rhythm that matches the actual
 // ground speed so strides never look rushed or skate.
-const FOLLOW_SPEED=8.8;
+const FOLLOW_SPEED=8.8,HOLD_SPACING=1.05;
 export const legPace=(speed,running)=>running?Math.max(.6,Math.min(1.1,speed/8.5)):Math.max(.4,Math.min(1.1,speed/5));
 export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false,resolveMove=(x,z,dx,dz)=>({x:x+dx,z:z+dz})}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
   const character=buildCharacter(anchor,female?{}:DATE_OUTFIT);
   character.root.scale.setScalar(1.06);
   let stoneThrow=null,expressiveAge=Infinity,networkMoving=false;
+  // holdSide: unit vector from her to him while holding hands (he walks at her right).
+  let holdSide=null;
   let holding=false,holdReady=false,hasCelebrated=false,waveUntil=0,waveArmed=true;
   const previousPlayer=new THREE.Vector3();
   let hasPreviousPlayer=false;
@@ -66,7 +68,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       stoneThrow={age:0,direction:direction.clone(),onRelease,released:false};speed=0;return true;
     },
     get holding(){return holding;},get holdReady(){return holdReady;},
-    toggleHolding(){if(state==='celebrating')return false;holding=!holding;holdReady=false;speed=0;if(!holding)state='following';return holding;},
+    toggleHolding(){if(state==='celebrating')return false;holding=!holding;holdReady=false;speed=0;holdSide=null;if(!holding)state='following';return holding;},
     poseHand:(target,amount,rotation)=>character.poseHand(target,amount,rotation),watchFirework(target){fireworkTarget.copy(target);fireworkUntil=time+3.2;},wearHat:hat=>character.wearHat(hat),celebrate(){holding=false;holdReady=false;if(!hasCelebrated){hasCelebrated=true;state='celebrating';cheerAge=0;}},update(dt,player,gifts=[],heading=0,manualLook=null){
     time+=dt;expressiveAge+=dt;attention.manualPoint=false;
     let dx=player.x-anchor.position.x,dz=player.z-anchor.position.z,distance=Math.hypot(dx,dz),moving=false,hop=0,cheer=0;
@@ -76,9 +78,35 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
       cheer=THREE.MathUtils.smoothstep(cheerAge,0,.22)*(1-THREE.MathUtils.smoothstep(cheerAge,1.8,2.1));
       if(cheerAge>=2.1)state='following';
     }
-    if((state==='following'||holding)&&!stoneThrow){
+    let holdHeading=null;
+    if(holding&&!stoneThrow){
+      // Side by side, not face to face, facing the way the player heads: he
+      // stands at her right, or she (as his companion) at his left, so his
+      // left hand always meets her right hand.
+      if(!holdSide){const d=Math.hypot(dx,dz);holdSide=d>1e-3?{x:-dx/d,z:-dz/d}:{x:1,z:0};}
+      const vx=hasPreviousPlayer?(player.x-previousPlayer.x)/Math.max(dt,.001):0,vz=hasPreviousPlayer?(player.z-previousPlayer.z)/Math.max(dt,.001):0,herSpeed=Math.hypot(vx,vz);
+      if(herSpeed>.4){
+        const side=female?-1:1,k=1-Math.exp(-dt*2),x=holdSide.x+(side*-vz/herSpeed-holdSide.x)*k,z=holdSide.z+(side*vx/herSpeed-holdSide.z)*k,d=Math.hypot(x,z)||1;
+        holdSide={x:x/d,z:z/d};
+      }
+      holdHeading=female?Math.atan2(holdSide.z,-holdSide.x):Math.atan2(-holdSide.z,holdSide.x);
+      const targetX=player.x+holdSide.x*HOLD_SPACING,targetZ=player.z+holdSide.z*HOLD_SPACING;
+      const tx=targetX-anchor.position.x,tz=targetZ-anchor.position.z,gap=Math.hypot(tx,tz);
+      speed=Math.min(10,herSpeed+gap*5);
+      const step=Math.min(speed*dt,gap);
+      if(step>.0005){
+        const next=resolveMove(anchor.position.x,anchor.position.z,tx/gap*step,tz/gap*step,player);
+        if(onIsland(next.x,next.z)){
+          moving=Math.hypot(next.x-anchor.position.x,next.z-anchor.position.z)>.002;
+          anchor.position.x=next.x;anchor.position.z=next.z;
+        }
+      }else speed=0;
+      holdReady=Math.hypot(targetX-anchor.position.x,targetZ-anchor.position.z)<.45;
+    }
+    else if(state==='following'&&!stoneThrow){
       // Held hands shorten the following leash, never attach him to camera yaw.
-      const spacing=holding?1.65:3.1;
+      // Close enough that each arm reaches the clasp comfortably, still clear of bodies.
+      const spacing=holding?HOLD_SPACING:3.1;
       const radialPace=holding&&hasPreviousPlayer&&distance>.001
         ?Math.max(0,((player.x-previousPlayer.x)*dx+(player.z-previousPlayer.z)*dz)/(distance*Math.max(dt,.001))):0;
       const desired=holding?Math.min(10,Math.max(0,radialPace+(distance-spacing)*4))
@@ -105,7 +133,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
           }
         }
       }
-      holdReady=holding&&Math.hypot(player.x-anchor.position.x,player.z-anchor.position.z)<2.05;
+      holdReady=holding&&Math.hypot(player.x-anchor.position.x,player.z-anchor.position.z)<HOLD_SPACING+.4;
     }
     hasPreviousPlayer=true;
     previousPlayer.copy(player);
@@ -128,9 +156,9 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     const lx=look.x-anchor.position.x,lz=look.z-anchor.position.z;
     const lookHeading=Math.atan2(-lx,-lz);
     if((distance<14||state!=='waiting'||holding)&&!(manualLook&&!moving&&!holding)){
-      const target=moving?Math.atan2(-dx,-dz):lookHeading;
+      const target=holdHeading??(moving?Math.atan2(-dx,-dz):lookHeading);
       const delta=Math.atan2(Math.sin(target-anchor.rotation.y),Math.cos(target-anchor.rotation.y));
-      anchor.rotation.y+=delta*(1-Math.exp(-dt*(moving?5:1.5)));
+      anchor.rotation.y+=delta*(1-Math.exp(-dt*(moving||holdHeading!==null?5:1.5)));
     }
     attention.yaw=THREE.MathUtils.clamp(Math.atan2(Math.sin(lookHeading-anchor.rotation.y),Math.cos(lookHeading-anchor.rotation.y)),-.9,.9);
     attention.pitch=THREE.MathUtils.clamp(Math.atan2(look.y-(anchor.position.y+1.65),Math.hypot(lx,lz)),-.38,.72);

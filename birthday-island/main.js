@@ -30,7 +30,7 @@ import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=arms-1';
 import {buildBouquetControls} from './bouquet-controls.js?v=hold-1';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion, legPace } from './companion.js?v=follow-orig';
+import { buildCompanion, legPace } from './companion.js?v=side-by-side-2';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
@@ -1843,17 +1843,23 @@ function canHoldHands(){
 }
 // The clasp belongs to his lowered left hand, not to anyone's view direction.
 // `him` is his body: the companion in her view, his own pose in his view.
-function placeClasp(him){
-  him.updateWorldMatrix(true,false);
-  partnerHand.set(-.38,1.05,-.50);him.localToWorld(partnerHand);
+// The hands meet low between his left shoulder and her right one, a little
+// ahead of him: his arm keeps its natural length and hers reaches the rest.
+function placeClasp(him,her){
+  him.updateWorldMatrix(true,false);her.updateWorldMatrix(true,false);
   claspShoulder.set(-.36*1.06,1.14*1.06,0);him.localToWorld(claspShoulder);
-  claspAxis.subVectors(partnerHand,claspShoulder).normalize();
+  herShoulder.set(.22,1.08,0);her.localToWorld(herShoulder);
+  claspPoint.copy(claspShoulder).lerp(herShoulder,.5);claspPoint.y=Math.min(claspShoulder.y,herShoulder.y)-.42;
+  hisForward.set(0,0,-1).transformDirection(him.matrixWorld);claspPoint.addScaledVector(hisForward,.16);
+  claspAxis.subVectors(claspPoint,claspShoulder).normalize();
   partnerHand.copy(claspShoulder).addScaledVector(claspAxis,(.38+.112+.025)*1.06);
   // Both link planes contain the arm axis, with a quarter turn between them.
   claspRotation.setFromUnitVectors(ringNormal,claspAxis);
   partnerLinkRotation.copy(claspRotation).multiply(partnerLinkTurn);
   playerLinkRotation.copy(claspRotation).multiply(playerLinkTurn);
   joinedHands.copy(partnerHand).addScaledVector(claspAxis,.09);
+  // Her arm runs back from her hand to her own shoulder.
+  herAxis.subVectors(herShoulder,joinedHands).normalize();
 }
 function updateHoldingHands(dt){
   handAmount+=((companion.holding&&companion.holdReady?1:0)-handAmount)*(1-Math.exp(-dt*6));
@@ -1861,22 +1867,24 @@ function updateHoldingHands(dt){
     // He is the local player (ISHIEE preview): build the clasp from his own
     // body; his arm reaches his hand and her model's arm reaches in to hold it.
     claspBody.position.copy(playerRig.position);claspBody.rotation.set(0,avatarHeading,0);
-    placeClasp(claspBody);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
+    placeClasp(claspBody,companion.anchor);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
     firstPersonHand.update(partnerHand,CONFIG.thirdPerson?0:handAmount,partnerLinkRotation,reverseAxis);
     avatar.poseHand(partnerHand,CONFIG.thirdPerson?handAmount:0,partnerLinkRotation);
     companion.poseHand(joinedHands,handAmount,playerLinkRotation);
     handInteraction.prompt=companion.holding?'let go of her hand':'hold hands';
     return;
   }
-  placeClasp(companion.anchor);easeHoldingLook(dt);
+  herBody.position.copy(playerRig.position);herBody.rotation.set(0,avatarHeading,0);
+  placeClasp(companion.anchor,herBody);easeHoldingLook(dt);
   // Seen from his eyes (local His POV), her real arm reaches in; her floating
   // first-person arm belongs to her own camera only.
   const herBodyArm=CONFIG.thirdPerson||bouquetControls.hisView;
-  firstPersonHand.update(joinedHands,herBodyArm?0:handAmount,playerLinkRotation,claspAxis);
+  firstPersonHand.update(joinedHands,herBodyArm?0:handAmount,playerLinkRotation,herAxis);
   avatar.poseHand(joinedHands,herBodyArm?handAmount:0,playerLinkRotation);
   companion.poseHand(partnerHand,handAmount,partnerLinkRotation);
   handInteraction.prompt=companion.holding?'let go of his hand':'hold hands';
 }
+const herShoulder=new THREE.Vector3(),claspPoint=new THREE.Vector3(),hisForward=new THREE.Vector3(),herAxis=new THREE.Vector3(),herBody=new THREE.Object3D();
 let avatarHeading=0;
 const spawnZ=27; // Just before the grassy entrance finishes fading into the trail.
 const spawnX=celebrationPathX(spawnZ);
@@ -2800,7 +2808,7 @@ function updatePassenger(dt,now){
   // The same clasp as in her view, built from his body: his arm reaches his
   // lowered left hand and her arm reaches in to interlock with it.
   if(pose){claspBody.position.fromArray(pose.position);claspBody.rotation.set(0,pose.yaw,0);}
-  placeClasp(claspBody);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
+  placeClasp(claspBody,companion.anchor);reverseAxis.copy(claspAxis).negate();easeHoldingLook(dt);
   firstPersonHand.update(partnerHand,handAmount,partnerLinkRotation,reverseAxis);
   companion.poseHand(joinedHands,handAmount,playerLinkRotation);
   pointBlend+=(Number(passengerPointing&&!passengerLying&&!bouquetControls.shown)-pointBlend)*(1-Math.exp(-dt*10));
