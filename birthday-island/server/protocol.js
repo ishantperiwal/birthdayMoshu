@@ -1,4 +1,5 @@
 import {cleanExpression,EXPRESSION_MS} from '../expressions.js';
+import {reduceCashDash} from '../cash-dash-state.js';
 export const USERS=['ISHIEE','MOSHIEE'];
 export const GRACE_MS=10000;
 export function cleanPose(p){
@@ -9,6 +10,7 @@ export function cleanPose(p){
 }
 export function initialWorld(){return {mood:'night',gifts:[],candles:false,hats:false,holding:false,handRequest:null,bouquet:false,radio:0};}
 export function reduceWorld(world,event,user,now=Date.now()){
+  if(event.type==='cash-start'||event.type==='cash-pickup')return reduceCashDash(world,event,user,now);
   const next={...world};
   if(event.type==='expression'){
     const value=cleanExpression(event.value);

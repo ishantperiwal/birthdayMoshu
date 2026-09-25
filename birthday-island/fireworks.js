@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Analytic paths, reused trail vertices and one shadowless flash light.
-export function buildFireworks(scene,glowTexture,onBurst,onLaunch){
+export function buildFireworks(scene,glowTexture,onBurst,onLaunch,onFinale){
   const active=[],queue=[];
   let time=0,serial=0,flash=0;
   const colors=[0xff91b3,0xffd785,0x91cfff,0xc4a1ff,0x9ce6c0];
@@ -23,16 +23,16 @@ export function buildFireworks(scene,glowTexture,onBurst,onLaunch){
     active.push({origin,points,velocities,trail,age:0,variant});
     flash=1;flashLight.color.copy(tint).lerp(new THREE.Color(0xffe6c8),.55);flashLight.position.copy(flashPosition);onBurst(origin,variant);
   }
-  function rocket(target,variant){
+  function rocket(target,variant,finale=false){
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(36*3),3));geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(36*3),3));
     const mat=new THREE.PointsMaterial({vertexColors:true,size:.27,map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
     const points=new THREE.Points(geo,mat);points.frustumCulled=false;scene.add(points);
-    active.push({rocket:true,points,target,variant,age:0,life:1.55});onLaunch?.(target,variant,1.55);
+    active.push({rocket:true,points,target,variant,finale,age:0,life:1.55});onLaunch?.(target,variant,1.55);
   }
   const dispose=b=>{scene.remove(b.points);b.points.geometry.dispose();b.points.material.dispose();};
   return {
     get flash(){return flash;},
-    launch(player,heading,amount=7){
+    launch(player,heading,amount=7,{finale=false}={}){
       if(queue.length+active.length>16)return;
       amount=THREE.MathUtils.clamp(Math.round(amount),6,7);
       const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
@@ -46,10 +46,12 @@ export function buildFireworks(scene,glowTexture,onBurst,onLaunch){
         // Leave room below the burst for the longest falling embers to fade above the sea.
         target.y=72+Math.random()*19;queue.push({at:time+delay,target,variant:serial++%5});delay+=i===amount-2?.38:.64+Math.random()*.24;
       }
+      // The birthday finale: one gold shell in the middle whose sparks become the sky message.
+      if(finale)queue.push({at:time+delay+1.1,target:player.clone().addScaledVector(forward,112).setY(76),variant:0,finale:true});
     },
     update(dt){
       time+=dt;flash*=Math.exp(-dt*5);flashLight.intensity=flash*70;
-      for(let i=queue.length-1;i>=0;i--)if(queue[i].at<=time){rocket(queue[i].target,queue[i].variant);queue.splice(i,1);}
+      for(let i=queue.length-1;i>=0;i--)if(queue[i].at<=time){rocket(queue[i].target,queue[i].variant,queue[i].finale);queue.splice(i,1);}
       for(let b=active.length-1;b>=0;b--){
         const s=active[b];s.age+=dt;const p=s.points.geometry.attributes.position,c=s.points.geometry.attributes.color;
         if(s.rocket){
@@ -60,7 +62,7 @@ export function buildFireworks(scene,glowTexture,onBurst,onLaunch){
             c.setXYZ(i,reveal*tail*sparkle*2.8,reveal*tail*sparkle*1.85,reveal*tail*sparkle*.85);
           }
           p.needsUpdate=true;c.needsUpdate=true;
-          if(s.age>=s.life){burst(s.target,s.variant);dispose(s);active.splice(b,1);}continue;
+          if(s.age>=s.life){burst(s.target,s.variant);if(s.finale)onFinale?.(s.target.clone());dispose(s);active.splice(b,1);}continue;
         }
         for(let i=0;i<s.velocities.length;i++){
           const v=s.velocities[i];

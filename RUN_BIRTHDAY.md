@@ -29,6 +29,25 @@ in the local preview until pushed.
 You need Python 3 and internet access for Three.js. No npm install, build step,
 or Blender is needed. Open the HTTP link above, not `index.html` directly.
 
+## Local role previews
+
+- Moshi: `http://127.0.0.1:4173/?param=moshie`
+- Ishi: `http://127.0.0.1:4173/?param=ishie`
+
+Click **Come on in** as usual. No invite or server login is needed on localhost.
+The same clean layouts are used online. Local `?user=MOSHIEE` / `?user=ISHIEE`
+also work; an invite fragment or `&online=1` explicitly enables multiplayer.
+Hosted pages still require an invite.
+
+Moshi gets contextual interactions, chat, sound, and cash when the dash starts.
+Ishi gets **Reveal bouquet · B**, **Fireworks · F**, **Next song · N**, and a
+clickable cash-dash control. The day/night selector is hidden in role views.
+His local preview allows walking for inspection; online companion movement is
+unchanged. These local previews are independent, not a shared room. Her local
+dash starts after the candles; his waits for **Start cash dash**.
+The plain local URL retains testing shortcuts and POV switching. Online host
+sky/fireworks controls require the updated Worker to be deployed.
+
 ## Controls
 
 Hold the **right mouse button** to open the gesture wheel. Move toward **Say hi, Happy, Surprised, Sad, Celebrate, or Normal**, then release to perform the highlighted action. Release in the **None** center, or press Escape, to cancel. The camera stays still while choosing. The wheel controls your current character, including the local **V** perspective switch. Arm gestures require free hands; expressions remain available while carrying items. Online wave and celebration events require the updated multiplayer Worker to be deployed.
@@ -87,11 +106,12 @@ click the scene to resume looking around.
 
 Fish occasionally jump offshore near the pebble stand and sunset bench, with a 12–26 second interval per area. Four palettes and sizes from 50–145% share pooled meshes. `FISH_AREAS` in `birthday-island/jumping-fish.js` controls the roaming areas; launch paths are checked against the terrain. Takeoff and landing disturb the ocean's reflection normals and emit a few pooled droplets, without painted ripple planes. Preview with `?inspect&view=fish` or `?inspect&view=benchfish`.
 
-Music and fireworks are fully synthesised in `birthday-island/soundscape.js`
-(no audio files). A soft music-box Happy Birthday loops from the moment you
+The birthday tune and fireworks are synthesised in `birthday-island/soundscape.js`.
+A soft music-box Happy Birthday loops from the moment you
 enter, alternating with a rounder bell verse. After the candles are blown it
-fades out, and once the fireworks settle a very quiet, low, slow song drifts in
-(nothing above A4). Fireworks have a mortar tock and rising whoosh (sometimes a
+fades out over five seconds. Seven seconds after the wish, the campfire radio's
+current song starts fading into a very quiet island-wide backdrop over six seconds.
+Fireworks have a mortar tock and rising whoosh (sometimes a
 whistle), then a delayed boom based on distance, panned to where they burst,
 with a far-shore echo and a small tuned shimmer. Set `musicVolume` in `CONFIG`
 (0 turns the songs off); **M** mutes everything.
@@ -99,9 +119,11 @@ with a far-shore echo and a small tuned shimmer. Set `musicVolume` in `CONFIG`
 ### Campfire radio
 
 The radio by the campfire plays a YouTube playlist of romantic songs, starting
-with Lauv's "Steal The Show". It is full volume beside the fire and fades to
-silence about 17 m away; the island music dips while you are near it. A small
-"On the radio" card shows the song while it is within earshot. Press **E** at
+with Lauv's "Steal The Show". It is full volume beside the fire. Beyond about
+17 m it is silent during the birthday tune, then barely audible at 2/100 volume
+after the wish; this is the same playing song, not a second copy. The island
+birthday music dips while you are near the radio. A small
+"On the radio" card appears only nearby. Press **E** at
 the radio for the next song. Songs crossfade, and one that will not play is
 skipped. Edit `RADIO_PLAYLIST` in `birthday-island/radio-player.js` to change
 the songs.
@@ -117,6 +139,25 @@ song needs the updated multiplayer server deployed.
 
 The stargazing carpet is at `x=-12, z=12`. Use **E** near the carpet or
 `/stargaze` to lie down together; **Q** gets you up.
+
+## Cash dash preview
+
+Wrapped presents are preserved but hidden for a future personal gift exchange.
+Locally, blowing out the candles schedules the cash dash five seconds later,
+then shows a three-second countdown before the 60-second collecting window.
+Walk into the floating cash bundles to collect without pressing E or opening
+notes. Fifty €5 bundles total €250, with close pairs for multiple pickups.
+Pickup feedback combines within 100 ms into one animation and chime; all world
+bundles share one instanced draw call plus one for their white glow outlines.
+The HUD shows only the euro total and, during the round, the remaining time.
+The timer ends
+pickup immediately, hides remaining bundles, and keeps the amount collected.
+Use **Try cash dash again** for another local test.
+
+Online, only Ishi sees **Start cash dash** after the candles; Moshi must be
+connected. Only Moshi collects. The server saves the deadline and collected
+bundle IDs, so reconnecting does not restart the round. This requires deploying
+the updated server and frontend together; these changes are local until then.
 
 ## Stop or restart
 

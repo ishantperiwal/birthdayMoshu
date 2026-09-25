@@ -12,8 +12,9 @@ function geometries(){
   const point=(a,y,r=.075)=>new THREE.Vector3(Math.sin(a)*r,y,Math.cos(a)*r);
   // Filled petal scallops keep the eyelet outline, slightly smaller and
   // tipped away from the arm. Merge the trim into one shared mesh.
-  for(let i=0;i<12;i++){
-    const centre=i*Math.PI/6,outline=new THREE.Shape();
+  const scallopCount=18;
+  for(let i=0;i<scallopCount;i++){
+    const centre=i*Math.PI*2/scallopCount,outline=new THREE.Shape();
     outline.absellipse(0,0,.015,.011,0,Math.PI*2,false);
     const petal=new THREE.ExtrudeGeometry(outline,{depth:.0015,bevelEnabled:true,bevelSize:.0005,bevelThickness:.0005,bevelSegments:1,steps:1,curveSegments:12});
     const vertices=petal.attributes.position;

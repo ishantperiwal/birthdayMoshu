@@ -1,9 +1,11 @@
 import {companionMode} from './control-mode.js?v=companion-1';
+import {resolveSession} from './session-mode.js';
 // Tokens stay in the fragment (never sent in an HTTP URL or Referer).
-export const islandUser=new URLSearchParams(location.search).get('user');
+const session=resolveSession(location);
+export const islandUser=session.user,roleUI=session.roleUI,localRolePreview=session.localRolePreview;
 export const isIshiee=islandUser==='ISHIEE';
-export const isPassenger=isIshiee&&companionMode;
-export const multiplayerRequested=!!islandUser||!['localhost','127.0.0.1'].includes(location.hostname);
+export const isPassenger=isIshiee&&companionMode&&session.online;
+export const multiplayerRequested=session.online;
 export function connectIsland({onSnapshot,onEvent,onPose,onStatus,onLook=()=>{}}){
   const other=isIshiee?'MOSHIEE':'ISHIEE';
   const fragment=new URLSearchParams(location.hash.slice(1));

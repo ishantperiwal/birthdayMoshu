@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-export function buildChatBubbles({scene,camera,getAnchor,onSound}){
+export function buildChatBubbles({scene,camera,getAnchor,onSound,onMessage}){
   const bubbles=new Map(),eye=new THREE.Vector3();
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   function show(user,text,{emoji=false,duration=5500}={}){
+    onMessage?.(user,text);
     const anchor=getAnchor(user);if(!anchor)return;
     let b=bubbles.get(user);
     if(!b){

@@ -10,7 +10,7 @@ test('entry changes pose only under full black and reveals it afterward',async()
   const blackout={animate(frames,options){let resolve;const animation={frames,options,finished:new Promise(r=>resolve=r),cancel(){},resolve:()=>resolve()};animations.push(animation);return animation;}};
   const enterSource=source.slice(source.indexOf('  async function enter(site)'),source.indexOf('  function settle(site)'));
   const enter=runInNewContext(`(()=>{let active=false,entering=false,leaving=false,transitionId=0,fadeAnimation=null;${enterSource}return enter;})()`,
-    {companion:{throwing:false},keys:{},ui:{},lock(){},blackout,settle:site=>events.push(site)});
+    {companion:{throwing:false},keys:{},ui:{},lock(){},blackout,settle:site=>events.push(site),canStart:()=>true,onBlocked(){}});
   const pending=enter('blanket');assert.equal(events.length,0);
   assert.equal(animations[0].frames[1].opacity,1);
   animations[0].resolve();await new Promise(resolve=>setImmediate(resolve));
@@ -123,4 +123,13 @@ test('new local or shared ink postpones fading of the remaining phrase',()=>{
   f.mouse('mousedown',100,100);f.mouse('mousemove',400,100);f.mouse('mouseup');
   assert.equal(f.env.eraseTime.value,-100);f.api.update(8);
   assert.equal(f.env.geo.count,6);
+});
+test('stargazing refuses to start until the celebration allows it',async()=>{
+  const animations=[];let blocked=0;
+  const blackout={animate(frames){const animation={frames,finished:new Promise(()=>{}),cancel(){}};animations.push(animation);return animation;}};
+  const enterSource=source.slice(source.indexOf('  async function enter(site)'),source.indexOf('  function settle(site)'));
+  const enter=runInNewContext(`(()=>{let active=false,entering=false,leaving=false,transitionId=0,fadeAnimation=null;${enterSource}return enter;})()`,
+    {companion:{throwing:false},keys:{},ui:{},lock(){},blackout,settle(){},canStart:()=>false,onBlocked(){blocked++;}});
+  await enter('blanket');
+  assert.equal(blocked,1);assert.equal(animations.length,0);
 });

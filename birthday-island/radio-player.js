@@ -1,4 +1,4 @@
-// The campfire radio: a YouTube playlist heard only near the fireside.
+// The campfire radio: a YouTube playlist with an optional quiet island bed.
 // Two embedded players take turns so every song change can crossfade, and a
 // small visible card shows what is playing while you are close enough to hear.
 
@@ -100,14 +100,17 @@ export function createRadio({playlist=RADIO_PLAYLIST,requestNext,onProblem=()=>{
   // Browsers that held back playback get another try on the next click.
   function resume(){const deck=decks[active];if(started&&deck.index>=0&&deck.target>0)deck.player.playVideo?.();}
 
-  function update(dt,near){
+  function update(dt,near,background=0){
     proximity=near;card.classList.toggle('near',started&&index!==null&&near>.03);
     if(!started)return;
     for(const deck of decks){
       if(deck.index<0)continue;
       deck.mix+=Math.max(-dt/FADE_SECONDS,Math.min(dt/FADE_SECONDS,deck.target-deck.mix));
       if(deck.target===0&&deck.mix<=0&&!deck.paused){deck.paused=true;deck.player.pauseVideo();}
-      const volume=Math.round(MAX_VOLUME*proximity*deck.mix);
+      // The distant bed uses this same playing deck. Only proximity reveals
+      // the radio card; hearing it faintly elsewhere should not open UI.
+      const level=proximity+(1-proximity)*Math.max(0,Math.min(1,background));
+      const volume=Math.round(MAX_VOLUME*level*deck.mix);
       if(volume!==deck.volume){deck.volume=volume;deck.player.setVolume(volume);}
     }
     // Begin the next song a few seconds early so the change is a crossfade.

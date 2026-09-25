@@ -140,12 +140,15 @@ export function createSoundscape(ctx,out,{musicLevel=1}={}){
   },220);
 
   function setMusic(name,{delay=.4,fade=2.8}={}){
-    if(current?.name===name||!songs[name])return;
+    if(current?.name===name||(!songs[name]&&name!=='radio'))return;
     const now=ctx.currentTime;
     if(current){
       const old=current.bus;old.gain.cancelScheduledValues(now);old.gain.setValueAtTime(old.gain.value,now);old.gain.linearRampToValueAtTime(0,now+fade);
       setTimeout(()=>old.disconnect(),(fade+LOOKAHEAD+8)*1000);
     }
+    // Let the real radio take over without layering another synthesized song.
+    current=null;
+    if(name==='radio')return;
     const bus=ctx.createGain(),send=ctx.createGain(),level=levels[name]*musicLevel;
     bus.gain.setValueAtTime(0,now);bus.gain.setValueAtTime(0,now+delay);bus.gain.linearRampToValueAtTime(level,now+delay+fade);
     send.gain.value=.5;bus.connect(musicOut);bus.connect(send).connect(reverb);
@@ -190,5 +193,19 @@ export function createSoundscape(ctx,out,{musicLevel=1}={}){
     for(let i=0;i<3;i++){const g=gain(shimmer),at=t+.12+i*.07;env(g,at,.011*a,.008,1.6);osc('sine',midi(SPARKLE[first+i]),at,at+1.7,g);}
   }
 
-  return {setMusic,duck,launch,burst,get music(){return current?.name||null;}};
+  /* Cash pickup ------------------------------------------------------------ */
+
+  // A soft paper flick, a rising bell arpeggio, then a bright two-note ding as
+  // the bundle lands in the card. Each package lands a step higher.
+  const COLLECT_STEPS=[0,2,4,5,7,9,11,12,14,16];
+  function collect(count=1,{land=.68}={}){
+    const t=ctx.currentTime+.01,o=fxOut(0,.45),lift=COLLECT_STEPS[Math.max(0,count-1)%COLLECT_STEPS.length];
+    o.gain.value=2.6;
+    const band=ctx.createBiquadFilter();band.type='bandpass';band.Q.value=1.6;band.frequency.setValueAtTime(1100,t);band.frequency.exponentialRampToValueAtTime(3800,t+.16);band.connect(o);
+    const flick=gain(band);env(flick,t,.08,.006,.15);noiseSource(t,.2,flick);
+    [0,4,7,12].forEach((step,i)=>bell(o,67+lift+step,t+.03+i*.065,.5+i*.1,1.3));
+    musicBox(o,79+lift,t+land,.95,1.5);musicBox(o,84+lift,t+land+.08,.8,2);
+  }
+
+  return {setMusic,duck,launch,burst,collect,get music(){return current?.name||null;}};
 }

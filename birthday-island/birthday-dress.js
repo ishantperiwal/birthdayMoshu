@@ -6,6 +6,19 @@ import {dressTextures} from './dress-textures.js';
 export const BIRTHDAY_ROSE=0xd991ac;
 export const BIRTHDAY_SKIN=0xffcfae;
 
+// UVs need duplicate vertices at the back join, but lighting must be continuous.
+function smoothSkirtJoin(geometry){
+  const wrap=geometry.userData.skirtWrap;if(!wrap)return;
+  const normals=geometry.attributes.normal;
+  for(let row=0;row<=wrap.rows;row++){
+    const first=row*(wrap.columns+1),last=first+wrap.columns;
+    const x=normals.getX(first)+normals.getX(last),y=normals.getY(first)+normals.getY(last),z=normals.getZ(first)+normals.getZ(last);
+    const length=Math.hypot(x,y,z)||1;
+    normals.setXYZ(first,x/length,y/length,z/length);normals.setXYZ(last,x/length,y/length,z/length);
+  }
+  normals.needsUpdate=true;
+}
+
 // Occasion details use the existing body rig, including the first-person pose.
 export function dressBirthday(root,arms,legs,cloth,stargazing=false){
   const waistY=stargazing?.80:BIRTHDAY_WAIST_Y;
@@ -28,8 +41,10 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
     const s=Math.sin(a),c=Math.cos(a),roundness=1-.4*t;
     const flare=1-(1-t)**1.2;
     if(!stargazing){
-      // Molded bell silhouette: circular, gently widening, with a level hem.
-      const radius=BIRTHDAY_WAIST_RADIUS+(.470-BIRTHDAY_WAIST_RADIUS)*(1-(1-t)**1.7)+.002*t*t*Math.cos(12*a+.25)+offset;
+      // Shallow, gently curving folds grow out of the fitted waist. Both
+      // skirt tiers and their embroidery share this continuous surface.
+      const folds=.013*t**1.35*(.8*Math.cos(10*a+.35*Math.sin(Math.PI*t))+.2*Math.cos(5*a-.4));
+      const radius=BIRTHDAY_WAIST_RADIUS+(.470-BIRTHDAY_WAIST_RADIUS)*(1-(1-t)**1.7)+folds+offset;
       return new THREE.Vector3(s*radius,waistY-.34*t,-c*radius);
     }
     return new THREE.Vector3(Math.sign(s)*Math.abs(s)**roundness*(.219+.185*flare+pleat+offset),
@@ -39,8 +54,8 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
   function skirtSection(from,to,material,offset=0){
     const positions=[],indices=[],uvs=[],segments=80,rings=12;
     for(let j=0;j<=rings;j++)for(let i=0;i<=segments;i++){
-      positions.push(...skirtPoint(THREE.MathUtils.lerp(from,to,j/rings),i/segments*Math.PI*2,offset).toArray());
-      uvs.push(i/segments,1-j/rings);
+      positions.push(...skirtPoint(THREE.MathUtils.lerp(from,to,j/rings),(i/segments+.5)*Math.PI*2,offset).toArray());
+      uvs.push(i/segments+.5,1-j/rings);
     }
     for(let j=0;j<rings;j++)for(let i=0;i<segments;i++){
       const a=j*(segments+1)+i,b=a+segments+1;indices.push(a,a+1,b,a+1,b+1,b);
@@ -48,6 +63,7 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
     geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
     geometry.setIndex(indices);geometry.computeVertexNormals();
+    geometry.userData.skirtWrap={columns:segments,rows:rings};smoothSkirtJoin(geometry);
     material.side=THREE.DoubleSide;
     return add(geometry,material,0,0,0,root,'softly pleated birthday skirt');
   }
@@ -65,10 +81,10 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
   const overlayPositions=[],overlayIndices=[],overlayUvs=[],overlayColumns=96,overlayRows=14;
   const overlayHem=[];
   for(let j=0;j<=overlayRows;j++)for(let i=0;i<=overlayColumns;i++){
-    const a=i/overlayColumns*Math.PI*2;
+    const a=(i/overlayColumns+.5)*Math.PI*2;
     const t=j/overlayRows*(stargazing?.64:.92),p=skirtPoint(t,a,stargazing?.005:.014);
     p.y=waistY-.34*t;overlayPositions.push(...p.toArray());
-    overlayUvs.push(i/overlayColumns,1-j/overlayRows);
+    overlayUvs.push(i/overlayColumns+.5,1-j/overlayRows);
     if(j===overlayRows&&i<overlayColumns)overlayHem.push(p);
   }
   for(let j=0;j<overlayRows;j++)for(let i=0;i<overlayColumns;i++){
@@ -77,6 +93,7 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
   const overlayGeometry=new THREE.BufferGeometry();overlayGeometry.setAttribute('position',new THREE.Float32BufferAttribute(overlayPositions,3));
   overlayGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(overlayUvs,2));
   overlayGeometry.setIndex(overlayIndices);overlayGeometry.computeVertexNormals();
+  overlayGeometry.userData.skirtWrap={columns:overlayColumns,rows:overlayRows};smoothSkirtJoin(overlayGeometry);
   const overlayMaterial=make(0xe3a1b8,.72);overlayMaterial.side=THREE.DoubleSide;
   if(textures){overlayMaterial.color.setHex(0xffffff);overlayMaterial.map=textures.embroidery;overlayMaterial.bumpMap=textures.weave;overlayMaterial.bumpScale=.0007;}
   add(overlayGeometry,overlayMaterial,0,0,0,root,'continuous upper skirt tier');
@@ -199,7 +216,7 @@ export function dressBirthday(root,arms,legs,cloth,stargazing=false){
     skirt.forEach((part,index)=>{
       const positions=part.geometry.attributes.position,original=originals[index];
       for(let i=0;i<positions.count;i++)positions.setY(i,waistY+(original[i*3+1]-waistY)*stretch);
-      positions.needsUpdate=true;part.geometry.computeVertexNormals();part.geometry.computeBoundingSphere();
+      positions.needsUpdate=true;part.geometry.computeVertexNormals();smoothSkirtJoin(part.geometry);part.geometry.computeBoundingSphere();
     });
     flowers.forEach((part,index)=>{part.position.y+=(waistY+(flowerYs[index]-waistY)*stretch)-(part.userData.skirtY??flowerYs[index]);part.userData.skirtY=waistY+(flowerYs[index]-waistY)*stretch;});
   }

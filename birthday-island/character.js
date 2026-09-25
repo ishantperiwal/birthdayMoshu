@@ -1,18 +1,18 @@
-import {dressDateSuit} from './date-suit.js?v=5';
-import {dressBirthday,BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=corsage-bell-10';
+import {dressDateSuit} from './date-suit.js?v=8';
+import {dressBirthday,BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=back-seam-12';
 import { legoHairMesh } from './assets/lego-hair.js?v=1';
 import { roundedSleeve } from './rounded-sleeve.js';
 import { roundedToyBox } from './rounded-toy-box.js';
 import {birthdayBodice,birthdayNecklineSkin} from './dress-bodice.js?v=sweetheart-2';
 import {dressTextures} from './dress-textures.js';
-import {softHeadGeometry,softFaceGeometry} from './soft-head.js?v=2';
+import {softHeadGeometry,softFaceGeometry} from './soft-head.js?v=taper-12-4';
 import { buildHandPose } from './hand-pose.js?v=puff-10';
-import {addPuffSleeve} from './puff-sleeve.js?v=filled-2';
+import {addPuffSleeve} from './puff-sleeve.js?v=closer-lace-3';
 import {buildBouquetGesture} from './bouquet.js?v=holder-spread-6';
 import { hairMesh } from './assets/reference-hair-relaxed.js?v=1';
 import * as THREE from 'three';
 import {legoHandGeometry} from './lego-hand.js';
-import {addFaceBlink} from './face-blink.js?v=timed-3';
+import {addFaceBlink} from './face-blink.js?v=kiss-4';
 import {addBirthdayTiara} from './birthday-tiara.js';
 import {addBirthdayChoker} from './birthday-choker.js?v=chain-2';
 import {createSkirtMotion} from './skirt-motion.js?v=visible-follow-2';
@@ -51,9 +51,10 @@ export function buildCharacter(parent,options={}){
   // Preserve the original jumper collar for the other outfit.
   if(!options.suit&&!birthday)for(const x of [-.09,.09]){const collar=box(.16,.07,.025,cream,x,1.16,-.19);collar.rotation.z=x<0?-.25:.25;}
   const puffSleeves=birthday&&!stargazingFit;
-  const shoulderWidth=puffSleeves?.263:.36;
+  const shoulderWidth=puffSleeves?.248:.36;
+  const armRestTilt=puffSleeves?.26:.12;
   const arms=[];for(const side of [-1,1]){
-    const arm=new THREE.Group();arm.position.set(side*shoulderWidth,1.14,0);arm.rotation.z=side*.12;root.add(arm);arms.push(arm);
+    const arm=new THREE.Group();arm.position.set(side*shoulderWidth,1.14,0);arm.rotation.z=side*armRestTilt;root.add(arm);arms.push(arm);
     // Extend the suit arm from the shoulder, preserving the cuff-to-hand fit.
     if(puffSleeves){
       add(roundedSleeve(.067,.063,.38,.018,.033),skin,0,-.15,0,arm);
@@ -125,7 +126,7 @@ export function buildCharacter(parent,options={}){
   hairShape.setAttribute('normal',new THREE.Float32BufferAttribute(hairMesh.normals,3));
   hairShape.setIndex(hairMesh.indices);
   // Slightly lengthen the hair around the head center, then lower its fit.
-  hairShape.translate(0,-1.49,0);hairShape.scale(1,1.05,1);hairShape.translate(0,1.455,0);
+  hairShape.translate(0,-1.49,0);hairShape.scale(1,1.05,1);hairShape.translate(0,1.440,0);
   hair.color.setHex(0x302117);hair.emissive.setHex(0x302117);
   hair.emissiveIntensity=.025;hair.roughness=.48;
   add(hairShape,hair,0,0,0);
@@ -219,7 +220,7 @@ export function buildCharacter(parent,options={}){
     setBouquet(value,snap=false){bouquet?.set(value,snap);},
     updateBouquet(dt,suppressed=false){bouquet?.update(dt,suppressed);if(bouquet?.active&&!suppressed&&!options.shortHair)handPose.root.visible=false;},
     setBouquetView(value){
-      if(value){bouquetView??=new Map(root.children.map(o=>[o,o.visible]));for(const child of root.children)child.visible=child===arms[1];}
+        if(value){bouquetView??=new Map(root.children.map(o=>[o,o.visible]));for(const child of root.children)child.visible=child===arms[1]&&!!bouquet?.active;}
       else if(!value&&bouquetView){for(const [child,visible] of bouquetView)child.visible=visible;bouquetView=null;}
     },
     poseThrow(age){
@@ -241,7 +242,7 @@ export function buildCharacter(parent,options={}){
     handPose.root.visible=useHoldingModel;
     arms[heldArm].visible=!useHoldingModel;
     if(amount>.001&&!useHoldingModel)arms[heldArm].quaternion.setFromUnitVectors(down,handPose.aim);
-  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);hat.scale.setScalar(1.3);},update(dt,moving,running,cheer=0,attention=null){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*(.12+cheer*.25);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
+  },wearHat(hat){head.add(hat);hat.position.set(0,(options.shortHair?1.805:1.82)-1.28,0);hat.rotation.set(0,0,-.08);hat.scale.setScalar(1.3);},update(dt,moving,running,cheer=0,attention=null){blend=THREE.MathUtils.lerp(blend,moving?1:0,1-Math.exp(-dt*12));stride+=dt*(running?13:9);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(stride+i*Math.PI)*(birthday?.30:.55)*blend);arms.forEach((arm,i)=>{arm.rotation.x=-Math.sin(stride+i*Math.PI)*.45*blend*(1-cheer)+cheer*2.45;arm.rotation.y=0;arm.rotation.z=(i===0?-1:1)*THREE.MathUtils.lerp(armRestTilt,.37,cheer);});root.position.y=Math.abs(Math.sin(stride))*.035*blend;
     waveBlend+=((attention?.wave&&cheer<.1?1:0)-waveBlend)*(1-Math.exp(-dt*7));
     if(waveBlend>.001&&cheer<.1){
       arms[1].rotation.x=THREE.MathUtils.lerp(arms[1].rotation.x,-.35,waveBlend);

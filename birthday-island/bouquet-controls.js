@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import {bouquetState} from './bouquet-motion.js';
+import {clampWalkPitch} from './look-limits.js';
 
-export function buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,isOnline,isMale,getNetwork,isPlaying,isBusy,clearKeys,toast}){
+export function buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,isOnline,isMale,roleUI=false,getNetwork,isPlaying,isBusy,clearKeys,toast}){
+  const roleAware=isOnline||roleUI;
   let state='hidden',preview=null,hisView=false,savedCamera=null,age=3,armView=false,hisPitch=-.27;
   const originalScale=avatar.root.scale.clone();
   const panel=document.createElement('div');panel.id='bouquet-controls';
@@ -13,7 +15,7 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
   const putAway=button('Put away',()=>state==='received'?storeFlowers():request(false));
   const end=button('End preview',()=>endPreview());
   document.body.append(panel);
-  if(isOnline){pov.hidden=true;end.hidden=true;}
+  if(roleAware){pov.hidden=true;end.hidden=true;}
   function apply(value,snap=false){
     const next=bouquetState(value);if(next!==state)age=0;
     state=next;if(snap)age=3;
@@ -21,7 +23,7 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
   }
   function nearPartner(){return playerRig.position.distanceTo(companion.anchor.position)<=3.7&&(!isOnline||getNetwork()?.remoteLive);}
   function receiveFlowers(){
-    if(!isPlaying()||isBusy()||state!=='offered'||age<.85||!nearPartner()||(isOnline&&isMale))return;
+    if(!isPlaying()||isBusy()||state!=='offered'||age<.85||!nearPartner()||(roleAware&&isMale))return;
     if(isOnline){getNetwork()?.event({type:'receive-bouquet'});return;}
     if(companion.holding)companion.toggleHolding();
     apply('received');
@@ -29,12 +31,12 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
     toast('FLOWERS FOR YOU · CLICK THE WORLD TO WALK · PUT AWAY WHEN READY');
   }
   function storeFlowers(){
-    if(!isPlaying()||isBusy()||state!=='received'||age<1.05||(isOnline&&isMale))return;
+    if(!isPlaying()||isBusy()||state!=='received'||age<1.05||(roleAware&&isMale))return;
     if(isOnline){getNetwork()?.event({type:'put-away-bouquet'});return;}
     apply('stored');toast('FLOWERS SAFELY TUCKED AWAY');
   }
   function beginPreview(){
-    if(preview||isOnline)return;
+    if(preview||roleAware)return;
     if(companion.holding)companion.toggleHolding();
     preview={position:companion.anchor.position.clone(),rotation:companion.anchor.rotation.clone(),visible:armView?false:avatar.root.visible,scale:armView?originalScale.clone():avatar.root.scale.clone()};
     const front=new THREE.Vector3(0,0,-2.5).applyAxisAngle(new THREE.Vector3(0,1,0),playerRig.rotation.y);
@@ -49,13 +51,15 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
       const net=getNetwork();if(!isMale||!net?.connected||state==='received')return;
       net.event({type:'bouquet',shown:value});return;
     }
+    if(roleUI&&(!isMale||state==='received'))return;
+    if(roleUI){apply(value);return;}
     beginPreview();
     // Replay the surprise from either camera without needing to reload.
     if(value)apply(false,true);
     apply(value);toast(value?'A LITTLE SOMETHING FOR YOU':'FLOWERS TUCKED AWAY');
   }
   function switchView(){
-    if(isOnline||!isPlaying()||isBusy())return;
+    if(roleAware||!isPlaying()||isBusy())return;
     beginPreview();hisView=!hisView;
     if(hisView){
       savedCamera={parent:camera.parent,position:camera.position.clone(),quaternion:camera.quaternion.clone()};
@@ -82,15 +86,15 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
     apply(false,true);preview=null;hisView=false;pov.textContent='His POV · V';clearKeys();
   }
   return {
-    look(dx,dy){if(hisView){companion.anchor.rotation.y-=dx*.0022;hisPitch=THREE.MathUtils.clamp(hisPitch-dy*.0018,-Math.PI/2+.02,Math.PI/2-.02);}},
+    look(dx,dy){if(hisView){companion.anchor.rotation.y-=dx*.0022;hisPitch=clampWalkPitch(hisPitch-dy*.0018);}},
     get previewing(){return !!preview;},get hisView(){return hisView;},get shown(){return isMale?state==='offered':state==='received';},
     get received(){return state==='received';},
     sync(value,snap=false){apply(value,snap);},
     keyDown(e){
       if(e.repeat)return false;
-      if(e.code==='KeyB'&&(!isOnline||isMale)){e.preventDefault();request(isOnline?state!=='offered':true);return true;}
-      if(e.code==='KeyR'&&(!isOnline||!isMale)&&state==='offered'){e.preventDefault();receiveFlowers();return true;}
-      if(e.code==='KeyV'&&!isOnline){e.preventDefault();switchView();return true;}
+      if(e.code==='KeyB'&&(!roleAware||isMale)){e.preventDefault();request(roleAware?state!=='offered':true);return true;}
+      if(e.code==='KeyR'&&(!roleAware||!isMale)&&state==='offered'){e.preventDefault();receiveFlowers();return true;}
+      if(e.code==='KeyV'&&!roleAware){e.preventDefault();switchView();return true;}
       if(e.code==='Escape'&&preview){
         if(state==='received'||state==='stored')resumeWalking();else endPreview();
         return true;
@@ -100,17 +104,17 @@ export function buildBouquetControls({scene,camera,playerRig,avatar,companion,te
     update(dt){
       age+=dt;
       const busy=isBusy(),connected=!isOnline||getNetwork()?.connected;
-      panel.style.display=isPlaying()&&(!isOnline||isMale||state==='offered'||state==='received')?'flex':'none';
+      panel.style.display=isPlaying()&&(!roleAware||isMale||state==='offered'||state==='received')?'flex':'none';
       reveal.disabled=pov.disabled=putAway.disabled=busy;
-      reveal.hidden=isOnline&&!isMale;
-      reveal.disabled=busy||!connected||(isOnline&&state==='received');
-      reveal.textContent=isOnline&&state==='offered'?'Put away · B':!isOnline&&state!=='hidden'?'Replay bouquet · B':'Reveal bouquet · B';
-      receive.hidden=state!=='offered'||(isOnline&&isMale);
+      reveal.hidden=roleAware&&!isMale;
+      reveal.disabled=busy||!connected||(roleAware&&state==='received');
+      reveal.textContent=roleAware&&state==='offered'?'Put away · B':!roleAware&&state!=='hidden'?'Replay bouquet · B':'Reveal bouquet · B';
+      receive.hidden=state!=='offered'||(roleAware&&isMale);
       receive.disabled=busy||!connected||age<.85||!nearPartner();
       receive.textContent=nearPartner()?'Receive bouquet · R':'Move closer to receive';
-      putAway.hidden=!(state==='received'&&(!isOnline||!isMale)||state==='offered'&&!isOnline);
+      putAway.hidden=!(state==='received'&&(!roleAware||!isMale)||state==='offered'&&!roleAware);
       putAway.disabled=busy||!connected||(state==='received'&&age<1.05);
-      end.hidden=isOnline||!preview;
+      end.hidden=roleAware||!preview;
       // Only the holding arm is visible in first person, never a floating body.
       const active=avatar.bouquetActive&&!busy&&!hisView;
       if(active){avatar.root.scale.setScalar(companion.bodyScale);avatar.setBouquetView(true);avatar.root.visible=true;armView=true;}

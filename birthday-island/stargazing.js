@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export const STARGAZING_SPOTS=[{x:-12,z:12}];
 
-export function buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode=false,male=false,canMovePartner=()=>true,onInk=()=>{},onLeave=()=>{}}){
+export function buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode=false,male=false,canMovePartner=()=>true,canStart=()=>true,onBlocked=()=>{},onInk=()=>{},onLeave=()=>{}}){
   const sites=[];
   // Woven fabric follows the terrain; the surrounding meadow keeps its own colour.
   const fabric=document.createElement('canvas');fabric.width=fabric.height=512;
@@ -119,6 +119,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
   function lock(){ui.requestPointerLock?.()?.catch(()=>{});}
   async function enter(site){
     if(active||entering||leaving||companion.throwing)return;
+    if(!canStart()){onBlocked();return;}
     entering=true;const id=++transitionId;
     Object.keys(keys).forEach(k=>keys[k]=false);
     ui.hidden=false;lock();
@@ -206,7 +207,7 @@ export function buildStargazing({scene,camera,playerRig,avatar,companion,terrain
     if(document.pointerLockElement===ui){hasGazeLock=true;return;}
     if(hasGazeLock){hasGazeLock=false;finish();if((active||entering)&&!drawMode&&!document.body.classList.contains('is-scene-context'))leave();}
   });
-  for(const site of sites)interactive.push({object:site.spot,reach:4.5,prompt:'lie down together · stargaze',action:()=>enter(site)});
+  for(const site of sites)interactive.push({object:site.spot,reach:4.5,get prompt(){return canStart()?'lie down together · stargaze':'stargazing opens after the cake and the cash dash';},action:()=>enter(site)});
   ink.visible=false;
   return {receiveInk(points){
     if(count+2>max)return;

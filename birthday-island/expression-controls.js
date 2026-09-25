@@ -1,4 +1,4 @@
-import {EXPRESSIONS,cleanExpression,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=timed-3';
+import {EXPRESSIONS,cleanExpression,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=kiss-4';
 
 export function buildExpressionControls({container,isOnline=false,user='ISHIEE',onSelect,onPreviewMessage,now=Date.now}){
   const panel=document.createElement('section');panel.id='expression-panel';panel.setAttribute('aria-label','Facial expressions');

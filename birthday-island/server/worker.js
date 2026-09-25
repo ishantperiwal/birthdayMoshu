@@ -1,6 +1,7 @@
 import {companionMode,ISHIEE_CONTROL_MODE,canControlWorld} from '../control-mode.js';
 import {DurableObject} from 'cloudflare:workers';
 import {USERS,GRACE_MS,cleanChat,cleanPose,cleanLook,initialWorld,reduceWorld} from './protocol.js';
+import {CASH_SITES} from '../cash-dash-state.js';
 
 async function matches(a,b){
   if(!a||!b)return false;
@@ -131,7 +132,19 @@ export class IslandRoom extends DurableObject {
         if(text&&now-(a.lastChat||0)>=1200){a.lastChat=now;this.broadcast({type:'event',actor:a.user,event:{type:'chat',text}});}
         ws.serializeAttachment(a);return;
       }
-      if(!canControlWorld(a.user)){
+      // Ishi controls the start even in companion mode; only Moshi collects.
+      if(e.type==='cash-start'||e.type==='cash-pickup'){
+        if(e.type==='cash-start'&&!this.live('MOSHIEE'))return;
+        if(e.type==='cash-pickup'){
+          const site=CASH_SITES[e.index],pose=this.data.poses.MOSHIEE;
+          if(!site||!pose||pose.lying||now-a.lastPose>1500||Math.hypot(pose.position[0]-site.x,pose.position[2]-site.z)>5)return;
+        }
+        const next=reduceWorld(this.data.world,e,a.user,now);
+        if(next){this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:{type:e.type,...(e.type==='cash-pickup'?{index:e.index}:{})},actor:a.user});}
+        ws.serializeAttachment(a);return;
+      }
+      // Host orchestration remains available while Ishi follows Moshi.
+      if(!canControlWorld(a.user)&&!(a.user==='ISHIEE'&&['mood','fireworks'].includes(e.type))){
         if(e.type==='cheer'&&this.live('MOSHIEE')&&now-(a.lastCheer||0)>=2000){a.lastCheer=now;this.broadcast({type:'event',actor:a.user,event:{type:'cheer'}});}
         ws.serializeAttachment(a);return;
       }
@@ -141,7 +154,7 @@ export class IslandRoom extends DurableObject {
       }
       const next=reduceWorld(this.data.world,e,a.user);
       if(next){this.data.world=next;this.save();this.broadcast({...this.snapshot(),event:e,actor:a.user});}
-      else if(e.type==='fireworks'){this.data.world.mood='night';this.save();this.broadcast(this.snapshot());this.broadcast({type:'event',actor:a.user,event:{type:'fireworks',pose:a.pose,amount:Math.max(1,Math.min(12,Number(e.amount)||6))}});}
+      else if(e.type==='fireworks'){const pose=this.data.poses[a.user]||a.pose;if(!pose)return;this.data.world.mood='night';this.save();this.broadcast(this.snapshot());this.broadcast({type:'event',actor:a.user,event:{type:'fireworks',pose,amount:Math.max(1,Math.min(12,Number(e.amount)||6))}});}
       else if(e.type==='ink'&&Array.isArray(e.points)&&e.points.length===6&&e.points.every(v=>Number.isFinite(v)&&Math.abs(v)<500))this.broadcast({type:'event',actor:a.user,event:{type:'ink',points:e.points}},ws);
       else if(e.type==='stone'&&Number.isFinite(e.power)&&e.power>=0&&e.power<=1&&Array.isArray(e.origin)&&Array.isArray(e.direction)&&e.origin.length===3&&e.direction.length===3&&[...e.origin,...e.direction].every(v=>Number.isFinite(v)&&Math.abs(v)<200))this.broadcast({type:'event',actor:a.user,event:{type:'stone',power:e.power,origin:e.origin,direction:e.direction}},ws);
     }

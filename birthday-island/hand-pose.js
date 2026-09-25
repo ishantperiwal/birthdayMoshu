@@ -1,5 +1,5 @@
 import { roundedSleeve } from './rounded-sleeve.js';
-import {addPuffSleeve} from './puff-sleeve.js?v=filled-2';
+import {addPuffSleeve} from './puff-sleeve.js?v=closer-lace-3';
 import * as THREE from 'three';
 
 // Straight sleeve, short wrist and circular toy hand; no per-frame geometry.

@@ -1,32 +1,36 @@
-import {buildChatBubbles} from './chat-bubbles.js?v=fit-text-5';
+import {buildChatBubbles} from './chat-bubbles.js?v=chat-log-6';
+import {buildChatLog} from './chat-log.js';
+import {clampWalkPitch} from './look-limits.js';
 import {createPreviewFollower} from './preview-follower.js';
 import {buildGestureWheel} from './gesture-wheel.js';
 import {buildExpressionControls} from './expression-controls.js?v=minimal-chat-5';
-import {EXPRESSIONS,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=timed-3';
-import { buildCashRewards } from './cash-rewards.js?v=3d-pool-3';
+import {EXPRESSIONS,EXPRESSION_MS,expressionRemaining} from './expressions.js?v=kiss-4';
+import { buildCashRewards } from './cash-rewards.js?v=big-flight-1';
+import {buildCashDash} from './cash-dash.js?v=gate-stars-1';
+import {CASH_SITES} from './cash-dash-state.js';
 import {DATE_OUTFIT,SUIT_COLOR} from './date-suit.js?v=1';
-import {BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=corsage-bell-10';
+import {BIRTHDAY_ROSE,BIRTHDAY_SKIN} from './birthday-dress.js?v=back-seam-12';
 import {companionMode} from './control-mode.js?v=companion-1';
 import {createRemoteMotion} from './remote-motion.js?v=1';
 const remoteMotion=createRemoteMotion();
 const ownMotion=createRemoteMotion({delay:180}),lookMotion=createRemoteMotion({delay:140});
 let ownPose=null,passengerLying=false,passengerPointing=false,pointBlend=0;
 let remoteWasOnline=false;
-import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested} from './multiplayer.js?v=companion-1';
+import {connectIsland,islandUser,isIshiee,isPassenger,multiplayerRequested,roleUI} from './multiplayer.js?v=role-preview-2';
+if(roleUI){document.body.classList.add('role-ui');document.body.dataset.role=isIshiee?'ishie':'moshie';}
 let network=null,applyingNetwork=false,networkReady=!multiplayerRequested,remotePose=null,lastNetworkFrame=0,wasAutopilot=false;
-import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=fade-exit-2';
+import { buildStargazing, STARGAZING_SPOTS } from './stargazing.js?v=gate-stars-1';
 import { buildStoneSkipping } from './stone-skipping.js?v=three-rounds-2';
 import { SHORE } from './skipping-physics.js?v=more-skips-7';
 import { moveAroundRocks } from './rock-collision.js?v=props-players-1';
 import { createPlayerJump } from './player-jump.js';
-import { buildLovePlane } from './love-plane.js?v=2';
+import { buildLovePlane } from './love-plane.js?v=4';
 import { insectVisibility, insectRank } from './insect-density.js';
 import {makeWingGeometry,makeWingTexture} from './butterfly-wings.js?v=1';
 import { buildHandPose } from './hand-pose.js?v=puff-10';
-import {buildBouquetControls} from './bouquet-controls.js?v=controlled-pov-5';
+import {buildBouquetControls} from './bouquet-controls.js?v=role-ui-6';
 import { buildDistantIsland } from './distant-island.js?v=neighbours-5';
-import { buildCompanion } from './companion.js?v=hat-fit-2';
-import { addGiftAura } from './gift-aura.js';
+import { buildCompanion } from './companion.js?v=bow-tie-2';
 import { buildGiftFinish, giftBox, addGiftDetails } from './gift-finish.js?v=softer-shine-11';
 import { buildDandelions } from './dandelions.js?v=2';
 import { buildOceanLife } from './ocean-life.js?v=buoy-beacons-5';
@@ -37,7 +41,7 @@ import { addBirthdayCentrepiece } from './birthday-centrepiece.js?v=heart-messag
 import {buildStageConfetti} from './stage-confetti.js?v=round-wider-4';
 import { buildShootingStars } from './shooting-stars.js?v=msaa-tail-fix-5';
 import { auroraGLSL } from './aurora.js?v=4';
-import { buildCharacter } from './character.js?v=hat-fit-2';
+import { buildCharacter } from './character.js?v=bow-tie-2';
 import { buildFireside } from './fireside.js?v=restored-bark-9';
 import * as THREE from 'three';
 import { referenceTreeGeometry } from './reference-trees.js?v=solid-bases-2';
@@ -46,9 +50,10 @@ import { buildCelebration } from './celebration.js?v=stage-2';
 import { cakeTableMaterials } from './cake-details.js?v=ambient-1';
 import { buildStars, buildPaintedClouds } from './painted-sky.js?v=github-minus-01-16';
 import { buildSceneContext } from './scene-context.js?v=2';
-import { buildFireworks } from './fireworks.js?v=festival-4';
-import { createSoundscape } from './soundscape.js?v=4';
-import { createRadio } from './radio-player.js?v=1';
+import { buildFireworks } from './fireworks.js?v=festival-5';
+import { buildSkyMessage } from './sky-message.js?v=2';
+import { createSoundscape } from './soundscape.js?v=cash-sound-1';
+import { createRadio } from './radio-player.js?v=quiet-bed-2';
 import { buildMeadowLife } from './meadow-life.js?v=colorful-caps-1';
 import { buildCandleSmoke } from './candle-smoke.js';
 
@@ -70,7 +75,8 @@ const CONFIG = {
   walkSpeed: 5.0,
   giftReach: 3.2,
   radioMusicUrl: '', // Add a local audio file URL when the music is ready.
-  musicVolume: 1, // Background songs: Happy Birthday until the wish, then a calm drift. 0 turns them off.
+  skyMessage: ['Happy Birthday', 'Moshie Pie!!'], // Written in the sky by the candle fireworks (two lines).
+  musicVolume: 1, // Happy Birthday until the wish, then a barely audible radio bed. 0 disables background music.
   startingMood: 'night', // Night preview while refining the celebration lighting.
   gifts: [
     { pos: [1.5, 8], title: 'A pocket of sunshine', icon: '☀', color: 0xf2bd6b,
@@ -556,7 +562,7 @@ let fishRippleCursor=0;
 const jumpingFish=buildJumpingFish(scene,{terrainHeight,onSplash:(x,z,time,size)=>{
   oceanUniforms.uFishRipples.value[fishRippleCursor++%8].set(x,z,time,size);
 }});
-const lovePlane=buildLovePlane(scene);
+const lovePlane=buildLovePlane(scene,{loop:new URLSearchParams(location.search).has('planeStill')});
 buildDistantIsland(scene,skyUniforms.uHorizon);
 
 /* -------------------------------------------------------------------------- */
@@ -577,7 +583,7 @@ const paintUniforms = {
   uCakeLight: {value:new THREE.Vector3(-8,gardenHeight+2.4,-10)},
   uStumpBase: {value:new THREE.Vector3()},
   uStumpRoots: {value:[.2,1.25,2.35,3.5,4.65,5.55]},
-  uGiftLights:{value:CONFIG.gifts.map(g=>new THREE.Vector4(g.pos[0],terrainHeight(...g.pos)+.8,g.pos[1],1))},
+  uGiftLights:{value:CONFIG.gifts.map(g=>new THREE.Vector4(g.pos[0],terrainHeight(...g.pos)+.8,g.pos[1],0))},
   uFireflyPools:{value:Array.from({length:8},()=>new THREE.Vector4(0,0,0,0))},
   uGiftColors:{value:CONFIG.gifts.map(g=>new THREE.Color(g.color).lerp(new THREE.Color(0xffe6b8),.35))},
   uLanterns: {value:lanternSites.map(([x,z,h])=>new THREE.Vector4(x,terrainHeight(x,z)+h,z,4.8))},
@@ -1427,6 +1433,10 @@ function buildParty() {
     const p=party.localToWorld(new THREE.Vector3(x,0,z));
     rockColliders.push({x:p.x,z:p.z,radius:.09});
   }
+  // The round cake table. Just inside its 1.30 m top, so his 1.6 m celebration
+  // circle around the cake stays clear with his .32 m body radius.
+  const tableCentre=party.localToWorld(new THREE.Vector3(0,0,0));
+  rockColliders.push({x:tableCentre.x,z:tableCentre.z,radius:1.28});
   for(const part of board.children){
     const shape=part.geometry?.parameters;
     if(!shape?.depth)continue; // The printed face shares the wooden board's box.
@@ -1466,9 +1476,12 @@ const radio=createRadio({
 radio.play(0);
 function updateRadio(dt){
   camera.getWorldPosition(radioEar);
-  // Full volume beside the fire, fading to silence about 17 m away.
+  // After the birthday celebration, the same radio song is barely audible
+  // island-wide (2/100 volume), while keeping its familiar fireside loudness.
   const near=audio.muted?0:1-smoothstep(5,17,radioEar.distanceTo(radioSpot));
-  radio.update(dt,near);audio.scape?.duck(near);
+  const background=!audio.muted&&CONFIG.musicVolume>0&&audio.musicMode==='radio'
+    ?.025*smoothstep(7,13,elapsed-audio.musicChangedAt):0;
+  radio.update(dt,near,background);audio.scape?.duck(near);
 }
 interactive.push({type:'radio',object:fireside.radio,reach:2.5,prompt:'play the next song',action:()=>{
   if(fireside.audio){if(fireside.audio.paused)fireside.audio.play().catch(()=>toast('THE RADIO TRACK COULD NOT BE LOADED'));else fireside.audio.pause();return;}
@@ -1489,6 +1502,9 @@ function blowCandles({confetti=true}={}) {
   if (!candlesLit) { toast('YOUR WISH IS ALREADY ON ITS WAY'); return; }
   candlesLit = false;
   candleBlownAt=elapsed;
+  // The celebration volley that follows a fresh wish ends with the sky message.
+  if(confetti)finalePendingUntil=elapsed+8;
+  // Wrapped gifts are reserved for the later personal gift exchange.
   if(confetti)stageConfetti.burst(elapsed);
   companion.celebrate();
   if(inspect)candleFrameCheck={start:performance.now(),maxFrame:0,programs:renderer.info.programs.length};
@@ -1496,7 +1512,7 @@ function blowCandles({confetti=true}={}) {
   // shader light-count defines and recompiles standard materials on interaction.
   candleFlames.forEach(({flame}) => { flame.visible=false; });
   audio.softBlow();
-  audio.setMusic('calm');
+  audio.setMusic('radio');
   toast('WISH MADE  ·  MAY IT FIND US SOON');
   if(!applyingNetwork)setTimeout(() => launchFireworks(7), 650);
 }
@@ -1508,7 +1524,7 @@ function blowCandles({confetti=true}={}) {
 const gifts = [];
 const giftFinish = buildGiftFinish(renderer);
 let foundCount = 0, collectedAmount=0;
-const cashRewards=buildCashRewards(CONFIG.gifts.length);
+const cashRewards=buildCashRewards(CASH_SITES.length);
 let rewardBusy=false;
 function makeGift(data, index) {
   const g = new THREE.Group();
@@ -1547,7 +1563,6 @@ function makeGift(data, index) {
   const glow=new THREE.PointLight(data.color,1,7,2);glow.position.y=2.6;g.add(glow);
   const haloMat=new THREE.SpriteMaterial({map:glowTexture,color:data.color,transparent:true,opacity:.12,depthWrite:false,blending:THREE.AdditiveBlending});
   const halo=new THREE.Sprite(haloMat);halo.position.y=.7;halo.scale.set(3.5,3.5,1);g.add(halo);
-  const auraMat=addGiftAura(g,data.color);
   addGiftDetails(g,index,data.tier);
   const [x,z] = data.pos;
   // Present-sized rather than crate-sized, but still standing clear of the tallest
@@ -1557,13 +1572,15 @@ function makeGift(data, index) {
   g.rotation.y=rand()*Math.PI;
   // Keep the scene's light count stable when a collected gift is hidden.
   g.updateWorldMatrix(true,true);scene.attach(glow);
-  const gift = { type:'gift', object:g,glow,haloMat,auraMat,baseMat, data, index, found:false, baseY:g.position.y, phase:rand()*6, reach:CONFIG.giftReach,
+  g.visible=false;glow.intensity=0;
+  const gift = { type:'gift', object:g,glow,haloMat,baseMat, data, index, found:false, baseY:g.position.y, phase:rand()*6, reach:CONFIG.giftReach,available:()=>false,
     prompt:`unwrap ${rupees(data.amount)} · ${data.title}`, action:()=>collectGift(gift) };
   gifts.push(gift); interactive.push(gift);
 }
 CONFIG.gifts.forEach(makeGift);
 
 function collectGift(gift,{animate=!applyingNetwork,showNote=!applyingNetwork}={}) {
+  if(!gift.object.visible)return;
   if(network&&!applyingNetwork){network.event({type:"gift",index:gift.index});return;}
   if (gift.found) return;
   gift.found = true;
@@ -1704,14 +1721,19 @@ const fireflies=new THREE.Points(fireflyGeo,fireflyMat);scene.add(fireflies);
 /* Fireworks                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const fireworks=buildFireworks(scene,glowTexture,(origin,variant)=>{audio.fireworkBurst(origin,variant);companion.watchFirework(origin);},(target,variant,life)=>audio.fireworkLaunch(target,variant,life));
+const skyMessage=buildSkyMessage(scene,glowTexture,CONFIG.skyMessage);
+const finaleEye=new THREE.Vector3();
+let finalePendingUntil=-1;
+function takeFinale(){const finale=elapsed<finalePendingUntil;finalePendingUntil=-1;return finale;}
+const fireworks=buildFireworks(scene,glowTexture,(origin,variant)=>{audio.fireworkBurst(origin,variant);companion.watchFirework(origin);},(target,variant,life)=>audio.fireworkLaunch(target,variant,life),
+  origin=>{camera.getWorldPosition(finaleEye);skyMessage.show(origin,finaleEye);lovePlane.flyPast(origin,finaleEye);});
 function launchFireworks(amount=6){
   if(network&&!applyingNetwork){network.event({type:"fireworks",amount});return;}
   if(currentMood!=='night')setMood('night');
   toast('LOOK UP  ·  THE SKY IS YOURS');
-  fireworks.launch(playerRig.position,playerRig.rotation.y,amount);
+  fireworks.launch(playerRig.position,playerRig.rotation.y,amount,{finale:takeFinale()});
 }
-function updateFireworks(dt){if(inspect&&inspectParams.has('fireworkStill'))return;fireworks.update(dt);}
+function updateFireworks(dt){if(inspect&&inspectParams.has('fireworkStill'))return;fireworks.update(dt);skyMessage.update(dt,lovePlane.passing);}
 
 /* -------------------------------------------------------------------------- */
 /* Small synthesised soundscape                                               */
@@ -1719,7 +1741,7 @@ function updateFireworks(dt){if(inspect&&inspectParams.has('fireworkStill'))retu
 
 const soundEar=new THREE.Vector3(),soundLook=new THREE.Vector3(),soundSpot=new THREE.Vector3();
 const audio={
-  ctx:null,master:null,scape:null,muted:false,musicMode:'birthday',
+  ctx:null,master:null,scape:null,muted:false,musicMode:'birthday',musicChangedAt:0,
   init(){
     if(this.ctx)return;
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
@@ -1744,10 +1766,10 @@ const audio={
     osc.connect(gain).connect(this.master);osc.start(t);osc.stop(t+duration+.05);
   },
   chime(notes){notes.forEach((n,i)=>this.tone(n,i*.12,1.4,.045,'sine'));},
-  gift(n){this.chime([392+n*6,523.25+n*4,659.25+n*3]);},
-  // Happy Birthday plays until the candles are blown, then the calm song
-  // fades in once the celebration fireworks have settled.
-  setMusic(mode){if(this.musicMode===mode)return;this.musicMode=mode;if(CONFIG.musicVolume>0)this.scape?.setMusic(mode,{delay:7,fade:5});},
+  gift(n){if(this.muted||!this.ctx)return;if(this.scape)this.scape.collect(n);else this.chime([392+n*6,523.25+n*4,659.25+n*3]);},
+  // The birthday tune fades out after the wish; updateRadio brings in the
+  // real playlist softly once the first celebration sounds have settled.
+  setMusic(mode){if(this.musicMode===mode)return;this.musicMode=mode;this.musicChangedAt=elapsed;if(CONFIG.musicVolume>0)this.scape?.setMusic(mode,{delay:7,fade:5});},
   place(position){
     camera.getWorldPosition(soundEar);camera.getWorldDirection(soundLook);
     const dx=position.x-soundEar.x,dz=position.z-soundEar.z,distance=Math.hypot(dx,position.y-soundEar.y,dz);
@@ -1777,7 +1799,7 @@ playerRig.add(cameraPivot);cameraPivot.add(camera);scene.add(playerRig);
 cameraPivot.position.y=CONFIG.thirdPerson?1.25:CONFIG.eyeHeight;
 camera.position.set(0,0,CONFIG.thirdPerson?4.6:0);
 const avatar=buildCharacter(playerRig,isIshiee?DATE_OUTFIT:{});
-if(multiplayerRequested)avatar.root.scale.setScalar(1.06);
+if(roleUI)avatar.root.scale.setScalar(1.06);
 avatar.root.visible=CONFIG.thirdPerson;
 const companion=buildCompanion(scene,{terrainHeight,onIsland,stageHeight:STAGE_HEIGHT,stageRadius:STAGE_RADIUS,female:isIshiee,
   resolveMove:(x,z,dx,dz,player)=>moveAroundRocks(x,z,dx,dz,[...rockColliders,{x:player.x,z:player.z,radius:.30}],onIsland,.32)});
@@ -1832,10 +1854,13 @@ playerRig.rotation.y=Math.atan2(spawnX-celebrationPathX(spawnZ-7),7);
 cameraPivot.rotation.x=-.12;
 const keys={};
 const playerJump=createPlayerJump();
-const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:points=>network?.event({type:"ink",points}),onLeave:()=>requestPointerLock()});
+const stargazing=buildStargazing({scene,camera,playerRig,avatar,companion,terrainHeight,interactive,setMood,keys,glowTexture,networkMode:multiplayerRequested,male:isIshiee,
+  // Stargazing waits until the candles are blown and the cash dash is over.
+  canStart:()=>!candlesLit&&!!cashDash?.finished,onBlocked:()=>toast(candlesLit?'BLOW OUT THE CANDLES FIRST':'FINISH THE CASH DASH FIRST'),
+  canMovePartner:()=>!multiplayerRequested||!!network?.autopilot,onInk:points=>network?.event({type:"ink",points}),onLeave:()=>requestPointerLock()});
 let playing=false;
 const bouquetControls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight,
-  isOnline:multiplayerRequested,isMale:isIshiee,getNetwork:()=>network,isPlaying:()=>playing,
+  isOnline:multiplayerRequested,isMale:isIshiee,roleUI,getNetwork:()=>network,isPlaying:()=>playing,
   isBusy:()=>stargazing.active||passengerLying||companion.throwing||rewardBusy||sceneContext.active||$('#command').classList.contains('open')||!!$('.note-modal.open'),
   clearKeys:()=>{Object.keys(keys).forEach(k=>keys[k]=false);playerJump.reset();},toast});
 let nearest=null;
@@ -1847,6 +1872,24 @@ const sceneContext=buildSceneContext({camera,clouds,snapshot:()=>({
 })});
 
 function onIsland(x,z){return Math.sqrt((x/67)**2+(z/54)**2)<.89;}
+const cashDash=buildCashDash({scene,camera,ground:renderedGroundHeight,rewards:cashRewards,online:multiplayerRequested,male:isIshiee,roleUI,
+  resolveSite:(x,z)=>moveAroundRocks(x,z,0,0,rockColliders,onIsland,.9),getNetwork:()=>network,isPlaying:()=>playing,
+  candlesBlown:()=>!candlesLit,
+  getCollector:()=>roleUI&&isIshiee||stargazing.active||bouquetControls.hisView||sceneContext.active?null:playerRig.position,
+  onStart:()=>{if(!multiplayerRequested&&companion.holding)companion.toggleHolding();},
+  onPickup:()=>{audio.tone(880,0,.09,.024);audio.tone(1174.66,.055,.12,.018);}
+});
+const hostControls=roleUI&&isIshiee?buildHostControls():null;
+function buildHostControls(){
+  const bar=document.createElement('nav');bar.id='host-controls';bar.className='hidden-ui';bar.setAttribute('aria-label','Celebration controls');
+  bar.append($('#bouquet-controls'));
+  const actions=[];
+  const button=(label,action)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',action);bar.append(b);actions.push(b);};
+  button('Fireworks · F',()=>launchFireworks(7));
+  button('Next song · N',()=>{const from=radio.index??0;requestSong(from,(from+1)%radio.count);});
+  bar.append($('.cash-dash-start'));document.body.append(bar);
+  return {update(){const busy=!playing||!networkReady||stargazing.active||rewardBusy||$('#command').classList.contains('open')||!!$('.note-modal.open');for(const b of actions)b.disabled=busy;}};
+}
 const walkingReducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
 let walkingBobPhase=0,walkingBobAmount=0;
 const previewFollower=createPreviewFollower();
@@ -1961,7 +2004,8 @@ function setMood(name){
 }
 document.querySelectorAll('#moods button').forEach(b=>b.addEventListener('click',()=>setMood(b.dataset.mood)));
 
-const chatBubbles=buildChatBubbles({scene,camera,
+const chatLog=buildChatLog();
+const chatBubbles=buildChatBubbles({scene,camera,onMessage:(user,text)=>chatLog.show(user,text),
   getAnchor:user=>user===(islandUser||'MOSHIEE')?playerRig:(!multiplayerRequested||network?.remoteLive?companion.anchor:null),
   onSound:()=>{audio.tone(740,0,.13,.022);audio.tone(988,.08,.19,.017);}
 });
@@ -1971,7 +2015,7 @@ const expressionDeadlines={ISHIEE:0,MOSHIEE:0};
 function applyExpression(user,value,duration=EXPRESSION_MS){
   expressionValues[user]=value;
   expressionDeadlines[user]=value==='normal'?0:Date.now()+duration;
-  const character=multiplayerRequested?(user===islandUser?avatar:companion):(user==='ISHIEE'?companion:avatar);
+  const character=roleUI?(user===islandUser?avatar:companion):(user==='ISHIEE'?companion:avatar);
   character.setExpression(value,duration);
 }
 function showExpressionBubble(user,value,duration=EXPRESSION_MS){
@@ -1989,7 +2033,7 @@ function selectExpression(user,value){
   applyExpression(user,value);if(!multiplayerRequested)showExpressionBubble(user,value);return true;
 }
 function applyGesture(user,value){
-  const character=multiplayerRequested?(user===islandUser?avatar:companion):(user==='ISHIEE'?companion:avatar);
+  const character=roleUI?(user===islandUser?avatar:companion):(user==='ISHIEE'?companion:avatar);
   if(!character.triggerGesture(value))return false;
   chatBubbles.show(user,value==='wave'?'👋':'🙌',{emoji:true,duration:2400});return true;
 }
@@ -1998,18 +2042,19 @@ const gestureWheel=buildGestureWheel({surface:renderer.domElement,
   onOpen:()=>{Object.keys(keys).forEach(k=>keys[k]=false);stoneSkipping.cancelCharge();},
   onSelect:action=>{
     if(multiplayerRequested&&!network?.connected){toast('RECONNECT TO USE GESTURES');return;}
-    const user=multiplayerRequested?islandUser:bouquetControls.hisView?'ISHIEE':'MOSHIEE';
+    const user=roleUI?islandUser:bouquetControls.hisView?'ISHIEE':'MOSHIEE';
     if(action.kind==='expression'){selectExpression(user,action.id);expressionControls.sync(expressionValues,expressionDeadlines);return;}
     if(handsLinked()||stoneSkipping.active||companion.throwing||avatar.bouquetActive||companion.bouquetActive){toast('FREE YOUR HANDS TO USE THIS GESTURE');return;}
     if(applyGesture(user,action.id)&&multiplayerRequested)network.event({type:'gesture',value:action.id});
   }
 });
-const expressionControls=buildExpressionControls({container:$('#command'),isOnline:multiplayerRequested,user:islandUser||'ISHIEE',onPreviewMessage:user=>{
+const expressionControls=buildExpressionControls({container:$('#command'),isOnline:roleUI,user:islandUser||'ISHIEE',onPreviewMessage:user=>{
   if(multiplayerRequested||!playing||commandMode)return;
   const text=Array.from($('#command-input').value.trim()||'I’m so happy to be here with you ♡').slice(0,140).join('');
   chatBubbles.show(user,text);
 },onSelect:selectExpression});
 function openCommand(commands=false){
+  if(roleUI)commands=false;
   commandMode=commands;
   expressionControls.setMode(commands);expressionControls.setConnected(!multiplayerRequested||!!network?.connected);
   Object.keys(keys).forEach(k=>keys[k]=false);passengerPointing=false;
@@ -2034,9 +2079,10 @@ function runCommand(raw){
   const cmd=raw.trim().toLowerCase().replace(/^\//,'');
   if(cmd==='context'){closeCommand(false);sceneContext.open();return;}
   if(cmd==='fireworks'||cmd==='firework'||cmd==='celebrate')launchFireworks(9);
+  else if(cmd==='birthday'||cmd==='wish'){finalePendingUntil=elapsed+8;launchFireworks(7);}
   else if(cmd==='stargaze'){if(!stoneSkipping.active)stargazing.enter();}
   else if(MOODS[cmd])setMood(cmd);
-  else if(cmd==='gifts'||cmd==='gift')toast(`${foundCount} FOUND  ·  ${gifts.length-foundCount} STILL HIDING`);
+  else if(cmd==='gifts'||cmd==='gift')toast('BLOW OUT THE CANDLES TO BEGIN THE CASH DASH');
   else if(cmd==='blow'||cmd==='candles'){
     const cake=interactive.find(i=>i.type==='cake');cake.object.getWorldPosition(tmp);
     if(tmp.distanceTo(playerRig.position)<cake.reach)blowCandles();else toast('FIND THE CAKE IN THE PARTY GARDEN FIRST');
@@ -2052,7 +2098,7 @@ $('#command').addEventListener('submit',e=>{
   if(performance.now()-lastChatSent<1200){toast('ONE LITTLE MOMENT…');return;}
   if(multiplayerRequested&&!network?.connected){toast('WAITING TO RECONNECT');return;}
   lastChatSent=performance.now();
-  if(network)network.event({type:'chat',text});else chatBubbles.show(bouquetControls.hisView?'ISHIEE':'MOSHIEE',text);
+  if(network)network.event({type:'chat',text});else chatBubbles.show(islandUser||(bouquetControls.hisView?'ISHIEE':'MOSHIEE'),text);
   closeCommand();toast('MESSAGE SENT ♡');
 });
 $('#command-button').addEventListener('click',()=>openCommand());
@@ -2067,7 +2113,7 @@ window.addEventListener('keydown',e=>{
   }
   if($('.note-modal.open')||rewardBusy)return;
   if(multiplayerRequested&&!networkReady)return;
-  if(e.code==='KeyP'&&!e.repeat&&playing){e.preventDefault();Object.keys(keys).forEach(k=>keys[k]=false);sceneContext.open();return;}
+  if(!roleUI&&e.code==='KeyP'&&!e.repeat&&playing){e.preventDefault();Object.keys(keys).forEach(k=>keys[k]=false);sceneContext.open();return;}
   if(playing&&bouquetControls.keyDown(e))return;
   if(bouquetControls.hisView){
     if(e.code==='Slash'&&!e.repeat){e.preventDefault();openCommand();return;}
@@ -2076,6 +2122,12 @@ window.addEventListener('keydown',e=>{
   }
   if(bouquetControls.previewing&&!['Digit1','Digit2','Digit3','KeyM'].includes(e.code))return;
   if(e.code==='Slash'&&!e.repeat&&playing){e.preventDefault();openCommand();return;}
+  // Host shortcuts must run before companion mode's input gate. Chat and
+  // modal guards above keep typing from triggering celebration actions.
+  if(playing&&!stargazing.active&&(!roleUI||isIshiee)&&!e.repeat){
+    if(e.code==='KeyF'){e.preventDefault();launchFireworks(7);return;}
+    if(e.code==='KeyN'){e.preventDefault();const from=radio.index??0;requestSong(from,(from+1)%radio.count);return;}
+  }
   if(isPassenger){
     if(!playing)return;
     if(e.code==='KeyR'){e.preventDefault();passengerPointing=true;}
@@ -2092,14 +2144,16 @@ window.addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='KeyE'&&nearest&&nearest!==handInteraction&&!e.repeat)nearest.action();
   if(e.code==='KeyH'&&!e.repeat&&(handsLinked()||canHoldHands()))handInteraction.action();
-  if(e.code==='KeyF'&&!e.repeat)launchFireworks(7);
   if(e.code==='KeyM')audio.toggle();
-  if(e.code==='Digit1')setMood('day');
-  if(e.code==='Digit2')setMood('sunset');
-  if(e.code==='Digit3')setMood('night');
+  if((!roleUI||isIshiee)&&e.code==='Digit1')setMood('day');
+  if((!roleUI||isIshiee)&&e.code==='Digit2')setMood('sunset');
+  if((!roleUI||isIshiee)&&e.code==='Digit3')setMood('night');
 });
 window.addEventListener('keyup',e=>{if(e.code==='KeyR')passengerPointing=false;stoneSkipping.keyUp(e);keys[e.code]=false;});
-document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==renderer.domElement){passengerPointing=false;stoneSkipping.cancelCharge();}});
+// Chrome on Windows sometimes reports one huge mouse jump under pointer lock,
+// often right after locking, which would snap the view toward the sky.
+let lookSettle=0;
+document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement===renderer.domElement)lookSettle=2;else{passengerPointing=false;stoneSkipping.cancelCharge();}});
 renderer.domElement.addEventListener('mousedown',e=>{
   if(!playing||isPassenger||!networkReady||stargazing.active||bouquetControls.previewing||sceneContext.active||rewardBusy||$('.note-modal.open')||$('#command').classList.contains('open')||document.pointerLockElement!==renderer.domElement)return;
   stoneSkipping.pointerDown(e,playerRig.position);
@@ -2116,9 +2170,13 @@ renderer.domElement.addEventListener('click',()=>{if(playing&&!stargazing.active
 window.addEventListener('mousemove',e=>{
   if(gestureWheel.active)return;
   if(stargazing.active||document.pointerLockElement!==renderer.domElement)return;
+  // Skip the first events after locking and any physically impossible jump.
+  if(lookSettle>0){lookSettle--;return;}
+  if(Math.abs(e.movementX)>280||Math.abs(e.movementY)>180)return;
   if(bouquetControls.hisView){bouquetControls.look(e.movementX,e.movementY);return;}
   playerRig.rotation.y-=e.movementX*.0022;
-  cameraPivot.rotation.x=clamp(cameraPivot.rotation.x-e.movementY*.0018,CONFIG.thirdPerson?-1.15:-Math.PI/2+.02,CONFIG.thirdPerson?.35:Math.PI/2-.02);
+  const pitch=cameraPivot.rotation.x-e.movementY*.0018;
+  cameraPivot.rotation.x=CONFIG.thirdPerson?clamp(pitch,-1.15,.35):clampWalkPitch(pitch);
 });
 
 let toastTimer;
@@ -2285,7 +2343,7 @@ function beginGpuSample(){
   const query=gl.createQuery();gl.beginQuery(gpuTimer.TIME_ELAPSED_EXT,query);return query;
 }
 const inspect = new URLSearchParams(location.search).has('inspect');
-const diagnostic = inspect ? document.createElement('output') : null;
+const diagnostic = inspect&&!roleUI ? document.createElement('output') : null;
 if(diagnostic){diagnostic.id='render-stats';diagnostic.style.cssText='position:fixed;left:20px;top:90px;padding:10px;background:#102a30cc;color:#fff;font:12px monospace;z-index:100;white-space:pre';document.body.appendChild(diagnostic);}
 function resizeTargets(){
   // Bound total scene pixels as well as DPR: Retina should not quadruple GPU work.
@@ -2389,7 +2447,7 @@ function animate(now,force){
   const gestureBusy=stargazing.active||handsLinked()||stoneSkipping.active||companion.throwing;
   avatar.updateGesture(dt,gestureBusy);companion.updateGesture(dt,gestureBusy);
   dandelions.update(elapsed,playerRig.position,moodLive.stars,renderer.getPixelRatio()*resolutionScale);updateNearGrass();updateInteraction();updateMood(dt);updateFireworks(dt);updateRadio(dt);
-  gifts.forEach(g=>{if(!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.auraMat.opacity=(.30+paintUniforms.uPartyGlow.value*.32)*(1+Math.sin(elapsed*1.3+g.phase)*.07);g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
+  gifts.forEach(g=>{if(g.object.visible&&!g.found){g.object.position.y=g.baseY+Math.sin(elapsed*1.25+g.phase)*.09;g.object.rotation.y+=dt*.28;g.glow.intensity=.15+paintUniforms.uPartyGlow.value*1.2;g.haloMat.opacity=.01+paintUniforms.uPartyGlow.value*.025;g.baseMat.emissiveIntensity=.05+paintUniforms.uPartyGlow.value*.12;}});
   if(candleBlownAt>=0){
     const age=elapsed-candleBlownAt;
     candleSmoke.update(inspect&&inspectParams.has('smokePreview')?1.25:age);
@@ -2458,6 +2516,9 @@ function animate(now,force){
   if(fireflyMat.opacity<=.01) paintUniforms.uFireflyPools.value.forEach(pool=>pool.w=0);
   sky.position.copy(camera.getWorldPosition(tmp2));
   chatBubbles.update();
+  cashDash.update();
+  hostControls?.update();
+  chatLog.update();
   expressionControls.update();
   const renderStart=performance.now();
   const gpuQuery=beginGpuSample();
@@ -2486,7 +2547,7 @@ renderer.setAnimationLoop(animate);
 // Headless capture environments never run requestAnimationFrame, so inspection
 // needs a way to step the scene by hand.
 if(inspect)window.__step=()=>animate(performance.now(),true);
-if(inspect){window.__radio=radio;window.__radioNext=()=>requestSong(radio.index??0,((radio.index??0)+1)%radio.count);}
+if(inspect){window.__finale=()=>{finalePendingUntil=elapsed+8;launchFireworks(7);};window.__radio=radio;window.__radioNext=()=>requestSong(radio.index??0,((radio.index??0)+1)%radio.count);}
 
 window.addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
@@ -2511,7 +2572,7 @@ $('#enter').addEventListener('click',()=>{
   playing=true;document.body.classList.add('playing');$('#welcome').classList.add('gone');audio.init();audio.resume();
   if(!inspect||inspectParams.has('radio'))radio.start();
   setTimeout(()=>requestPointerLock(),300);
-  setTimeout(()=>toast(isPassenger?'LOOK AROUND · HOLD R TO POINT · SPACE TO CHEER':'TEN LITTLE GIFTS ARE WAITING FOR YOU'),1300);
+  setTimeout(()=>toast(isPassenger?'LOOK AROUND · HOLD R TO POINT · SPACE TO CHEER':'MAKE A WISH AT THE BIRTHDAY CAKE'),1300);
 });
 
 if(CONFIG.fromName) $('.brand small').textContent=CONFIG.fromName;
@@ -2564,7 +2625,7 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
       if(e.type==='chat')chatBubbles.show(message.actor,e.text);
       if(e.type==='gesture'&&message.actor!==islandUser)applyGesture(message.actor,e.value);
       if(e.type==='cheer'&&companionMode&&!isIshiee)companion.triggerCheer();
-      if(e.type==='fireworks'&&e.pose){setMood('night');fireworks.launch(new THREE.Vector3(...e.pose.position),e.pose.yaw,e.amount);}
+      if(e.type==='fireworks'&&e.pose){setMood('night');fireworks.launch(new THREE.Vector3(...e.pose.position),e.pose.yaw,e.amount,{finale:takeFinale()});}
       if(e.type==='stone')stoneSkipping.receiveThrow(e);
       if(e.type==='ink')stargazing.receiveInk(e.points);
       applyingNetwork=false;
@@ -2586,7 +2647,7 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
         if(stargazing.active)stargazing.leave({immediate:true});
         if(s.startedAt)elapsed=Math.max(0,(s.serverTime-s.startedAt)/1000);
         const pose=s.poses[islandUser];
-        if(pose){playerRig.position.fromArray(pose.position);playerRig.rotation.set(0,pose.yaw,0);cameraPivot.rotation.x=pose.pitch;}
+        if(pose){playerRig.position.fromArray(pose.position);playerRig.rotation.set(0,pose.yaw,0);cameraPivot.rotation.x=CONFIG.thirdPerson?pose.pitch:clampWalkPitch(pose.pitch);}
         else if(isIshiee){playerRig.position.set(-5.9,terrainHeight(-5.9,-10.1)+STAGE_HEIGHT,-10.1);playerRig.rotation.y=Math.PI;}
       }
       const other=isIshiee?'MOSHIEE':'ISHIEE';
@@ -2604,6 +2665,7 @@ onStatus(ready,text){expressionControls.setConnected(ready);networkReady=ready;n
         collectGift(gifts[i],{animate:fresh,showNote:fresh&&s.actor===islandUser});
       }
       if(s.world.candles&&candlesLit)blowCandles({confetti:!s.welcome&&s.event?.type==='candles'});
+      cashDash.sync(s);
       if(s.world.hats)interactive.find(i=>i.type==='hat')?.action();
       if(s.event?.type==='hand')toast(s.world.holding?'HOLDING HANDS · H TO LET GO':s.world.handRequest===islandUser?'HAND OFFERED · WAITING FOR YOUR PARTNER':'YOUR PARTNER OFFERS A HAND · PRESS H NEARBY');
       if(s.event?.type==='candles'&&s.actor===islandUser)setTimeout(()=>network.event({type:'fireworks',amount:7}),650);

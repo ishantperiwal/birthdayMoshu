@@ -14,9 +14,10 @@ const source=(await readFile(url,'utf8'))
     applyAxisAngle(axis,a){const x=this.x,z=this.z;this.x=x*Math.cos(a)+z*Math.sin(a);this.z=z*Math.cos(a)-x*Math.sin(a);return this;}
     distanceTo(v){return Math.hypot(this.x-v.x,this.y-v.y,this.z-v.z);}
   } const THREE={Vector3}; export {Vector3};`)
-  .replace("'./bouquet-motion.js'",JSON.stringify(new URL('../bouquet-motion.js',import.meta.url).href));
+  .replace("'./bouquet-motion.js'",JSON.stringify(new URL('../bouquet-motion.js',import.meta.url).href))
+  .replace("'./look-limits.js'",JSON.stringify(new URL('../look-limits.js',import.meta.url).href));
 const {buildBouquetControls,Vector3}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
-function fixture(){
+function fixture(options={}){
   const elements=[];
   globalThis.document={createElement(){const e={style:{},append(){},addEventListener(type,fn){this[type]=fn;}};elements.push(e);return e;},body:{append(){}}};
   const transform=()=>({position:new Vector3(),rotation:new Vector3(),quaternion:new Vector3(),scale:new Vector3(1,1,1),visible:false});
@@ -26,10 +27,21 @@ function fixture(){
   const companion={anchor:transform(),bodyScale:1.06,holding:false,setBouquet(v){this.state=v;},updateBouquet(){},setBouquetView(){}};
   companion.anchor.position.z=-5;companion.anchor.updateWorldMatrix=()=>{};companion.anchor.localToWorld=v=>v.add(companion.anchor.position);
   const controls=buildBouquetControls({scene,camera,playerRig,avatar,companion,terrainHeight:()=>0,isOnline:false,isMale:false,
-    getNetwork:()=>null,isPlaying:()=>true,isBusy:()=>false,clearKeys(){},toast(){}});
+    getNetwork:()=>null,isPlaying:()=>true,isBusy:()=>false,clearKeys(){},toast(){},...options});
   const key=code=>controls.keyDown({code,repeat:false,preventDefault(){}});
   return {controls,avatar,companion,key,putAway:()=>elements.find(e=>e.textContent==='Put away').click(),endPreview:()=>elements.find(e=>e.textContent==='End preview').click()};
 }
+test('local role preview respects bouquet ownership without entering test POV mode',()=>{
+  const him=fixture({roleUI:true,isMale:true});
+  assert.equal(him.key('KeyV'),false);him.key('KeyB');
+  assert.equal(him.controls.shown,true);assert.equal(him.controls.previewing,false);
+  assert.equal(him.key('KeyR'),false);him.key('KeyB');assert.equal(him.controls.shown,false);
+  const her=fixture({roleUI:true,isMale:false});
+  assert.equal(her.key('KeyB'),false);assert.equal(her.key('KeyV'),false);
+  her.companion.anchor.position.z=-2;her.controls.sync(true);her.controls.update(2);
+  her.key('KeyR');assert.equal(her.controls.received,true);assert.equal(her.controls.previewing,false);
+});
+
 test('receiving releases the local movement gate without resetting flowers or teleporting him',()=>{
   const f=fixture();f.key('KeyB');assert.equal(f.controls.previewing,true);
   f.controls.update(2.1);f.key('KeyR');

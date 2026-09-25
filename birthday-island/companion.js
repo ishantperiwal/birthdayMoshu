@@ -1,6 +1,6 @@
 import {DATE_OUTFIT} from './date-suit.js?v=1';
 import * as THREE from 'three';
-import { buildCharacter } from './character.js?v=hat-fit-2';
+import { buildCharacter } from './character.js?v=bow-tie-2';
 
 export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRadius,female=false,resolveMove=(x,z,dx,dz)=>({x:x+dx,z:z+dz})}){
   const anchor=new THREE.Group();scene.add(anchor);anchor.position.set(-5.9,0,-10.1);
@@ -108,7 +108,7 @@ export function buildCompanion(scene,{terrainHeight,onIsland,stageHeight,stageRa
     look.set(player.x,player.y+1.55,player.z);attention.point=false;
     let interest='player',nearGift=null,best=36;
     if(state!=='celebrating'&&!holding&&!attention.wave){
-      for(const gift of gifts){if(gift.found)continue;gift.object.getWorldPosition(giftPosition);
+      for(const gift of gifts){if(gift.found||!gift.object.visible)continue;gift.object.getWorldPosition(giftPosition);
         const d=(giftPosition.x-player.x)**2+(giftPosition.z-player.z)**2;
         if(d<best&&Math.hypot(giftPosition.x-anchor.position.x,giftPosition.z-anchor.position.z)<8){best=d;nearGift=gift;}}
       if(nearGift&&time%7.8<4.8){

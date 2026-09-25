@@ -3,11 +3,13 @@ import * as THREE from 'three';
 // Subtle taper, retaining the toy cylinder with a softer lower rim.
 const halfHeight=.195,bottomRim=.055,topRim=.035;
 const lower=-halfHeight+bottomRim,upper=halfHeight-topRim;
+// Twelve percent narrower than the original .224 lower-face radius.
+const lowerRadius=.224*.88,upperRadius=.245;
 
 function radiusAt(y){
-  if(y<lower)return .224-bottomRim+Math.sqrt(Math.max(0,bottomRim**2-(y-lower)**2));
-  if(y>upper)return .245-topRim+Math.sqrt(Math.max(0,topRim**2-(y-upper)**2));
-  return THREE.MathUtils.lerp(.224,.245,(y-lower)/(upper-lower));
+  if(y<lower)return lowerRadius-bottomRim+Math.sqrt(Math.max(0,bottomRim**2-(y-lower)**2));
+  if(y>upper)return upperRadius-topRim+Math.sqrt(Math.max(0,topRim**2-(y-upper)**2));
+  return THREE.MathUtils.lerp(lowerRadius,upperRadius,(y-lower)/(upper-lower));
 }
 
 export function softHeadGeometry(){

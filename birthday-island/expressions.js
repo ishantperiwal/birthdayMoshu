@@ -1,6 +1,7 @@
 export const EXPRESSIONS=Object.freeze([
   {id:'normal',label:'Normal',emoji:'🙂'},
-  {id:'happy',label:'Happy',emoji:'😄'},
+  // Preserve the existing network ID for saved clients.
+  {id:'happy',label:'Kiss',emoji:'😘'},
   {id:'surprised',label:'Surprised',emoji:'😮'},
   {id:'sad',label:'Sad',emoji:'😔'}
 ]);
